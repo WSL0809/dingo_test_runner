@@ -3,7 +3,8 @@
 
 --echo 开始 MySQL 连接管理测试
 
-# 测试当前默认连接
+# 测试当前默认连接（使用 replace_regex 标准化连接ID）
+--replace_regex /[0-9]+/CONNECTION_ID/
 SELECT CONNECTION_ID() as default_connection_id;
 SELECT DATABASE() as default_database;
 
@@ -11,6 +12,7 @@ SELECT DATABASE() as default_database;
 --connect (conn1,127.0.0.1,root,123456,mysql,3306)
 
 # 在新连接中执行查询
+--replace_regex /[0-9]+/CONNECTION_ID/
 SELECT CONNECTION_ID() as conn1_connection_id;
 SELECT DATABASE() as conn1_database;
 
@@ -23,6 +25,7 @@ INSERT INTO conn1_test VALUES (1, 'from_conn1');
 --connect (conn2,127.0.0.1,root,123456,information_schema,3306)
 
 # 在 conn2 中执行查询
+--replace_regex /[0-9]+/CONNECTION_ID/
 SELECT CONNECTION_ID() as conn2_connection_id;
 SELECT DATABASE() as conn2_database;
 

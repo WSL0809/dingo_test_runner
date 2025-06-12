@@ -1,23 +1,32 @@
 开始 MySQL 连接管理测试
 SELECT CONNECTION_ID() as default_connection_id
+CONNECTION_ID
 SELECT DATABASE() as default_database
+test_mysql_connect
 创建新连接 conn1 到同一MySQL实例的不同数据库
 SELECT CONNECTION_ID() as conn1_connection_id
+CONNECTION_ID
 SELECT DATABASE() as conn1_database
+mysql
 DROP TABLE IF EXISTS conn1_test
 CREATE TABLE conn1_test (id INT PRIMARY KEY, msg VARCHAR(100))
 INSERT INTO conn1_test VALUES (1, 'from_conn1')
 创建第二个连接 conn2
 SELECT CONNECTION_ID() as conn2_connection_id
+CONNECTION_ID
 SELECT DATABASE() as conn2_database
+information_schema
 切换回 conn1 验证连接状态
 SELECT * FROM conn1_test
 1	from_conn1
 SELECT DATABASE() as current_db_should_be_mysql
+mysql
 切换到 conn2
 SELECT COUNT(*) as table_count FROM TABLES LIMIT 5
+336
 切换回默认连接
 SELECT DATABASE() as back_to_default_db
+test_mysql_connect
 注意：连接错误将直接导致测试失败，这是预期行为
 断开 conn1 连接
 尝试切换到已断开的连接（应该报错）
@@ -25,4 +34,5 @@ SELECT DATABASE() as back_to_default_db
 断开 conn2
 确认回到默认连接
 SELECT DATABASE() as final_default_db
+test_mysql_connect
 MySQL 连接管理测试完成
