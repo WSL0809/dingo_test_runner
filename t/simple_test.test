@@ -1,0 +1,7 @@
+# Simple test for debugging comparison logic
+
+-- echo Hello World
+
+CREATE TABLE test (id INTEGER);
+
+-- echo Test completed 

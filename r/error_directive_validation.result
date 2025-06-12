@@ -1,0 +1,8 @@
+开始 error 指令验证测试
+SELECT * FROM nonexistent_table
+error 指令测试：SQL 语句
+这个 echo 不应受 error 指令影响
+SELECT DATABASE() as connected_db
+SELECT 1 as normal_query
+1
+error 指令验证测试完成

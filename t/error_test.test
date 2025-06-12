@@ -1,0 +1,19 @@
+# Test error handling and result comparison
+
+-- Test 1: Basic query
+CREATE TABLE test_table (id INTEGER PRIMARY KEY, name TEXT);
+
+-- Test 2: Insert some data
+INSERT INTO test_table (name) VALUES ('Alice');
+INSERT INTO test_table (name) VALUES ('Bob');
+
+-- Test 3: Query the data
+-- sorted_result
+SELECT * FROM test_table ORDER BY name;
+
+-- Test 4: Test expected error
+-- error no such table
+SELECT * FROM non_existent_table;
+
+-- Test 5: Drop table for cleanup
+DROP TABLE test_table; 

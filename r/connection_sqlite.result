@@ -1,0 +1,26 @@
+开始 SQLite 连接管理测试
+SELECT 'default_sqlite_connection' as connection_type
+default_sqlite_connection
+创建新的 SQLite 文件连接
+CREATE TABLE file_table (id INTEGER PRIMARY KEY, data TEXT)
+INSERT INTO file_table VALUES (1, 'data_from_file_conn')
+创建另一个 SQLite 文件连接
+CREATE TABLE file_table2 (id INTEGER PRIMARY KEY, info TEXT)
+INSERT INTO file_table2 VALUES (1, 'data_from_file_conn2')
+切换回第一个文件连接
+SELECT * FROM file_table
+1	data_from_file_conn
+SELECT * FROM file_table2
+1	data_from_file_conn2
+切换到第二个文件连接
+SELECT * FROM file_table2
+1	data_from_file_conn2
+切换回默认内存连接
+CREATE TABLE memory_table (id INTEGER, value TEXT)
+INSERT INTO memory_table VALUES (1, 'memory_data')
+SELECT * FROM file_table
+1	data_from_file_conn
+测试 SQLite 连接参数解析
+CREATE TABLE param_table (id INTEGER)
+清理 SQLite 连接
+SQLite 连接管理测试完成

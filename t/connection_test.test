@@ -1,0 +1,46 @@
+# Connection management test
+--echo Starting connection test
+
+# Test on default connection
+SELECT 'default connection' as current_conn;
+
+# Connect to a new MySQL database connection
+# Syntax: --connect (name, host, user, password, database, port)
+--connect (conn1, 127.0.0.1, root, 123456, mysql, 3306)
+
+# Switch to the new connection
+--connection conn1
+SELECT 'conn1 connection' as current_conn;
+
+# Clean up any existing table first
+--error 0
+DROP TABLE IF EXISTS test_table;
+
+# Create a table in conn1
+CREATE TABLE test_table (id INT, name VARCHAR(50));
+INSERT INTO test_table VALUES (1, 'data from conn1');
+
+# Switch back to default
+--connection default
+SELECT 'back to default' as current_conn;
+
+# Clean up any existing table in default connection
+--error 0
+DROP TABLE IF EXISTS test_table;
+
+# The table should not exist in default connection (different database context)
+--error 0
+SELECT * FROM test_table;
+
+# Switch back to conn1 and verify data exists
+--connection conn1
+SELECT * FROM test_table;
+
+# Clean up
+DROP TABLE IF EXISTS test_table;
+
+# Disconnect conn1
+--disconnect conn1
+
+# Should be back on default connection
+SELECT 'final default connection' as current_conn; 

@@ -1,0 +1,17 @@
+# Test for --replace_regex functionality
+
+--echo This test will check if regex replacement works on SQL queries.
+
+CREATE TABLE regex_test (id INT, data VARCHAR(255));
+INSERT INTO regex_test VALUES (1, 'Timestamp is 2025-01-02 03:04:05');
+
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/
+SELECT * FROM regex_test;
+
+--replace_regex /id: [0-9]+/id: [REDACTED]/
+--echo This echo should not be replaced. The regex above only applies to the next SQL.
+
+-- This echo is also not replaced.
+--echo id: 12345
+
+DROP TABLE regex_test; 

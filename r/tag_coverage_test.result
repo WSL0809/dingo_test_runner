@@ -1,0 +1,29 @@
+=== 基本标签测试开始 ===
+Test 1: Basic echo functionality
+这是一条中文消息
+Special characters: !@#$%^&*()
+Test 2: Query log control
+Query logging re-enabled
+SELECT * FROM log_test
+1	Hidden query
+Test 3: Result log control
+SELECT 'This result should be hidden' as hidden_message
+Result logging re-enabled
+SELECT 'This result should be visible' as visible_message
+This result should be visible
+Test 4: Sorted results
+INSERT INTO log_test VALUES (3, 'Third'), (2, 'Second')
+SELECT id, message FROM log_test
+1	Hidden query
+2	Second
+3	Third
+Test 5: Regex replacement
+SELECT CONCAT('id: ', id) as id_info FROM log_test WHERE id = 1
+id: XXX
+Test 6: Sleep command
+Sleep completed
+Test 7: Error handling
+SELECT * FROM nonexistent_table_12345
+=== 清理阶段 ===
+DROP TABLE log_test
+=== 标签覆盖测试完成 ===
