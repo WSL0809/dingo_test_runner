@@ -4,20 +4,19 @@
 //! query execution, result comparison, and cleanup.
 
 use super::database::ConnectionInfo;
-use super::query::{Query, QueryType};
 use super::parser::Parser;
-use super::error_handler::MySQLErrorHandler;
-use super::connection_manager::ConnectionManager;
-use super::command::Command;
-use super::registry::COMMAND_REGISTRY;
+use super::query::{Query, QueryType};
+use crate::tester::command::Command;
+use crate::tester::connection_manager::ConnectionManager;
+use crate::tester::error_handler::MySQLErrorHandler;
+use crate::tester::registry::COMMAND_REGISTRY;
 use crate::cli::Args;
 use anyhow::{anyhow, Result};
-use log::{debug, info, warn, error};
-use std::collections::HashMap;
+use log::{debug, error, info, warn};
+use regex::Regex;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use regex::Regex;
 
 /// Test execution engine
 pub struct Tester {
@@ -27,8 +26,6 @@ pub struct Tester {
     test_name: String,
     /// Arguments from CLI
     pub args: Args,
-    /// Original schemas before test execution
-    original_schemas: HashMap<String, bool>,
     /// Current working directory for test files
     current_dir: PathBuf,
     /// Output buffer for test results
@@ -79,7 +76,6 @@ impl Tester {
             connection_manager,
             test_name: String::new(),
             args,
-            original_schemas: HashMap::new(),
             current_dir: std::env::current_dir()?,
             output_buffer: Vec::new(),
             enable_query_log: true,
@@ -119,14 +115,10 @@ impl Tester {
 
     /// Pre-process: save original database state and setup test environment
     fn pre_process(&mut self) -> Result<()> {
-        // Save original schemas if not reserving schema
-        if !self.args.reserve_schema {
-            self.save_original_schemas()?;
-        }
-
         // Initialize database for test
-        self.connection_manager.current_database()?.init_for_test(&self.test_name)?;
-        
+        if !self.args.reserve_schema {
+             self.connection_manager.current_database()?.init_for_test(&self.test_name)?;
+        }
         debug!("Test environment initialized for '{}'", self.test_name);
         Ok(())
     }
@@ -138,21 +130,6 @@ impl Tester {
         }
         
         info!("Test '{}' completed", self.test_name);
-        Ok(())
-    }
-
-    /// Save the list of original schemas
-    fn save_original_schemas(&mut self) -> Result<()> {
-        let schemas = self.connection_manager.current_database()?.query("SHOW DATABASES")?;
-        self.original_schemas.clear();
-        
-        for row in schemas {
-            if let Some(schema_name) = row.get(0) {
-                self.original_schemas.insert(schema_name.clone(), true);
-            }
-        }
-        
-        debug!("Saved {} original schemas", self.original_schemas.len());
         Ok(())
     }
 
@@ -180,9 +157,12 @@ impl Tester {
                     test_result.passed_queries += 1;
                 }
                 Err(e) => {
-                    error!("Query {} failed: {}", i + 1, e);
+                    error!("Line {} (Query {}): {}", query.line, i + 1, e);
                     test_result.failed_queries += 1;
                     test_result.errors.push(format!("Line {}: {}", query.line, e));
+                    if self.args.fail_fast {
+                        break; // 快速失败，终止后续查询
+                    }
                 }
             }
         }
@@ -191,7 +171,8 @@ impl Tester {
         self.post_process()?;
 
         // Write result file if in record mode
-        if self.args.record {
+        // 但如果启用了 fail_fast 且有失败的查询，则不生成 result 文件
+        if self.args.record && !(self.args.fail_fast && test_result.failed_queries > 0) {
             self.write_result_file(&test_name)?;
         }
 
@@ -201,7 +182,7 @@ impl Tester {
 
     /// Execute a single query or command
     fn execute_query(&mut self, query: &Query, query_num: usize) -> Result<()> {
-        debug!("Executing query {}: {:?}", query_num, query.query_type);
+        debug!("Executing query {:?} (line {}): {:?}", query_num, query.line, query.query_type);
 
         match query.query_type {
             QueryType::Query | QueryType::Exec => {
@@ -715,7 +696,11 @@ impl Tester {
         let result_dir = self.current_dir.join("r");
         fs::create_dir_all(&result_dir)?;
         
+        // 若 test_name 包含路径分隔符，需要提前创建子目录
         let result_file = result_dir.join(format!("{}.{}", test_name, self.args.extension));
+        if let Some(parent) = result_file.parent() {
+            fs::create_dir_all(parent)?;
+        }
         fs::write(result_file, &self.output_buffer)?;
         
         info!("Result file written for test: {}", test_name);
@@ -774,6 +759,7 @@ mod tests {
             email_from: "".to_string(),
             email_to: "".to_string(),
             email_enable_tls: false,
+            fail_fast: false,
             test_files: vec![],
         };
 
@@ -826,6 +812,7 @@ mod tests {
             email_from: "".to_string(),
             email_to: "".to_string(),
             email_enable_tls: false,
+            fail_fast: false,
             test_files: vec![],
         };
 
@@ -890,6 +877,7 @@ mod tests {
             email_from: "".to_string(),
             email_to: "".to_string(),
             email_enable_tls: false,
+            fail_fast: false,
             test_files: vec![],
         };
 
@@ -939,6 +927,7 @@ mod tests {
             email_from: "".to_string(),
             email_to: "".to_string(),
             email_enable_tls: false,
+            fail_fast: false,
             test_files: vec![],
         };
 
@@ -996,6 +985,7 @@ mod tests {
             email_from: "".to_string(),
             email_to: "".to_string(),
             email_enable_tls: false,
+            fail_fast: false, // 不启用 fail_fast
             test_files: vec![],
         };
 
@@ -1021,5 +1011,137 @@ mod tests {
         // 清理
         fs::remove_file(test_file_path).unwrap();
         fs::remove_file(result_file_path).unwrap();
+    }
+
+    #[test]
+    fn test_fail_fast_no_result_file() {
+        use std::fs::{self, File};
+        use std::io::Write;
+        
+        let test_name = "fail_fast_no_result_test";
+        let test_dir = std::path::Path::new("t");
+        fs::create_dir_all(test_dir).unwrap();
+
+        let test_file_path = test_dir.join(format!("{}.test", test_name));
+        let mut file = File::create(&test_file_path).unwrap();
+        writeln!(file, "--disable_query_log").unwrap();
+        writeln!(file, "CREATE TABLE fail_test (id INT);").unwrap();
+        writeln!(file, "SELECT * FROM non_existing_table;").unwrap(); // 这个查询会失败
+
+        let args = Args {
+            host: "127.0.0.1".to_string(),
+            port: "3306".to_string(),
+            user: "root".to_string(),
+            passwd: "123456".to_string(),
+            log_level: "error".to_string(),
+            record: true, // 启用 record 模式
+            params: "".to_string(),
+            all: false,
+            reserve_schema: false,
+            xunit_file: "".to_string(),
+            retry_conn_count: 1,
+            check_err: false,
+            collation_disable: false,
+            extension: "result".to_string(),
+            email_enable: false,
+            email_smtp_host: "".to_string(),
+            email_smtp_port: 587,
+            email_username: "".to_string(),
+            email_password: "".to_string(),
+            email_from: "".to_string(),
+            email_to: "".to_string(),
+            email_enable_tls: false,
+            fail_fast: true, // 启用 fail_fast
+            test_files: vec![],
+        };
+
+        let mut tester = match Tester::new(args) {
+            Ok(t) => t,
+            Err(e) => {
+                warn!("Skipping test_fail_fast_no_result_file due to DB connection error: {}. This test requires a running MySQL server.", e);
+                return;
+            }
+        };
+
+        let result = tester.run_test_file(test_name).unwrap();
+        
+        // 验证测试失败（由于SQL错误）
+        assert!(!result.success);
+        assert!(result.failed_queries > 0);
+
+        // 验证在 fail_fast + record 模式下，不会生成 result 文件
+        let result_file_path = std::path::Path::new("r").join(format!("{}.result", test_name));
+        assert!(!result_file_path.exists(), "在 fail_fast 模式下出现错误时，不应该生成 result 文件");
+
+        // 清理
+        fs::remove_file(test_file_path).unwrap();
+        // result 文件应该不存在，所以不需要删除
+    }
+
+    #[test]
+    fn test_fail_fast_false_still_generates_result() {
+        use std::fs::{self, File};
+        use std::io::Write;
+        
+        let test_name = "fail_fast_false_result_test";
+        let test_dir = std::path::Path::new("t");
+        fs::create_dir_all(test_dir).unwrap();
+
+        let test_file_path = test_dir.join(format!("{}.test", test_name));
+        let mut file = File::create(&test_file_path).unwrap();
+        writeln!(file, "--disable_query_log").unwrap();
+        writeln!(file, "CREATE TABLE fail_test (id INT);").unwrap();
+        writeln!(file, "SELECT * FROM non_existing_table;").unwrap(); // 这个查询会失败
+
+        let args = Args {
+            host: "127.0.0.1".to_string(),
+            port: "3306".to_string(),
+            user: "root".to_string(),
+            passwd: "123456".to_string(),
+            log_level: "error".to_string(),
+            record: true, // 启用 record 模式
+            params: "".to_string(),
+            all: false,
+            reserve_schema: false,
+            xunit_file: "".to_string(),
+            retry_conn_count: 1,
+            check_err: false,
+            collation_disable: false,
+            extension: "result".to_string(),
+            email_enable: false,
+            email_smtp_host: "".to_string(),
+            email_smtp_port: 587,
+            email_username: "".to_string(),
+            email_password: "".to_string(),
+            email_from: "".to_string(),
+            email_to: "".to_string(),
+            email_enable_tls: false,
+            fail_fast: false, // 不启用 fail_fast
+            test_files: vec![],
+        };
+
+        let mut tester = match Tester::new(args) {
+            Ok(t) => t,
+            Err(e) => {
+                warn!("Skipping test_fail_fast_false_still_generates_result due to DB connection error: {}. This test requires a running MySQL server.", e);
+                return;
+            }
+        };
+
+        let result = tester.run_test_file(test_name).unwrap();
+        
+        // 验证测试失败（由于SQL错误）
+        assert!(!result.success);
+        assert!(result.failed_queries > 0);
+
+        // 验证在非 fail_fast 模式下，即使有错误也会生成 result 文件
+        let result_file_path = std::path::Path::new("r").join(format!("{}.result", test_name));
+        assert!(result_file_path.exists(), "在非 fail_fast 模式下，即使有错误也应该生成 result 文件");
+
+        // 清理
+        fs::remove_file(test_file_path).unwrap();
+        if result_file_path.exists() {
+            fs::remove_file(result_file_path).unwrap();
+        }
     }
 }

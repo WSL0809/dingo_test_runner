@@ -99,6 +99,8 @@ fn main() -> Result<()> {
                 error!("✗ Test file '{}' failed to execute: {}", test_file, e);
             }
         }
+        // 避免在此处析构 Tester（可能阻塞于数据库连接关闭），直接泄漏内存，程序退出后由OS回收。
+        std::mem::forget(tester);
     }
     
     // Print summary
@@ -107,11 +109,9 @@ fn main() -> Result<()> {
     info!("  Passed: {}", passed_tests);
     info!("  Failed: {}", failed_tests);
     
-    if failed_tests > 0 {
-        std::process::exit(1);
-    }
-    
-    Ok(())
+    // 显式退出，避免底层线程或连接阻止程序结束
+    let exit_code = if failed_tests > 0 { 1 } else { 0 };
+    std::process::exit(exit_code);
 }
 
 fn init_logging(log_level: &str) -> Result<()> {

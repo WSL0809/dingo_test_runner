@@ -102,6 +102,10 @@ pub struct Args {
 
     /// Test files to run (positional arguments)
     pub test_files: Vec<String>,
+
+    /// 出现首个 ERROR 立即终止当前测试并返回失败
+    #[arg(long, default_value = "true")]
+    pub fail_fast: bool,
 }
 
 impl Args {

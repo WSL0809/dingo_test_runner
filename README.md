@@ -200,7 +200,8 @@ SELECT * FROM products;
 EOF
 
 # 运行测试
-cargo run -- --host localhost --user root --passwd password --log-level info --record demo.test
+cargo run -- --host 127.0.0.1 --user root --port 3307 --passwd 123123 --log-level info --record ddlbr
+cargo run -- --host 127.0.0.1 --user root --port 3306 --passwd 123456 --log-level info --record ddlbr
 ```
 
 ### 示例 2：远程 MySQL 测试
