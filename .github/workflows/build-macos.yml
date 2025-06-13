@@ -1,0 +1,29 @@
+name: Build for macOS (Apple Silicon)
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build-macos-m1:
+    name: Build on macOS (M1)
+    runs-on: macos-latest # GitHub's macos-latest now supports aarch64
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: aarch64-apple-darwin
+
+      - name: Build for Apple Silicon
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dingo_test_runner-macos-aarch64
+          path: target/aarch64-apple-darwin/release/dingo_test_runner 
