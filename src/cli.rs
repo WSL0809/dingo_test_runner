@@ -3,75 +3,69 @@
 //! This module defines all CLI arguments compatible with the Go version.
 
 use clap::Parser;
+use anyhow::{anyhow, Result};
 
+/// MySQL Test Runner (Rust) - A MySQL testing framework
 #[derive(Parser, Debug, Clone)]
 #[command(name = "mysql-tester")]
-#[command(about = "A MySQL test runner written in Rust")]
-#[command(version = "1.0.0")]
+#[command(about = "A MySQL testing framework written in Rust")]
+#[command(version = "0.2.0")]
 pub struct Args {
-    /// The host of the TiDB/MySQL server
+    /// MySQL server host
     #[arg(long, default_value = "127.0.0.1")]
     pub host: String,
 
-    /// The listen port of TiDB/MySQL server
+    /// MySQL server port
     #[arg(long, default_value = "3306")]
     pub port: String,
 
-    /// The user for connecting to the database
+    /// Database username
     #[arg(long, default_value = "root")]
     pub user: String,
 
-    /// The password for the user
+    /// Database password
     #[arg(long, default_value = "")]
     pub passwd: String,
 
-    /// The log level of mysql-tester: info, warn, error, debug
-    #[arg(long = "log-level", default_value = "error")]
+    /// Log level: error, warn, info, debug, trace
+    #[arg(long, default_value = "error")]
     pub log_level: String,
 
-    /// Whether to record the test output to the result file
+    /// Record test output to result files
     #[arg(long)]
     pub record: bool,
 
-    /// Additional params pass as DSN (e.g. session variable)
+    /// Additional database connection parameters
     #[arg(long, default_value = "")]
     pub params: String,
 
-    /// Run all tests
+    /// Run all tests in the t/ directory
     #[arg(long)]
     pub all: bool,
 
-    /// Reserve schema after each test
-    #[arg(long = "reserve-schema")]
+    /// Reserve schema after each test (don't cleanup)
+    #[arg(long)]
     pub reserve_schema: bool,
 
-    /// The xml file path to record testing results
-    #[arg(long = "xunitfile", default_value = "")]
+    /// Path to write JUnit XML test results
+    #[arg(long, default_value = "")]
     pub xunit_file: String,
 
-    /// The max number to retry to connect to the database
-    #[arg(long = "retry-connection-count", default_value = "120")]
+    /// Maximum number of connection retry attempts
+    #[arg(long, default_value = "120")]
     pub retry_conn_count: i32,
 
-    /// If --error ERR does not match, return error instead of just warn
-    #[arg(long = "check-error")]
+    /// Return error instead of warning when --error directive doesn't match
+    #[arg(long)]
     pub check_err: bool,
 
-    /// Run collation related-test with new-collation disabled
-    #[arg(long = "collation-disable")]
+    /// Disable collation-related tests
+    #[arg(long)]
     pub collation_disable: bool,
 
-    /// The result file extension for result file
+    /// Result file extension
     #[arg(long, default_value = "result")]
     pub extension: String,
-
-    /// Database type: mysql or sqlite
-    #[arg(long, default_value = "mysql")]
-    pub database_type: String,
-
-    /// SQLite database file path (used when database_type is sqlite)
-    #[arg(long, default_value = ":memory:")]
-    pub sqlite_file: String,
 
     // 邮件相关参数
     /// Enable email notification for test results
@@ -116,45 +110,27 @@ impl Args {
         Args::parse()
     }
 
-    /// Get database connection string
-    pub fn get_dsn(&self) -> String {
-        let mut dsn = format!("mysql://{}:{}@{}:{}/", 
-            self.user, self.passwd, self.host, self.port);
-        
-        if !self.params.is_empty() {
-            dsn.push('?');
-            dsn.push_str(&self.params);
-        }
-        
-        dsn
-    }
-
-    /// Validate arguments
-    pub fn validate(&self) -> Result<(), String> {
-        // 验证端口号
-        if let Err(_) = self.port.parse::<u16>() {
-            return Err(format!("Invalid port: {}", self.port));
+    /// Validate the parsed arguments
+    pub fn validate(&self) -> Result<()> {
+        // Validate port
+        if self.port.parse::<u16>().is_err() {
+            return Err(anyhow!("Invalid port: {}", self.port));
         }
 
-        // 验证日志级别
+        // Validate log level
         match self.log_level.to_lowercase().as_str() {
-            "error" | "warn" | "info" | "debug" | "trace" => {},
-            _ => return Err(format!("Invalid log level: {}", self.log_level)),
+            "error" | "warn" | "info" | "debug" | "trace" => {}
+            _ => return Err(anyhow!("Invalid log level: {}", self.log_level)),
         }
 
-        // 验证邮件配置
-        if self.email_enable {
-            if self.email_smtp_host.is_empty() {
-                return Err("Email SMTP host is required when email is enabled".to_string());
-            }
-            if self.email_to.is_empty() {
-                return Err("Email recipient is required when email is enabled".to_string());
-            }
+        // Validate retry count
+        if self.retry_conn_count < 1 {
+            return Err(anyhow!("Retry connection count must be at least 1"));
         }
 
-        // 验证测试文件
+        // Validate test files when not using --all
         if !self.all && self.test_files.is_empty() {
-            return Err("Either --all flag or test files must be specified".to_string());
+            return Err(anyhow!("No test files specified. Use --all to run all tests or specify test files."));
         }
 
         Ok(())

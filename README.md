@@ -1,11 +1,11 @@
 # MySQL Test Runner (Rust)
 
-一个用 Rust 重写的 MySQL 测试运行器，支持本地 SQLite 调试和远程 MySQL 测试。
+一个用 Rust 重写的 MySQL 测试运行器，专注于 MySQL 数据库测试。
 
 ## 🎯 项目特色
 
 - 🚀 **高性能**: 使用 Rust 编写，提供出色的性能和内存安全
-- 🔧 **本地调试**: 支持 SQLite 进行本地调试，无需外部数据库
+- 🔧 **专业化**: 专注于 MySQL 测试，提供完整的 MySQL 功能支持
 - 🔄 **完全兼容**: CLI 参数与原 Go 版本完全兼容
 - 📊 **结果记录**: 支持测试结果文件生成和比对
 - 🏗️ **模块化设计**: 清晰的代码架构，易于维护和扩展
@@ -22,7 +22,7 @@
    • `parser.rs` 将文件解析为 `Query` 列表，支持 40+ 指令/标签。
    • `query.rs` 定义 `QueryType` 枚举。
    • `connection_manager.rs` 运行时维护多数据库连接池，实现 `--connect/--connection/--disconnect`。
-   • `database/` 抽象底层数据库，目前实现 MySQL / SQLite 两种后端。
+   • `database/` 抽象底层数据库，目前实现 MySQL 后端，设计支持未来扩展到 PostgreSQL 等。
    • `handlers/` 目录下每个文件对应一个标签命令，通过 `registry.rs` 注入，真正做到 **添加新指令零侵入**。
 
 3. **工具层** (`src/util/`)  
@@ -32,10 +32,10 @@
    • 目前输出纯文本及 `.result` 文件，后续将支持 JUnit XML 与 HTML 报告。
 
 该架构带来的收益：
-* **可扩展** — 新增指令只需"创建 handler + 注册一行"。
-* **可测试** — 解析、执行、比对三层完全解耦，单元/集成测试覆盖率高。
-* **可并发** — 设计之初即考虑并发场景，每个线程拥有独立连接。
-* **可移植** — 数据库后端通过 `Database` trait 抽象，可拓展到 PostgreSQL 等。
+* **可扩展** — 新增指令只需"创建 handler + 注册一行"。
+* **可测试** — 解析、执行、比对三层完全解耦，单元/集成测试覆盖率高。
+* **可并发** — 设计之初即考虑并发场景，每个线程拥有独立连接。
+* **可移植** — 数据库后端通过 `Database` trait 抽象，可拓展到 PostgreSQL 等。
 
 ## 🛠️ 安装和构建
 
@@ -43,6 +43,7 @@
 
 - Rust 1.70 或更高版本
 - Cargo (通常随 Rust 一起安装)
+- MySQL 服务器 (用于运行测试)
 
 ### 构建
 
@@ -70,31 +71,20 @@ cargo run -- [参数]
 dingo_test_runner [选项] <测试文件>
 ```
 
-### 支持的数据库类型
-
-#### SQLite 模式（推荐用于本地调试）
+### MySQL 连接
 
 ```bash
-# 使用内存数据库
-cargo run -- --database-type sqlite --log-level info test.sql
+# 连接本地 MySQL
+cargo run -- --host localhost --port 3306 --user root --passwd secret test.sql
 
-# 使用文件数据库
-cargo run -- --database-type sqlite --sqlite-file /tmp/test.db test.sql
-```
-
-#### MySQL 模式
-
-```bash
-# 连接到 MySQL 服务器
-cargo run -- --database-type mysql --host localhost --port 3306 --user root --passwd secret test.sql
+# 连接远程 MySQL
+cargo run -- --host 192.168.1.100 --user testuser --passwd secret test.sql
 ```
 
 ### 主要命令行参数
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `--database-type` | `mysql` | 数据库类型：`mysql` 或 `sqlite` |
-| `--sqlite-file` | `:memory:` | SQLite 数据库文件路径 |
 | `--host` | `127.0.0.1` | MySQL 服务器地址 |
 | `--port` | `3306` | MySQL 服务器端口 |
 | `--user` | `root` | 数据库用户名 |
@@ -139,9 +129,9 @@ WHERE id = 1;
 
 # 创建测试表
 CREATE TABLE users (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL,
-    email TEXT UNIQUE
+    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE
 );
 
 # 插入测试数据
@@ -188,16 +178,16 @@ SELECT name FROM users WHERE id = 1;
 
 ## 🚀 使用示例
 
-### 示例 1：SQLite 本地调试
+### 示例 1：基本 MySQL 测试
 
 ```bash
 # 创建测试文件 demo.test
 cat > demo.test << 'EOF'
---echo SQLite 演示开始
+--echo MySQL 演示开始
 
 CREATE TABLE products (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL,
+    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
     price DECIMAL(10,2)
 );
 
@@ -210,15 +200,14 @@ SELECT * FROM products;
 EOF
 
 # 运行测试
-cargo run -- --database-type sqlite --log-level info --record demo.test
+cargo run -- --host localhost --user root --passwd password --log-level info --record demo.test
 ```
 
-### 示例 2：MySQL 远程测试
+### 示例 2：远程 MySQL 测试
 
 ```bash
-# 连接到 MySQL 服务器
+# 连接到远程 MySQL 服务器
 cargo run -- \
-  --database-type mysql \
   --host mysql.example.com \
   --port 3306 \
   --user testuser \
@@ -232,7 +221,7 @@ cargo run -- \
 
 ```bash
 # 运行多个测试文件
-cargo run -- --database-type sqlite --record test1.sql test2.sql test3.sql
+cargo run -- --record test1.sql test2.sql test3.sql
 ```
 
 ## 📁 输出文件
@@ -281,7 +270,9 @@ cargo run -- demo.test
 # run_tests.sh
 
 cargo run -- \
-  --database-type sqlite \
+  --host localhost \
+  --user root \
+  --passwd password \
   --log-level info \
   --record \
   --extension result \
@@ -292,19 +283,13 @@ cargo run -- \
 
 ### 常见问题
 
-1. **SQLite 数据库锁定**
-   ```bash
-   # 使用不同的数据库文件
-   --sqlite-file /tmp/test_$(date +%s).db
-   ```
-
-2. **MySQL 连接失败**
+1. **MySQL 连接失败**
    ```bash
    # 检查连接参数和网络
    --retry-connection-count 5
    ```
 
-3. **结果文件权限**
+2. **结果文件权限**
    ```bash
    # 确保有写入权限
    mkdir -p r && chmod 755 r
@@ -322,10 +307,9 @@ RUST_LOG=trace cargo run -- demo.test
 
 ## 📊 性能建议
 
-- **SQLite 模式**: 适合开发和小型测试
-- **MySQL 模式**: 适合生产环境测试
-- **内存数据库**: 最快的执行速度
-- **文件数据库**: 适合需要持久化的测试
+- **连接池**: 使用连接池提高性能
+- **批量操作**: 合并多个小查询
+- **索引优化**: 确保测试表有适当的索引
 
 ## 🤝 贡献指南
 
@@ -353,12 +337,13 @@ cargo fmt
 
 | 特性 | Go 版本 | Rust 版本 |
 |------|---------|-----------|
-| SQLite 支持 | ❌ | ✅ |
+| MySQL 支持 | ✅ | ✅ |
 | 基本 SQL 执行 | ✅ | ✅ |
 | 并发执行 | ✅ | 📋 计划中 |
 | 结果比对 | ✅ | ✅ |
 | 邮件通知 | ✅ | 📋 计划中 |
 | XML 报告 | ✅ | 📋 计划中 |
+| 数据库扩展性 | ❌ | ✅ |
 
 ---
 

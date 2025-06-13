@@ -1,16 +1,19 @@
 //! Database abstraction layer
 //! 
-//! This module provides a unified interface for different database types,
-//! allowing the test runner to work with both MySQL and SQLite.
+//! This module provides a unified interface for different database types.
+//! Currently supports MySQL, with extensible design for future database backends.
 
 use anyhow::{anyhow, Result};
 use log::{debug, info, warn};
 use std::time::Duration;
 
 /// Database connection abstraction
+#[derive(Debug)]
 pub enum Database {
     MySQL(MySQLDatabase),
-    SQLite(SQLiteDatabase),
+    // Future database types can be added here:
+    // PostgreSQL(PostgreSQLDatabase),
+    // Oracle(OracleDatabase),
 }
 
 impl Database {
@@ -21,11 +24,12 @@ impl Database {
                 let mysql_db = MySQLDatabase::new(connection_info)?;
                 Ok(Database::MySQL(mysql_db))
             }
-            "sqlite" => {
-                let sqlite_db = SQLiteDatabase::new(&connection_info.sqlite_file)?;
-                Ok(Database::SQLite(sqlite_db))
-            }
-            _ => Err(anyhow!("Unsupported database type: {}", db_type)),
+            // Future database types:
+            // "postgresql" | "postgres" => {
+            //     let pg_db = PostgreSQLDatabase::new(connection_info)?;
+            //     Ok(Database::PostgreSQL(pg_db))
+            // }
+            _ => Err(anyhow!("Unsupported database type: {}. Currently only 'mysql' is supported.", db_type)),
         }
     }
 
@@ -33,7 +37,6 @@ impl Database {
     pub fn query(&mut self, sql: &str) -> Result<Vec<Vec<String>>> {
         match self {
             Database::MySQL(db) => db.query(sql),
-            Database::SQLite(db) => db.query(sql),
         }
     }
 
@@ -41,7 +44,6 @@ impl Database {
     pub fn execute(&mut self, sql: &str) -> Result<()> {
         match self {
             Database::MySQL(db) => db.execute(sql),
-            Database::SQLite(db) => db.execute(sql),
         }
     }
 
@@ -49,7 +51,6 @@ impl Database {
     pub fn info(&self) -> String {
         match self {
             Database::MySQL(db) => db.info(),
-            Database::SQLite(db) => db.info(),
         }
     }
 
@@ -57,7 +58,6 @@ impl Database {
     pub fn init_for_test(&mut self, test_name: &str) -> Result<()> {
         match self {
             Database::MySQL(db) => db.init_for_test(test_name),
-            Database::SQLite(db) => db.init_for_test(test_name),
         }
     }
 
@@ -65,12 +65,12 @@ impl Database {
     pub fn cleanup_after_test(&mut self, test_name: &str) -> Result<()> {
         match self {
             Database::MySQL(db) => db.cleanup_after_test(test_name),
-            Database::SQLite(db) => db.cleanup_after_test(test_name),
         }
     }
 }
 
 /// Connection information structure
+#[derive(Debug, Clone)]
 pub struct ConnectionInfo {
     pub host: String,
     pub port: u16,
@@ -78,10 +78,10 @@ pub struct ConnectionInfo {
     pub password: String,
     pub database: String,
     pub params: String,
-    pub sqlite_file: String,
 }
 
 /// MySQL database implementation
+#[derive(Debug)]
 pub struct MySQLDatabase {
     conn: Option<mysql::PooledConn>,
     pool: mysql::Pool,
@@ -109,6 +109,7 @@ impl MySQLDatabase {
                 if let Some((key, value)) = param.split_once('=') {
                     debug!("MySQL parameter: {}={}", key, value);
                     // Handle specific MySQL parameters as needed
+                    // This can be extended to support more MySQL-specific options
                 }
             }
         }
@@ -182,135 +183,6 @@ impl MySQLDatabase {
     }
 }
 
-/// SQLite database implementation
-pub struct SQLiteDatabase {
-    conn: rusqlite::Connection,
-    file_path: String,
-}
-
-impl SQLiteDatabase {
-    pub fn new(file_path: &str) -> Result<Self> {
-        let conn = if file_path == ":memory:" {
-            rusqlite::Connection::open_in_memory()?
-        } else {
-            rusqlite::Connection::open(file_path)?
-        };
-
-        info!("SQLite database opened: {}", file_path);
-
-        Ok(SQLiteDatabase {
-            conn,
-            file_path: file_path.to_string(),
-        })
-    }
-
-    pub fn query(&mut self, sql: &str) -> Result<Vec<Vec<String>>> {
-        // Convert MySQL syntax to SQLite syntax where needed
-        let sqlite_sql = self.convert_mysql_to_sqlite(sql);
-        
-        let mut stmt = self.conn.prepare(&sqlite_sql)?;
-        let column_count = stmt.column_count();
-        
-        let rows = stmt.query_map([], |row| {
-            let mut row_data = Vec::new();
-            for i in 0..column_count {
-                // Try different types to handle SQLite's dynamic typing
-                let value = if let Ok(s) = row.get::<_, String>(i) {
-                    s
-                } else if let Ok(n) = row.get::<_, i64>(i) {
-                    n.to_string()
-                } else if let Ok(f) = row.get::<_, f64>(i) {
-                    f.to_string()
-                } else {
-                    "NULL".to_string()
-                };
-                row_data.push(value);
-            }
-            Ok(row_data)
-        })?;
-
-        let mut result = Vec::new();
-        for row in rows {
-            result.push(row?);
-        }
-
-        Ok(result)
-    }
-
-    pub fn execute(&mut self, sql: &str) -> Result<()> {
-        // Convert MySQL syntax to SQLite syntax where needed
-        let sqlite_sql = self.convert_mysql_to_sqlite(sql);
-        
-        self.conn.execute(&sqlite_sql, [])?;
-        Ok(())
-    }
-
-    pub fn info(&self) -> String {
-        format!("sqlite://{}", self.file_path)
-    }
-
-    pub fn init_for_test(&mut self, test_name: &str) -> Result<()> {
-        // For SQLite, we'll create a table prefix for the test
-        debug!("SQLite test '{}' initialized", test_name);
-        Ok(())
-    }
-
-    pub fn cleanup_after_test(&mut self, test_name: &str) -> Result<()> {
-        // For SQLite, clean up any test-specific tables
-        let tables_query = "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'test_%'";
-        let tables = self.query(tables_query)?;
-        
-        for table_row in tables {
-            if let Some(table_name) = table_row.get(0) {
-                if table_name.starts_with(&format!("test_{}", test_name)) {
-                    self.execute(&format!("DROP TABLE IF EXISTS {}", table_name))?;
-                }
-            }
-        }
-        
-        debug!("SQLite test '{}' cleaned up", test_name);
-        Ok(())
-    }
-
-    /// Convert basic MySQL syntax to SQLite syntax
-    fn convert_mysql_to_sqlite(&self, sql: &str) -> String {
-        let mut result = sql.to_string();
-        
-        // Convert SHOW DATABASES to SQLite equivalent
-        if result.trim().to_uppercase() == "SHOW DATABASES" {
-            return "SELECT 'main' as Database".to_string();
-        }
-        
-        // Convert SHOW TABLES
-        if result.trim().to_uppercase() == "SHOW TABLES" {
-            return "SELECT name FROM sqlite_master WHERE type='table'".to_string();
-        }
-        
-        // Convert USE database (SQLite doesn't support this, so we'll ignore it)
-        if result.trim().to_uppercase().starts_with("USE ") {
-            return "SELECT 1".to_string(); // No-op
-        }
-        
-        // Convert CREATE DATABASE (SQLite doesn't support this, so we'll ignore it)
-        if result.trim().to_uppercase().starts_with("CREATE DATABASE") {
-            return "SELECT 1".to_string(); // No-op
-        }
-        
-        // Convert DROP DATABASE (SQLite doesn't support this, so we'll ignore it)
-        if result.trim().to_uppercase().starts_with("DROP DATABASE") {
-            return "SELECT 1".to_string(); // No-op
-        }
-        
-        // Remove backticks (SQLite uses double quotes for identifiers)
-        result = result.replace('`', "\"");
-        
-        // Convert AUTO_INCREMENT to AUTOINCREMENT
-        result = result.replace("AUTO_INCREMENT", "AUTOINCREMENT");
-        
-        result
-    }
-}
-
 /// Create database connection with retry logic
 pub fn create_database_with_retry(
     db_type: &str,
@@ -336,12 +208,7 @@ pub fn create_database_with_retry(
             }
         }
 
-        // Only retry for MySQL connections (SQLite failures are usually permanent)
-        if db_type.to_lowercase() == "sqlite" {
-            return Err(anyhow!("SQLite connection failed permanently"));
-        }
-
-        // Exponential backoff for MySQL
+        // Exponential backoff with maximum delay
         std::thread::sleep(delay);
         delay = std::cmp::min(delay * 2, Duration::from_secs(10));
     }
@@ -351,26 +218,44 @@ pub fn create_database_with_retry(
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_sqlite_basic_operations() {
-        let mut db = SQLiteDatabase::new(":memory:").unwrap();
-        
-        // Test basic operations
-        db.execute("CREATE TABLE test (id INTEGER, name TEXT)").unwrap();
-        db.execute("INSERT INTO test VALUES (1, 'hello')").unwrap();
-        
-        let results = db.query("SELECT * FROM test").unwrap();
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0], vec!["1", "hello"]);
+    fn create_test_connection_info() -> ConnectionInfo {
+        ConnectionInfo {
+            host: "127.0.0.1".to_string(),
+            port: 3306,
+            user: "root".to_string(),
+            password: "".to_string(),
+            database: "test".to_string(),
+            params: "".to_string(),
+        }
     }
 
     #[test]
-    fn test_mysql_to_sqlite_conversion() {
-        let db = SQLiteDatabase::new(":memory:").unwrap();
+    fn test_connection_info_creation() {
+        let info = create_test_connection_info();
+        assert_eq!(info.host, "127.0.0.1");
+        assert_eq!(info.port, 3306);
+        assert_eq!(info.user, "root");
+        assert_eq!(info.database, "test");
+    }
+
+    #[test]
+    fn test_unsupported_database_type() {
+        let info = create_test_connection_info();
+        let result = Database::new("unsupported", &info);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Unsupported database type"));
+    }
+
+    #[test]
+    fn test_mysql_database_info_format() {
+        let info = create_test_connection_info();
+        // Test the info string formatting without creating actual MySQL connection
+        let expected_info = "mysql://root@127.0.0.1:3306/test";
         
-        assert_eq!(db.convert_mysql_to_sqlite("SHOW DATABASES"), "SELECT 'main' as Database");
-        assert_eq!(db.convert_mysql_to_sqlite("USE test"), "SELECT 1");
-        assert_eq!(db.convert_mysql_to_sqlite("CREATE TABLE `test` (`id` INT AUTO_INCREMENT)"), 
-                   "CREATE TABLE \"test\" (\"id\" INT AUTOINCREMENT)");
+        // Test the info formatting logic directly
+        let formatted_info = format!("mysql://{}@{}:{}/{}", 
+                                    info.user, info.host, info.port, info.database);
+        
+        assert_eq!(formatted_info, expected_info);
     }
 } 

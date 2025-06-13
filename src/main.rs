@@ -60,6 +60,14 @@ fn main() -> Result<()> {
         total_tests += 1;
         info!("Running test file: {}", test_file);
         
+        // Check if test file exists before creating tester
+        let test_path = std::env::current_dir()?.join("t").join(format!("{}.test", test_file));
+        if !test_path.exists() {
+            error!("✗ Test file not found: {}", test_path.display());
+            failed_tests += 1;
+            continue;
+        }
+        
         // Create a new tester instance for each test file to ensure isolation
         let mut tester = match Tester::new(base_args.clone()) {
             Ok(t) => t,
