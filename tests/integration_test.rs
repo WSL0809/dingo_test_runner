@@ -135,7 +135,8 @@ fn test_error_handling() {
     
     // 如果生成了结果文件，检查其内容
     if result_file.exists() {
-        let content = fs::read_to_string(result_file).unwrap();
+        let content = fs::read_to_string(result_file)
+            .expect("Failed to read error test result file");
         // 错误测试的具体验证会依赖于错误处理的实现
         println!("Error test result: {}", content);
     }

@@ -1,0 +1,5 @@
+--disable_query_log
+CREATE TABLE t1 (val TEXT);
+INSERT INTO t1 VALUES ('abc123');
+--replace_regex /[0-9]+/XXX/
+SELECT val FROM t1;

@@ -53,19 +53,22 @@ mod tests {
 
     #[test]
     fn test_load_all_tests_from_mock_dir() {
-        let _lock = TEST_LOCK.lock().unwrap();
+        let _lock = TEST_LOCK.lock().expect("Failed to acquire test lock");
         
         // Save current directory and change to a temporary location
-        let original_dir = env::current_dir().unwrap();
+        let original_dir = env::current_dir().expect("Failed to get current directory");
         let temp_dir = env::temp_dir().join(format!("mysql_tester_clean_test_{}_{}", 
             std::process::id(), 
-            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("Failed to get system time")
+                .as_nanos()
         ));
         
         // Ensure clean start - remove any existing directory
         let _ = fs::remove_dir_all(&temp_dir);
-        fs::create_dir_all(&temp_dir).unwrap();
-        env::set_current_dir(&temp_dir).unwrap();
+        fs::create_dir_all(&temp_dir).expect("Failed to create temp directory");
+        env::set_current_dir(&temp_dir).expect("Failed to change to temp directory");
 
         // Verify we're in a clean directory by checking no t/ exists
         assert!(!Path::new("t").exists(), "Should start with no t/ directory");
@@ -73,15 +76,15 @@ mod tests {
         // Setup a mock directory structure
         let base_dir = Path::new("t");
         let sub_dir = base_dir.join("sub");
-        fs::create_dir_all(&sub_dir).unwrap();
+        fs::create_dir_all(&sub_dir).expect("Failed to create test directory structure");
 
         // Create mock test files
-        File::create(base_dir.join("test1.test")).unwrap();
-        File::create(sub_dir.join("test2.test")).unwrap();
-        File::create(base_dir.join("not_a_test.txt")).unwrap();
+        File::create(base_dir.join("test1.test")).expect("Failed to create test1.test");
+        File::create(sub_dir.join("test2.test")).expect("Failed to create test2.test");
+        File::create(base_dir.join("not_a_test.txt")).expect("Failed to create not_a_test.txt");
 
         // Run the loader
-        let tests = load_all_tests().unwrap();
+        let tests = load_all_tests().expect("Failed to load tests");
 
         // Debug output
         println!("Found tests in clean directory: {:?}", tests);
@@ -98,33 +101,35 @@ mod tests {
         }
 
         // Cleanup
-        env::set_current_dir(original_dir).unwrap();
+        env::set_current_dir(original_dir).expect("Failed to restore original directory");
         let _ = fs::remove_dir_all(&temp_dir);
     }
 
     #[test]
     fn test_load_all_tests_finds_project_files() {
-        let _lock = TEST_LOCK.lock().unwrap();
+        let _lock = TEST_LOCK.lock().expect("Failed to acquire test lock");
         
         // Test with the actual project structure
         // Save and potentially restore current directory
-        let original_dir = env::current_dir().unwrap();
+        let original_dir = env::current_dir().expect("Failed to get current directory");
         
         // Try to find the project root if we're not already there
         let mut project_root = original_dir.clone();
         if !project_root.join("t").exists() {
             let mut search_dir = original_dir.clone();
             while !search_dir.join("t").exists() && search_dir.parent().is_some() {
-                search_dir = search_dir.parent().unwrap().to_path_buf();
+                search_dir = search_dir.parent()
+                    .expect("Failed to get parent directory")
+                    .to_path_buf();
             }
             
             if search_dir.join("t").exists() {
                 project_root = search_dir;
-                env::set_current_dir(&project_root).unwrap();
+                env::set_current_dir(&project_root).expect("Failed to change to project root");
             }
         }
         
-        let tests = load_all_tests().unwrap();
+        let tests = load_all_tests().expect("Failed to load tests");
         
         // We should have at least some test files if we found the project
         if Path::new("t").exists() {
@@ -136,30 +141,30 @@ mod tests {
         }
         
         // Restore original directory
-        env::set_current_dir(original_dir).unwrap();
+        env::set_current_dir(original_dir).expect("Failed to restore original directory");
     }
 
     #[test]
     fn test_load_all_tests_empty_when_no_directory() {
-        let _lock = TEST_LOCK.lock().unwrap();
+        let _lock = TEST_LOCK.lock().expect("Failed to acquire test lock");
         
         // Save current directory and change to a location without t/ directory
-        let original_dir = env::current_dir().unwrap();
+        let original_dir = env::current_dir().expect("Failed to get current directory");
         let temp_dir = env::temp_dir().join(format!("mysql_tester_empty_{}", std::process::id()));
         
         // Clean up any existing temp directory
         let _ = fs::remove_dir_all(&temp_dir);
-        fs::create_dir_all(&temp_dir).unwrap();
-        env::set_current_dir(&temp_dir).unwrap();
+        fs::create_dir_all(&temp_dir).expect("Failed to create temp directory");
+        env::set_current_dir(&temp_dir).expect("Failed to change to temp directory");
 
         // Run the loader (should return empty since no t/ directory)
-        let tests = load_all_tests().unwrap();
+        let tests = load_all_tests().expect("Failed to load tests");
 
         // Should be empty
         assert!(tests.is_empty(), "Should return empty list when t/ directory doesn't exist");
 
         // Cleanup
-        env::set_current_dir(original_dir).unwrap();
+        env::set_current_dir(original_dir).expect("Failed to restore original directory");
         let _ = fs::remove_dir_all(&temp_dir);
     }
 } 

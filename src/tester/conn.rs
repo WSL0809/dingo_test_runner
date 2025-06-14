@@ -73,7 +73,9 @@ impl Conn {
             self.conn = Some(self.pool.get_conn()?);
             self.init_conn()?;
         }
-        Ok(self.conn.as_mut().unwrap())
+        self.conn
+            .as_mut()
+            .ok_or_else(|| anyhow!("Failed to get database connection"))
     }
 
     /// Initialize connection settings

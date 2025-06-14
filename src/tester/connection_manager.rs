@@ -230,7 +230,8 @@ mod tests {
             max_retries: 1,
         };
 
-        let params = manager.parse_connect_params("(conn1,localhost,user,pass,db,3307)").unwrap();
+        let params = manager.parse_connect_params("(conn1,localhost,user,pass,db,3307)")
+            .expect("Failed to parse full connection parameters");
         assert_eq!(params.connection_name, "conn1");
         assert_eq!(params.host, "localhost");
         assert_eq!(params.user, "user");
@@ -248,7 +249,8 @@ mod tests {
             max_retries: 1,
         };
 
-        let params = manager.parse_connect_params("(conn1)").unwrap();
+        let params = manager.parse_connect_params("(conn1)")
+            .expect("Failed to parse minimal connection parameters");
         assert_eq!(params.connection_name, "conn1");
         assert_eq!(params.host, "");
         assert_eq!(params.user, "");
@@ -272,7 +274,8 @@ mod tests {
             port: "".to_string(),
         };
 
-        let info = manager.build_connection_info(&params).unwrap();
+        let info = manager.build_connection_info(&params)
+            .expect("Failed to build connection info with defaults");
         assert_eq!(info.host, "127.0.0.1");
         assert_eq!(info.user, "root");
         assert_eq!(info.port, 3306);
