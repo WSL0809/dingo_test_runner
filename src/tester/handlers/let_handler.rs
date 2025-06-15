@@ -89,7 +89,7 @@ impl LetHandler {
     /// Evaluate a value optimistically: try expression evaluation, fall back to literal
     fn evaluate_value_optimistically(
         value: &str,
-        variable_context: &VariableContext,
+        _variable_context: &VariableContext,
         expression_evaluator: &ExpressionEvaluator,
         database: &mut Database,
     ) -> Result<String> {

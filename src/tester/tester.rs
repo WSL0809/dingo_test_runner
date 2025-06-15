@@ -1061,7 +1061,7 @@ impl Tester {
                 }
                 Ok(mut conn) => {
                     // Parse expected errors from query if embedded
-                    let (actual_query, expected_errors) = if query.query.starts_with("--error:") {
+                    let (actual_query, _expected_errors) = if query.query.starts_with("--error:") {
                         let parts: Vec<&str> = query.query.splitn(3, ':').collect();
                         if parts.len() == 3 {
                             let errors_str = parts[1].trim_matches(|c| c == '[' || c == ']' || c == '"');
@@ -1165,7 +1165,11 @@ impl Tester {
             }
         }
         
-        let combined_output = output_parts.join("\n");
+        // 将并发查询的输出合并，并确保与串行路径保持相同的换行语义（结尾带 \n）
+        let mut combined_output = output_parts.join("\n");
+        if !combined_output.is_empty() && !combined_output.ends_with('\n') {
+            combined_output.push('\n');
+        }
 
         if !combined_output.is_empty() {
             if let Err(e) = self.compare_with_result(&combined_output) {

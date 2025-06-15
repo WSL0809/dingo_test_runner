@@ -177,7 +177,7 @@ mod tests {
     #[test]
     fn test_simple_expressions() {
         let evaluator = ExpressionEvaluator::new();
-        let var_context = VariableContext::new();
+        let _var_context = VariableContext::new();
 
         // Test simple numeric expressions without database
         assert!(evaluator.evaluate_final_expression("1").unwrap());

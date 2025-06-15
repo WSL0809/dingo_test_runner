@@ -218,7 +218,9 @@ struct ConnectParams {
     port: String,
 }
 
-// ConnectionManager 内部仅在 &mut self 方法中修改状态；路由给 mysql::Pool 的操作本身是线程安全的。
-// 因此显式标记为 Send + Sync 以便跨线程共享。
-unsafe impl Send for ConnectionManager {}
-unsafe impl Sync for ConnectionManager {} 
+// 编译期静态断言：若未来有非线程安全字段加入将立刻编译失败。
+fn _assert_send_sync() {
+    fn assert_impl<T: Send + Sync>() {}
+    // 若 ConnectionManager 不满足 Send + Sync，此处将无法编译通过。
+    assert_impl::<ConnectionManager>();
+} 
