@@ -1,0 +1,30 @@
+# Nested control flow test
+--let $outer = 2
+
+--while ($outer > 0)
+--echo "Outer loop: $outer"
+--let $inner = 2
+
+--while ($inner > 0)
+--echo "  Inner loop: $inner"
+--if ($inner == 2)
+--let $inner = 1
+--end
+--if ($inner == 1)
+--let $inner = 0
+--end
+--end
+
+--if ($outer == 1)
+--echo "  This is the last outer iteration"
+--end
+
+--if ($outer == 2)
+--let $outer = 1
+--end
+--if ($outer == 1)
+--let $outer = 0
+--end
+--end
+
+--echo "Nested loops completed" 

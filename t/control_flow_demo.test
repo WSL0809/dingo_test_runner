@@ -1,0 +1,39 @@
+# Comprehensive control flow demonstration
+--echo "=== Control Flow Demo ==="
+
+# Test variables
+--let $user_count = 2
+--let $admin_flag = 1
+
+# If statement with SQL expression
+CREATE TABLE demo_users (id INT, name VARCHAR(50), role VARCHAR(20));
+INSERT INTO demo_users VALUES (1, 'Alice', 'admin'), (2, 'Bob', 'user');
+
+if (`SELECT COUNT(*) FROM demo_users WHERE role = 'admin'` > 0) {
+--echo "Admin users found in database"
+}
+
+# While loop with nested if
+--echo "Processing users..."
+while($user_count > 0) {
+--echo "Processing user $user_count"
+
+if($user_count == 2) {
+--echo "  This is user 2"
+--let $user_count = 1
+}
+if($user_count == 1) {
+--echo "  This is user 1"
+--let $user_count = 0
+}
+}
+
+# Mixed syntax (traditional end keyword)
+if ($admin_flag)
+--echo "Admin access granted"
+end
+
+# Cleanup
+DROP TABLE demo_users;
+
+--echo "=== Demo Complete ===" 

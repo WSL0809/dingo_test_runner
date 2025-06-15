@@ -5,22 +5,76 @@
 use crate::tester::variables::{VariableContext, LetStatement};
 use crate::tester::command::Command;
 use crate::tester::tester::Tester;
+use crate::tester::expression::ExpressionEvaluator;
+use crate::tester::database::Database;
 use anyhow::Result;
 use std::env;
+use log::debug;
+use evalexpr::{eval, Value as EvalValue};
 
 /// Execute function for the command registry
 pub fn execute(tester: &mut Tester, cmd: &Command) -> Result<()> {
-    LetHandler::handle(&mut tester.variable_context, &cmd.args)
+    debug!("Executing let command: {}", cmd.args);
+    
+    // We need to avoid borrowing conflicts, so we'll create a new evaluator instance
+    // This is acceptable since ExpressionEvaluator is lightweight and stateless
+    let expression_evaluator = ExpressionEvaluator::new();
+    
+    let result = LetHandler::handle_with_context(
+        &mut tester.variable_context,
+        &expression_evaluator,
+        tester.connection_manager.current_database()?,
+        &cmd.args
+    );
+    
+    match &result {
+        Ok(_) => debug!("Let command executed successfully"),
+        Err(e) => debug!("Let command failed: {}", e),
+    }
+    
+    result
 }
 
 /// Handler for the `let` command
 pub struct LetHandler;
 
 impl LetHandler {
-    /// Handle a let command
+    /// Handle a let command with expression evaluation support
     /// 
-    /// Parses the let statement and updates the variable context.
-    /// For environment variables (without $), also updates the process environment.
+    /// This method implements "optimistic evaluation":
+    /// 1. Parse the let statement and expand variables
+    /// 2. Try to resolve SQL backtick expressions
+    /// 3. Try to evaluate as mathematical/logical expression
+    /// 4. If evaluation fails, fall back to literal string assignment
+    pub fn handle_with_context(
+        variable_context: &mut VariableContext,
+        expression_evaluator: &ExpressionEvaluator,
+        database: &mut Database,
+        statement: &str,
+    ) -> Result<()> {
+        // Parse the let statement (this does basic variable expansion)
+        let let_stmt = variable_context.parse_let_statement(statement)?;
+        
+        // Try optimistic evaluation on the expanded value
+        let final_value = Self::evaluate_value_optimistically(
+            &let_stmt.value,
+            variable_context,
+            expression_evaluator,
+            database,
+        )?;
+        
+        // Create a new LetStatement with the evaluated value
+        let evaluated_stmt = LetStatement {
+            name: let_stmt.name,
+            value: final_value,
+            is_env: let_stmt.is_env,
+        };
+        
+        // Execute the assignment
+        Self::execute_assignment(variable_context, evaluated_stmt)
+    }
+
+    /// Legacy handle method for backward compatibility (without expression evaluation)
     pub fn handle(
         variable_context: &mut VariableContext,
         statement: &str,
@@ -28,8 +82,74 @@ impl LetHandler {
         // Parse the let statement
         let let_stmt = variable_context.parse_let_statement(statement)?;
         
-        // Execute the assignment
+        // Execute the assignment without expression evaluation
         Self::execute_assignment(variable_context, let_stmt)
+    }
+
+    /// Evaluate a value optimistically: try expression evaluation, fall back to literal
+    fn evaluate_value_optimistically(
+        value: &str,
+        variable_context: &VariableContext,
+        expression_evaluator: &ExpressionEvaluator,
+        database: &mut Database,
+    ) -> Result<String> {
+        debug!("Evaluating value optimistically: {}", value);
+
+        // Step 1: The value has already been variable-expanded by parse_let_statement
+        // Step 2: Try to resolve SQL backtick expressions
+        let sql_resolved = match expression_evaluator.resolve_sql_expressions(value, database) {
+            Ok(resolved) => {
+                debug!("After SQL resolution: {}", resolved);
+                resolved
+            }
+            Err(e) => {
+                debug!("SQL resolution failed: {}, using original value", e);
+                value.to_string()
+            }
+        };
+
+        // Step 3: Try to evaluate as mathematical/logical expression
+        match Self::try_evaluate_expression(&sql_resolved) {
+            Ok(result) => {
+                debug!("Expression evaluation succeeded: {} -> {}", sql_resolved, result);
+                Ok(result)
+            }
+            Err(_) => {
+                debug!("Expression evaluation failed, using literal value: {}", sql_resolved);
+                Ok(sql_resolved)
+            }
+        }
+    }
+
+    /// Try to evaluate a string as a mathematical/logical expression
+    fn try_evaluate_expression(expr: &str) -> Result<String> {
+        let trimmed = expr.trim();
+        
+        // Handle empty expressions
+        if trimmed.is_empty() {
+            return Ok(String::new());
+        }
+
+        // Try evalexpr evaluation
+        match eval(trimmed) {
+            Ok(value) => Ok(Self::eval_value_to_string(&value)),
+            Err(e) => {
+                debug!("evalexpr failed for '{}': {}", trimmed, e);
+                Err(anyhow::anyhow!("Expression evaluation failed: {}", e))
+            }
+        }
+    }
+
+    /// Convert evalexpr Value to string for storage
+    fn eval_value_to_string(value: &EvalValue) -> String {
+        match value {
+            EvalValue::Boolean(b) => if *b { "1".to_string() } else { "0".to_string() },
+            EvalValue::Int(i) => i.to_string(),
+            EvalValue::Float(f) => f.to_string(),
+            EvalValue::String(s) => s.clone(),
+            EvalValue::Tuple(t) => format!("{:?}", t), // Fallback for tuples
+            EvalValue::Empty => String::new(),
+        }
     }
 
     /// Execute the variable assignment
@@ -42,12 +162,12 @@ impl LetHandler {
             variable_context.set(&let_stmt.name, &let_stmt.value);
             env::set_var(&let_stmt.name, &let_stmt.value);
             
-            log::debug!("Set environment variable: {} = {}", let_stmt.name, let_stmt.value);
+            debug!("Set environment variable: {} = {}", let_stmt.name, let_stmt.value);
         } else {
             // MySQLTest variable - set only in context
             variable_context.set(&let_stmt.name, &let_stmt.value);
             
-            log::debug!("Set mysqltest variable: ${} = {}", let_stmt.name, let_stmt.value);
+            debug!("Set mysqltest variable: ${} = {}", let_stmt.name, let_stmt.value);
         }
 
         Ok(())

@@ -1,0 +1,14 @@
+# Simple if statement test
+--let $test_var = 1
+
+--if ($test_var)
+--echo "Variable is true"
+--end
+
+--let $zero_var = 0
+
+--if ($zero_var)
+--echo "This should not appear"
+--end
+
+--echo "Test completed" 

@@ -53,6 +53,10 @@ static COMMAND_MAP: phf::Map<&'static str, QueryType> = phf_map! {
     "ping" => QueryType::Ping,
     "skip" => QueryType::Skip,
     "exit" => QueryType::Exit,
+    // Control flow commands
+    "if" => QueryType::If,
+    "while" => QueryType::While,
+    "end" => QueryType::End,
 };
 
 /// Parser for .test files
@@ -107,6 +111,51 @@ impl Parser {
                     query_type,
                     query: query_content,
                     line: line_num - lines_consumed,
+                });
+                continue;
+            }
+
+            // Handle control flow statements (if, while)
+            let trimmed_line = line.trim();
+            if self.is_control_flow_statement(trimmed_line) {
+                let (query_type, query_content, lines_consumed) = self.parse_control_flow(trimmed_line, &lines, line_num - 1)?;
+                line_num += lines_consumed;
+                
+                queries.push(Query {
+                    query_type,
+                    query: query_content,
+                    line: line_num - lines_consumed,
+                });
+                continue;
+            }
+
+            // Handle closing brace
+            if line.trim() == "}" {
+                queries.push(Query {
+                    query_type: QueryType::CloseBrace,
+                    query: String::new(),
+                    line: line_num,
+                });
+                continue;
+            }
+
+            // Handle 'end' keyword
+            if line.trim() == "end" {
+                queries.push(Query {
+                    query_type: QueryType::End,
+                    query: String::new(),
+                    line: line_num,
+                });
+                continue;
+            }
+
+            // Handle let statements without -- prefix
+            if Self::is_let_statement(trimmed_line) {
+                let let_args = Self::extract_let_args(trimmed_line);
+                queries.push(Query {
+                    query_type: QueryType::Let,
+                    query: let_args,
+                    line: line_num,
                 });
                 continue;
             }
@@ -198,5 +247,145 @@ impl Parser {
         }
         
         Ok((full_query, lines_consumed))
+    }
+
+    /// Check if a line is a control flow statement
+    fn is_control_flow_statement(&self, line: &str) -> bool {
+        let line = line.trim();
+        
+        // Check for if/while followed by whitespace or opening parenthesis
+        if line.starts_with("if") {
+            let rest = &line[2..];
+            return rest.is_empty() || rest.starts_with(char::is_whitespace) || rest.starts_with('(');
+        }
+        
+        if line.starts_with("while") {
+            let rest = &line[5..];
+            return rest.is_empty() || rest.starts_with(char::is_whitespace) || rest.starts_with('(');
+        }
+        
+        false
+    }
+
+    /// Check if a line is a let statement (without -- prefix)
+    /// Supports various formats like:
+    /// - "let $var = value"
+    /// - "let$var=value" (no spaces)
+    /// - "let   $var   =   value" (extra spaces)
+    fn is_let_statement(line: &str) -> bool {
+        let line = line.trim();
+        
+        // Must start with "let" (case insensitive)
+        if !line.to_lowercase().starts_with("let") {
+            return false;
+        }
+        
+        let rest = &line[3..];
+        
+        // After "let", there must be either:
+        // 1. Whitespace followed by variable assignment
+        // 2. Direct variable assignment (like "let$var=")
+        if rest.is_empty() {
+            return false;
+        }
+        
+        // Check if the rest starts with whitespace or directly with $ or variable name
+        let rest_trimmed = rest.trim_start();
+        if rest_trimmed.is_empty() {
+            return false;
+        }
+        
+        // Must contain an assignment (=)
+        rest_trimmed.contains('=')
+    }
+
+    /// Extract arguments from a let statement
+    /// Handles various spacing formats
+    fn extract_let_args(line: &str) -> String {
+        let line = line.trim();
+        
+        // Remove "let" prefix (case insensitive)
+        let rest = if line.to_lowercase().starts_with("let") {
+            &line[3..]
+        } else {
+            line
+        };
+        
+        rest.trim().to_string()
+    }
+
+    /// Parse control flow statements (if/while)
+    /// Supports both syntaxes:
+    /// - if (condition) { ... }
+    /// - if (condition) ... end
+    /// - if(condition) { ... }  (no space before parenthesis)
+    /// - while (condition) { ... }
+    /// - while(condition) { ... }
+    fn parse_control_flow(&mut self, line: &str, _lines: &[&str], _start_line: usize) -> Result<(QueryType, String, usize)> {
+        let line = line.trim();
+        
+        // Determine if it's if or while and extract the rest
+        let (keyword, rest) = if line.starts_with("if") {
+            ("if", line[2..].trim_start())
+        } else if line.starts_with("while") {
+            ("while", line[5..].trim_start())
+        } else {
+            return Err(anyhow!("Invalid control flow statement: {}", line));
+        };
+
+        let rest = rest.trim();
+        
+        // Parse condition in parentheses
+        if !rest.starts_with('(') {
+            return Err(anyhow!("Control flow condition must be in parentheses: {}", line));
+        }
+
+        // Find the matching closing parenthesis
+        let mut paren_count = 0;
+        let mut condition_end = 0;
+        for (i, ch) in rest.chars().enumerate() {
+            match ch {
+                '(' => paren_count += 1,
+                ')' => {
+                    paren_count -= 1;
+                    if paren_count == 0 {
+                        condition_end = i;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        if paren_count != 0 {
+            return Err(anyhow!("Unmatched parentheses in control flow condition: {}", line));
+        }
+
+        // Extract condition (without the outer parentheses)
+        let condition = rest[1..condition_end].trim().to_string();
+        
+        // Check what follows the condition
+        let after_condition = rest[condition_end + 1..].trim();
+        
+        if after_condition.starts_with('{') {
+            // Block syntax: if (condition) { ... }
+            // The condition is what we need to store
+            let query_type = match keyword {
+                "if" => QueryType::If,
+                "while" => QueryType::While,
+                _ => unreachable!(),
+            };
+            Ok((query_type, condition, 0))
+        } else if after_condition.is_empty() {
+            // Traditional syntax: if (condition) ... end
+            let query_type = match keyword {
+                "if" => QueryType::If,
+                "while" => QueryType::While,
+                _ => unreachable!(),
+            };
+            Ok((query_type, condition, 0))
+        } else {
+            return Err(anyhow!("Invalid syntax after control flow condition: {}", line));
+        }
     }
 }

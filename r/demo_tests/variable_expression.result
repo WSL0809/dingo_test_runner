@@ -1,0 +1,23 @@
+Basic arithmetic results:
+Sum: 8 (should be 8)
+Difference: 2 (should be 2)
+Product: 15 (should be 15)
+Quotient: 1 (should be 1.6666666666666667)
+Logical results:
+Greater: 1 (should be 1)
+Equal: 0 (should be 0)
+AND result: 1 (should be 1)
+OR result: 1 (should be 1)
+Complex results:
+Complex: 16 (should be 16)
+Nested: 1 (should be 1)
+create table if not exists test_table (id int, value int)
+insert into test_table values (1, 10), (2, 20), (3, 30)
+SQL results:
+Count: 3 (should be 3)
+Max value: 30 (should be 30)
+Calculated: 60 (should be 60)
+Fallback results:
+Literal: hello world with spaces (should be "hello world with spaces")
+Mixed: some text 5 more text (should be "some text 5 more text")
+drop table if exists test_table

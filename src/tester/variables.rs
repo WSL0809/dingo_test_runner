@@ -83,30 +83,41 @@ impl VariableContext {
             return Err(anyhow!("Variable expansion exceeded maximum depth ({})", MAX_EXPANSION_DEPTH));
         }
 
-        let mut result = text.to_string();
-        let mut has_variables = false;
-
-        // Find all variable references
-        for captures in self.var_regex.captures_iter(text) {
-            let full_match = captures.get(0).unwrap().as_str(); // $var_name
-            let var_name = captures.get(1).unwrap().as_str();   // var_name
-
+        // Use regex replace_all to avoid overlapping replacement issues
+        let result = self.var_regex.replace_all(text, |caps: &regex::Captures| {
+            let var_name = &caps[1];
             match self.variables.get(var_name) {
-                Some(value) => {
-                    result = result.replace(full_match, value);
-                    has_variables = true;
-                }
+                Some(value) => value.clone(),
                 None => {
-                    return Err(anyhow!("Undefined variable: ${}", var_name));
+                    // We can't return an error from this closure, so we'll keep the original
+                    // and handle the error in a second pass
+                    caps[0].to_string()
                 }
+            }
+        });
+
+        // Check if any variables were undefined
+        let mut undefined_vars = Vec::new();
+        for captures in self.var_regex.captures_iter(&result) {
+            let var_name = captures.get(1).unwrap().as_str();
+            if !self.variables.contains_key(var_name) {
+                undefined_vars.push(var_name.to_string());
             }
         }
 
-        // If we made substitutions, recursively expand in case the values contain variables
-        if has_variables {
+        if !undefined_vars.is_empty() {
+            if undefined_vars.len() == 1 {
+                return Err(anyhow!("Undefined variable: ${}", undefined_vars[0]));
+            } else {
+                return Err(anyhow!("Undefined variables: ${}", undefined_vars.join(", $")));
+            }
+        }
+
+        // If the result is different from input, recursively expand in case the values contain variables
+        if result != text {
             self.expand_with_depth(&result, depth + 1)
         } else {
-            Ok(result)
+            Ok(result.to_string())
         }
     }
 
@@ -306,5 +317,30 @@ mod tests {
         assert!(ctx.parse_let_statement("let $123invalid = value").is_err());
         assert!(ctx.parse_let_statement("let $invalid-name = value").is_err());
         assert!(ctx.parse_let_statement("let $invalid.name = value").is_err());
+    }
+
+    #[test]
+    fn test_variable_expansion_debug() {
+        let mut ctx = VariableContext::new();
+        ctx.set("admin_flag", "1");
+        ctx.set("a", "5");
+        ctx.set("b", "3");
+        
+        // Test the problematic case from the result file
+        let problematic = "✓ 逻辑与运算正常: $a > $b 且 admin_flag = $admin_flag";
+        println!("Original: {}", problematic);
+        
+        let result = ctx.expand(problematic).unwrap();
+        println!("Expanded: {}", result);
+        
+        // Test individual parts
+        let simple_var = "$admin_flag";
+        let simple_result = ctx.expand(simple_var).unwrap();
+        println!("Simple variable: {} -> {}", simple_var, simple_result);
+        
+        // Test arithmetic expression
+        let arithmetic = "$a + $b";
+        let arith_result = ctx.expand(arithmetic).unwrap();
+        println!("Arithmetic: {} -> {}", arithmetic, arith_result);
     }
 } 

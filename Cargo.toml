@@ -48,6 +48,10 @@ phf = { version = "0.11.2", features = ["macros"] }
 # 目录遍历
 walkdir = "2.5.0"
 once_cell = "1.21.3"
+
+# 表达式求值
+evalexpr = "12.0.2"
+
 [features]
 default = []
 email = ["lettre"]

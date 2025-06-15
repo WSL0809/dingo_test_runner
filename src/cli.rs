@@ -24,7 +24,7 @@ pub struct Args {
     pub user: String,
 
     /// Database password
-    #[arg(long, default_value = "")]
+    #[arg(long, default_value = "123456")]
     pub passwd: String,
 
     /// Log level: error, warn, info, debug, trace

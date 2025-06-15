@@ -1,0 +1,33 @@
+# Test flexible control flow syntax
+--let $test_var = 1
+
+# Standard syntax with space
+if ($test_var) {
+--echo "Standard if with space"
+}
+
+# No space before parenthesis
+if($test_var) {
+--echo "If without space"
+}
+
+# Multiple spaces
+if   ($test_var) {
+--echo "If with multiple spaces"
+}
+
+# While variations
+--let $counter = 1
+
+while($counter > 0) {
+--echo "While without space"
+--let $counter = 0
+}
+
+--let $counter2 = 1
+while   ($counter2 > 0) {
+--echo "While with multiple spaces"
+--let $counter2 = 0
+}
+
+--echo "All syntax variations work" 

@@ -74,6 +74,7 @@
   - XML 生成: `quick-xml + serde-xml-rs`
   - 并发: `rayon + crossbeam`
   - 错误处理: `anyhow + thiserror`
+  - 表达式求值: `evalexpr = "12.0.2"`
   - 其他工具: `phf`, `regex`, `chrono`
 - [x] 创建模块目录结构
   ```
@@ -92,6 +93,8 @@
   │  ├─ connection_manager.rs # 连接池管理
   │  ├─ registry.rs   # 命令注册表
   │  ├─ command.rs    # 命令定义
+  │  ├─ expression.rs # 表达式求值器
+  │  ├─ variables.rs  # 变量系统
   │  └─ handlers/     # 命令处理器
   ├─ util/            # 工具模块
   │  ├─ mod.rs
@@ -113,6 +116,8 @@
   - [x] 解析注释 (`#` 开头)
   - [x] 解析多行查询 (支持自定义分隔符)
   - [x] 处理分隔符变更 (`--delimiter`)
+  - [x] 解析控制流语句 (`if`, `while`, `end`, `}`)
+  - [x] 支持灵活的语法格式 (有无空格、花括号/end 结尾)
 - [x] 编写完整的单元测试 (5个测试用例)
 - [x] 实现 CLI 参数解析模块
   - [x] 与 Go 版本兼容的所有参数
@@ -142,6 +147,7 @@
 - [x] 基本指令处理 (echo, sleep, query log 控制)
 - [x] 错误码映射处理
 - [x] 更多指令支持 (replace_column, replace_regex 等)
+- [x] 控制流执行引擎 (程序计数器、跳转控制、循环栈管理)
 
 ### 🔄 待完成阶段
 
@@ -179,6 +185,14 @@
   - 支持嵌套变量展开 (`--let $greeting = Hello $name`)
   - 支持递归展开保护 (防止无限循环)
   - 完整的单元测试覆盖
+- [x] **实现控制流语句** (`if` 和 `while`)
+  - 支持灵活的语法格式：`if (condition) { ... }`, `if(condition) { ... }`, `if (condition) ... end`
+  - 支持 while 循环：`while (condition) { ... }`, `while(condition) { ... }`, `while (condition) ... end`
+  - 表达式求值支持：变量展开、算术运算、逻辑运算、SQL 反引号表达式
+  - 嵌套控制流支持：if 和 while 可以任意嵌套
+  - 无限循环保护：超过 10,000 次迭代自动报错
+  - 程序计数器 (PC) 机制实现跳转控制
+  - 完整的测试用例覆盖
 - [ ] 实现其他剩余指令
 
 #### Phase 9 – 对照测试 & 性能评估
@@ -228,6 +242,22 @@
 - 支持多连接并发操作
 - 实现连接重试和错误恢复
 
+### 6. 控制流实现策略
+**决策**: 使用程序计数器 (PC) + 控制流映射表 + 栈管理
+**原因**:
+- 保持线性指令流，避免复杂的 AST 重构
+- 预处理构建跳转映射表，执行期 O(1) 查找
+- 使用栈管理嵌套 while 循环状态
+- 支持灵活的语法格式 (花括号/end 混用)
+
+### 7. 表达式求值策略
+**决策**: 使用 `evalexpr` crate 进行表达式计算
+**原因**:
+- 成熟的表达式求值库，支持算术、逻辑、比较运算
+- 无 unsafe 代码，安全可靠
+- 相比手写 parser 更稳定，支持复杂表达式
+- 易于扩展支持更多运算符和函数
+
 ## 代码质量指标
 
 - **编译状态**: ✅ 通过
@@ -260,6 +290,7 @@
   - 测试文件解析功能
   - 测试命令识别
   - 测试错误处理
+  - 测试控制流语句解析
 - ✅ 数据库抽象层测试 (`tests/unit/database.rs`)
   - 测试连接管理
   - 测试查询执行
@@ -268,14 +299,29 @@
   - 测试基本执行流程
   - 测试结果比对
   - 测试错误处理
+  - 测试控制流执行
+- ✅ 表达式求值测试 (`tests/unit/expression.rs`)
+  - 测试变量展开
+  - 测试算术和逻辑运算
+  - 测试 SQL 反引号表达式
+  - 测试真值判断逻辑
+- ✅ 变量系统测试 (`tests/unit/variables.rs`)
+  - 测试变量设置和获取
+  - 测试递归展开
+  - 测试 let 语句解析
 - 🔄 命令处理器测试 (`tests/unit/handlers/`)
   - 测试各个命令处理器
   - 测试命令注册机制
 
 ### 集成测试
-- 🔄 基础功能测试 (`tests/integration/basic.rs`)
+- ✅ 基础功能测试 (`tests/integration/basic.rs`)
   - 完整的 .test 文件执行
   - 结果文件生成和比对
+- ✅ 控制流测试 (`t/if_*.test`, `t/while_*.test`)
+  - if 语句各种语法格式测试
+  - while 循环嵌套测试
+  - 表达式求值集成测试
+  - SQL 条件表达式测试
 - 🔄 并发测试 (`tests/integration/concurrent.rs`)
   - 并发执行测试
   - 连接池管理测试
@@ -326,15 +372,74 @@
 
 ---
 
-**最后更新**: 2025年06月
+**最后更新**: 2025年06月15日
 **当前版本**: v0.2.0-dev
 **开发者**: [项目团队]
+
+## 🎉 最新功能亮点
+
+### 控制流语句支持 (v0.2.0)
+
+我们刚刚完成了 **if 和 while 控制流语句**的完整实现，这是一个重要的里程碑！
+
+#### ✨ 主要特性
+
+1. **灵活的语法支持**
+   ```sql
+   # 花括号语法
+   if ($var > 0) {
+       --echo "Positive value"
+   }
+   
+   # 传统 end 语法
+   if ($var > 0)
+       --echo "Positive value"
+   end
+   
+   # 无空格语法
+   if($var > 0) {
+       --echo "Positive value"
+   }
+   ```
+
+2. **强大的表达式求值**
+   ```sql
+   # 变量展开
+   if ($user_count > 0)
+   
+   # 算术运算
+   if (5 + 3 > 7)
+   
+   # SQL 表达式
+   if (`SELECT COUNT(*) FROM users` > 0)
+   
+   # 逻辑运算
+   if (true && $flag)
+   ```
+
+3. **嵌套控制流**
+   ```sql
+   while ($outer > 0) {
+       if ($inner_condition) {
+           --echo "Nested execution"
+       }
+   }
+   ```
+
+#### 🧪 测试覆盖
+
+- ✅ 8 个专门的测试文件验证各种语法
+- ✅ 单元测试覆盖解析器和执行引擎
+- ✅ 集成测试验证端到端功能
+- ✅ 错误处理和边界条件测试
+
+这个功能使得 MySQL 测试运行器能够处理更复杂的测试场景，大大增强了测试脚本的表达能力！🚀
 
 # 开发进度报告
 
 本文档记录了 `mysql-tester-rs` 项目的当前开发状态、已完成的功能以及后续的开发计划。
 
-**最后更新时间:** 2025-06-12
+**最后更新时间:** 2025-06-15
 
 ---
 
@@ -401,7 +506,10 @@ src/
     ├── parser.rs    # .test 文件解析器
     ├── query.rs     # Query 和 QueryType 定义
     ├── database.rs  # 数据库连接与操作抽象
-    └── error_handler.rs # 错误码处理与映射
+    ├── error_handler.rs # 错误码处理与映射
+    ├── expression.rs # 表达式求值器
+    ├── variables.rs # 变量系统
+    └── connection_manager.rs # 连接管理器
 ```
 
 ---

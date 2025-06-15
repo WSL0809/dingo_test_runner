@@ -1,0 +1,17 @@
+# Simple nested test
+--let $outer = 1
+
+--while ($outer > 0)
+--echo "Outer start"
+
+--let $inner = 1
+--while ($inner > 0)
+--echo "Inner loop"
+--let $inner = 0
+--end
+
+--echo "Outer end"
+--let $outer = 0
+--end
+
+--echo "All done" 

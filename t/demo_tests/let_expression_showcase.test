@@ -1,0 +1,62 @@
+# Let 表达式求值功能展示
+# 演示 let 语句的强大表达式计算能力
+
+--echo === Let 表达式求值功能演示 ===
+
+# 1. 基础算术运算
+let $a = 10
+let $b = 3
+let $sum = $a + $b
+let $diff = $a - $b  
+let $product = $a * $b
+let $quotient = $a / $b
+
+--echo 1. 基础算术运算:
+--echo   $a + $b = $sum
+--echo   $a - $b = $diff
+--echo   $a * $b = $product
+--echo   $a / $b = $quotient
+
+# 2. 复杂表达式
+let $complex1 = ($a + $b) * 2
+let $complex2 = $a * $b + $sum
+let $complex3 = ($a - $b) * ($a + $b)
+
+--echo 2. 复杂表达式:
+--echo   ($a + $b) * 2 = $complex1
+--echo   $a * $b + $sum = $complex2
+--echo   ($a - $b) * ($a + $b) = $complex3
+
+# 3. 逻辑运算
+let $greater = $a > $b
+let $equal = $a == $b
+let $not_equal = $a != $b
+let $and_result = $a > 5 && $b < 5
+let $or_result = $a > 20 || $b > 0
+
+--echo 3. 逻辑运算:
+--echo   $a > $b = $greater
+--echo   $a == $b = $equal
+--echo   $a != $b = $not_equal
+--echo   $a > 5 && $b < 5 = $and_result
+--echo   $a > 20 || $b > 0 = $or_result
+
+# 4. 灵活语法演示
+let$compact=100
+let   $spaced   =   200
+LET $mixed_case = 300
+
+--echo 4. 灵活语法支持:
+--echo   紧凑格式: $compact
+--echo   空格格式: $spaced
+--echo   大小写混合: $mixed_case
+
+# 5. 字面值回退演示
+let $text = hello world with spaces
+let $mixed = some text $a more text
+
+--echo 5. 字面值回退:
+--echo   纯文本: $text
+--echo   混合文本: $mixed
+
+--echo === 演示完成 === 

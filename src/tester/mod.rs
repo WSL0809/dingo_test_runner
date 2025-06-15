@@ -1,11 +1,12 @@
+pub mod command;
 pub mod conn;
+pub mod connection_manager;
 pub mod database;
+pub mod error_handler;
+pub mod expression;
+pub mod handlers;
 pub mod parser;
 pub mod query;
-pub mod tester;
-pub mod error_handler;
-pub mod connection_manager;
-pub mod command;
-pub mod handlers;
 pub mod registry;
+pub mod tester;
 pub mod variables;

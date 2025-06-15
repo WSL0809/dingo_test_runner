@@ -1,0 +1,92 @@
+# 复杂控制流与 let 表达式求值综合测试
+# 本测试验证在 if/while 循环中，let 表达式求值功能的正确性和变量作用域的更新
+
+--echo === Let 与控制流综合测试 ===
+
+# 准备测试数据
+CREATE TABLE products (id INT, name VARCHAR(50), price INT, stock INT);
+INSERT INTO products VALUES (1, 'Apple', 10, 5), (2, 'Banana', 5, 10), (3, 'Orange', 8, 0);
+
+# --- 场景1: 使用 while 循环和 let 更新库存 ---
+--echo
+--echo --- 场景1: 使用 while 循环和 let 模拟补货 ---
+
+let $product_id = 1
+let $restock_target = 10
+
+while ($product_id <= 3)
+    let $current_stock = `SELECT stock FROM products WHERE id = $product_id`
+    --echo "检查产品ID: $product_id, 当前库存: $current_stock"
+
+    if ($current_stock < $restock_target)
+        let $needed = $restock_target - $current_stock
+        --echo "  库存不足, 需要补货: $needed"
+        
+        # 使用 let 计算新库存并更新
+        let $new_stock = $current_stock + $needed
+        UPDATE products SET stock = $new_stock WHERE id = $product_id;
+        --echo "  已补货, 新库存: $new_stock"
+    end
+
+    # 模拟 if-else, 使用第二个 if 判断
+    if ($current_stock >= $restock_target)
+        --echo "  库存充足, 无需操作"
+    end
+    
+    let $product_id = $product_id + 1
+end
+
+--echo
+--echo --- 补货后库存检查 ---
+SELECT * FROM products ORDER BY id;
+
+
+# --- 场景2: 嵌套循环与复杂条件 ---
+--echo
+--echo --- 场景2: 嵌套循环计算总价值 ---
+
+let $total_value = 0
+let $i = 1
+
+while ($i <= 3)
+    let $price = `SELECT price FROM products WHERE id = $i`
+    let $stock = `SELECT stock FROM products WHERE id = $i`
+    
+    --echo "计算产品ID: $i (价格: $price, 库存: $stock)"
+
+    # 只计算有库存且价格高于 5 的产品的总价值
+    if ($stock > 0 && $price > 5)
+        let $product_value = $price * $stock
+        --echo "  产品价值 ($price * $stock) = $product_value"
+        
+        # 内部循环，仅为演示嵌套 let 的作用域
+        let $j = 0
+        while ($j < 2)
+            let $temp_val = $product_value + $j
+            --echo "    内部循环临时值: $temp_val"
+            let $j = $j + 1
+        end
+        
+        let $total_value = $total_value + $product_value
+    end
+
+    # 模拟 else-if
+    if ($stock > 0 && $price <= 5)
+        --echo "  价格不高于5, 跳过价值计算"
+    end
+
+    if ($stock == 0)
+        --echo "  无库存, 跳过价值计算"
+    end
+
+    let $i = $i + 1
+end
+
+--echo
+--echo "计算完成, 总价值: $total_value (预期: 10*10 (Apple) + 8*10 (Orange) = 180)"
+
+
+# --- 清理 ---
+DROP TABLE products;
+--echo
+--echo === 测试完成 === 

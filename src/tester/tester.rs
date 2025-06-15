@@ -4,6 +4,7 @@
 //! query execution, result comparison, and cleanup.
 
 use super::database::ConnectionInfo;
+use super::expression::ExpressionEvaluator;
 use super::parser::Parser;
 use super::query::{Query, QueryType};
 use super::variables::VariableContext;
@@ -15,9 +16,26 @@ use crate::cli::Args;
 use anyhow::{anyhow, Result};
 use log::{debug, error, info, warn};
 use regex::Regex;
+use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+
+/// Maximum number of loop iterations to prevent infinite loops
+const MAX_LOOP_ITERATIONS: usize = 10_000;
+
+/// Control flow frame for while loops
+#[derive(Debug, Clone)]
+struct WhileFrame {
+    /// Start index of the while loop (index of the while command)
+    start_index: usize,
+    /// End index of the while loop (index of the matching end command)
+    end_index: usize,
+    /// The condition expression to evaluate
+    condition: String,
+    /// Current iteration count
+    iteration_count: usize,
+}
 
 /// Test execution engine
 pub struct Tester {
@@ -51,6 +69,14 @@ pub struct Tester {
     pub pending_replace_regex: Vec<(Regex, String)>,
     /// Variable context for storing test variables
     pub variable_context: VariableContext,
+    
+    // --- Control flow fields ---
+    /// Expression evaluator for if/while conditions
+    expression_evaluator: ExpressionEvaluator,
+    /// Stack of active while loops
+    while_stack: Vec<WhileFrame>,
+    /// Mapping from start index to end index for control structures
+    control_flow_map: HashMap<usize, usize>,
 }
 
 impl Tester {
@@ -90,6 +116,9 @@ impl Tester {
             pending_sorted_result: false,
             pending_replace_regex: Vec::new(),
             variable_context: VariableContext::new(),
+            expression_evaluator: ExpressionEvaluator::new(),
+            while_stack: Vec::new(),
+            control_flow_map: HashMap::new(),
         })
     }
 
@@ -101,6 +130,10 @@ impl Tester {
         self.result_file_position = 0;
         self.pending_sorted_result = false;
         self.pending_replace_regex.clear();
+        
+        // Clear control flow state
+        self.while_stack.clear();
+        self.control_flow_map.clear();
         
         info!("Starting test: {}", test_name);
         
@@ -153,20 +186,28 @@ impl Tester {
 
         info!("Parsed {} queries from {}", queries.len(), test_path.display());
 
-        // Execute queries
+        // Build control flow mapping
+        self.build_control_flow_map(&queries)?;
+
+        // Execute queries with control flow support
         let mut test_result = TestResult::new(&test_name);
-        for (i, query) in queries.iter().enumerate() {
-            match self.execute_query(query, i + 1) {
-                Ok(_) => {
+        let mut pc = 0; // Program counter
+        
+        while pc < queries.len() {
+            let query = &queries[pc];
+            match self.execute_query_with_control_flow(query, pc, &queries) {
+                Ok(next_pc) => {
                     test_result.passed_queries += 1;
+                    pc = next_pc;
                 }
                 Err(e) => {
-                    error!("Line {} (Query {}): {}", query.line, i + 1, e);
+                    error!("Line {} (PC {}): {}", query.line, pc, e);
                     test_result.failed_queries += 1;
                     test_result.errors.push(format!("Line {}: {}", query.line, e));
                     if self.args.fail_fast {
                         break; // 快速失败，终止后续查询
                     }
+                    pc += 1; // Continue to next query on error
                 }
             }
         }
@@ -683,6 +724,11 @@ impl Tester {
         *buffer = temp_buffer;
     }
 
+    /// Get a reference to the expression evaluator
+    pub fn expression_evaluator(&self) -> &ExpressionEvaluator {
+        &self.expression_evaluator
+    }
+
     /// Load result file for comparison (non-record mode)
     fn load_result_file(&mut self, test_name: &str) -> Result<()> {
         let result_dir = self.current_dir.join("r");
@@ -779,6 +825,169 @@ impl TestResult {
             passed_queries: 0,
             failed_queries: 0,
             errors: Vec::new(),
+        }
+    }
+}
+
+impl Tester {
+    /// Build control flow mapping for if/while/end structures
+    fn build_control_flow_map(&mut self, queries: &[Query]) -> Result<()> {
+        self.control_flow_map.clear();
+        let mut stack = Vec::new(); // Stack of (start_index, query_type)
+        
+        for (i, query) in queries.iter().enumerate() {
+            match query.query_type {
+                QueryType::If | QueryType::While => {
+                    stack.push((i, query.query_type));
+                }
+                QueryType::End | QueryType::CloseBrace => {
+                    if let Some((start_index, start_type)) = stack.pop() {
+                        self.control_flow_map.insert(start_index, i);
+                        debug!("Control flow mapping: {} ({:?}) -> {} ({:?})", start_index, start_type, i, query.query_type);
+                    } else {
+                        return Err(anyhow!("Unmatched '{:?}' at line {}", query.query_type, query.line));
+                    }
+                }
+                _ => {}
+            }
+        }
+        
+        if !stack.is_empty() {
+            let (unmatched_index, unmatched_type) = stack[0];
+            return Err(anyhow!("Unmatched '{:?}' at query index {}", unmatched_type, unmatched_index));
+        }
+        
+        debug!("Built control flow map with {} entries", self.control_flow_map.len());
+        Ok(())
+    }
+
+    /// Execute a query with control flow support
+    /// Returns the next program counter value
+    fn execute_query_with_control_flow(&mut self, query: &Query, pc: usize, queries: &[Query]) -> Result<usize> {
+        debug!("Executing query at PC {}: {:?}", pc, query.query_type);
+        
+        match query.query_type {
+            QueryType::If => {
+                self.handle_if_command(&query.query, pc)
+            }
+            QueryType::While => {
+                self.handle_while_command(&query.query, pc)
+            }
+            QueryType::End | QueryType::CloseBrace => {
+                self.handle_end_command(pc)
+            }
+            _ => {
+                // Execute regular query
+                self.execute_query(query, pc + 1)?;
+                Ok(pc + 1)
+            }
+        }
+    }
+
+    /// Handle if command
+    fn handle_if_command(&mut self, condition: &str, pc: usize) -> Result<usize> {
+        debug!("Evaluating if condition: {}", condition);
+        
+        // Evaluate the condition
+        let condition_result = self.expression_evaluator.evaluate_condition(
+            condition,
+            &self.variable_context,
+            self.connection_manager.current_database()?,
+        )?;
+        
+        debug!("If condition '{}' evaluated to: {}", condition, condition_result);
+        
+        if condition_result {
+            // Condition is true, continue to next statement
+            Ok(pc + 1)
+        } else {
+            // Condition is false, jump to matching end
+            let end_index = self.control_flow_map.get(&pc)
+                .ok_or_else(|| anyhow!("No matching 'end' found for 'if' at PC {}", pc))?;
+            Ok(end_index + 1)
+        }
+    }
+
+    /// Handle while command
+    fn handle_while_command(&mut self, condition: &str, pc: usize) -> Result<usize> {
+        debug!("Evaluating while condition: {}", condition);
+        
+        // Evaluate the condition
+        let condition_result = self.expression_evaluator.evaluate_condition(
+            condition,
+            &self.variable_context,
+            self.connection_manager.current_database()?,
+        )?;
+        
+        debug!("While condition '{}' evaluated to: {}", condition, condition_result);
+        
+        if condition_result {
+            // Condition is true, enter the loop
+            let end_index = self.control_flow_map.get(&pc)
+                .ok_or_else(|| anyhow!("No matching 'end' found for 'while' at PC {}", pc))?;
+            
+            // Push while frame onto stack
+            let while_frame = WhileFrame {
+                start_index: pc,
+                end_index: *end_index,
+                condition: condition.to_string(),
+                iteration_count: 0,
+            };
+            self.while_stack.push(while_frame);
+            
+            Ok(pc + 1) // Continue to first statement in loop
+        } else {
+            // Condition is false, skip the loop
+            let end_index = self.control_flow_map.get(&pc)
+                .ok_or_else(|| anyhow!("No matching 'end' found for 'while' at PC {}", pc))?;
+            Ok(end_index + 1)
+        }
+    }
+
+    /// Handle end command
+    fn handle_end_command(&mut self, pc: usize) -> Result<usize> {
+        // Check if this end corresponds to an active while loop
+        if let Some(mut while_frame) = self.while_stack.pop() {
+            if while_frame.end_index == pc {
+                // This is the end of a while loop
+                while_frame.iteration_count += 1;
+                
+                // Check for infinite loop protection
+                if while_frame.iteration_count > MAX_LOOP_ITERATIONS {
+                    return Err(anyhow!(
+                        "While loop exceeded maximum iterations ({}). Possible infinite loop at PC {}",
+                        MAX_LOOP_ITERATIONS,
+                        while_frame.start_index
+                    ));
+                }
+                
+                debug!("While loop iteration {} at PC {}", while_frame.iteration_count, while_frame.start_index);
+                
+                // Re-evaluate the while condition
+                let condition_result = self.expression_evaluator.evaluate_condition(
+                    &while_frame.condition,
+                    &self.variable_context,
+                    self.connection_manager.current_database()?,
+                )?;
+                
+                if condition_result {
+                    // Continue the loop
+                    let start_index = while_frame.start_index;
+                    self.while_stack.push(while_frame);
+                    Ok(start_index + 1) // Jump back to first statement in loop
+                } else {
+                    // Exit the loop
+                    debug!("While loop condition false, exiting loop");
+                    Ok(pc + 1)
+                }
+            } else {
+                // This end doesn't match the current while frame, put it back
+                self.while_stack.push(while_frame);
+                Ok(pc + 1)
+            }
+        } else {
+            // This is an end for an if statement
+            Ok(pc + 1)
         }
     }
 }

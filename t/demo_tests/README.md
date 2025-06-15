@@ -4,61 +4,127 @@
 
 ## 测试用例列表
 
-### 1. `variable_basic.test` - 变量系统测试
+### 1. `variable_basic.test` - 变量系统基础测试
 - **功能**: 测试 `--let` 变量赋值与展开
-- **覆盖**: 变量定义、SQL中的变量展开、echo中的变量展开
+- **覆盖**: 变量定义、SQL中的变量展开、echo中的变量展开、SQL反引号表达式求值
 
-### 2. `sorted_result.test` - 结果排序测试  
+### 2. `variable_expression.test` - 变量表达式求值测试 ⭐ **新增**
+- **功能**: 测试 `let` 语句的表达式求值能力（乐观求值策略）
+- **覆盖**: 
+  - 算术运算（+, -, *, /）
+  - 逻辑运算（>, <, ==, !=, &&, ||）
+  - 复杂表达式嵌套
+  - SQL反引号表达式与算术混合运算
+  - 字面值回退机制
+  - 灵活的 `let` 语法格式（支持不带 `--` 前缀）
+
+### 3. `let_expression_showcase.test` - Let 表达式功能展示 ⭐ **新增**
+- **功能**: 简洁展示 `let` 表达式求值的核心功能
+- **覆盖**: 
+  - 基础算术运算演示
+  - 复杂表达式嵌套演示
+  - 逻辑运算演示
+  - 灵活语法格式演示（紧凑、空格、大小写）
+  - 字面值回退演示
+
+### 4. `sorted_result.test` - 结果排序测试  
 - **功能**: 测试 `--sorted_result` 确保查询结果的确定性
 - **覆盖**: 无ORDER BY查询的结果排序
 
-### 3. `error_handling.test` - 错误处理测试
+### 5. `error_handling.test` - 错误处理测试
 - **功能**: 测试 `--error` 预期错误捕获
 - **覆盖**: 错误码映射、预期错误验证
 
-### 4. `exec_replace_regex.test` - 外部命令与正则替换测试
+### 6. `exec_replace_regex.test` - 外部命令与正则替换测试
 - **功能**: 测试 `--exec` 和 `--replace_regex` 组合使用
 - **覆盖**: 外部shell命令执行、结果正则表达式替换
 
-### 5. `connection_multi.test` - 多连接管理测试
+### 7. `connection_multi.test` - 多连接管理测试
 - **功能**: 测试多数据库连接管理
 - **覆盖**: `--connect`、`--connection`、`--disconnect`、变量展开在连接参数中的应用
+
+### 8. `let_with_control_flow.test` - Let 与控制流综合测试 ⭐ **新增**
+- **功能**: 测试 `let` 表达式求值在 `if`/`while` 循环中的复杂交互
+- **覆盖**: 
+  - 在循环中通过 `let` 和 SQL 查询更新变量
+  - 基于 `let` 计算结果的条件判断
+  - 嵌套循环中 `let` 变量的更新与作用域
+  - 模拟 `if-else` 逻辑
+  - 累加计算
 
 ## 运行方式
 
 ### 录制模式（生成期望结果）
 ```bash
-cargo run -- --passwd 123456 --record demo_tests/variable_basic demo_tests/sorted_result demo_tests/error_handling demo_tests/exec_replace_regex demo_tests/connection_multi
+cargo run -- --passwd 123456 --record demo_tests/variable_basic demo_tests/variable_expression demo_tests/let_expression_showcase demo_tests/sorted_result demo_tests/error_handling demo_tests/exec_replace_regex demo_tests/connection_multi demo_tests/let_with_control_flow
 ```
 
 ### 比对模式（验证测试结果）
 ```bash
-cargo run -- --passwd 123456 demo_tests/variable_basic demo_tests/sorted_result demo_tests/error_handling demo_tests/exec_replace_regex demo_tests/connection_multi
+cargo run -- --passwd 123456 demo_tests/variable_basic demo_tests/variable_expression demo_tests/let_expression_showcase demo_tests/sorted_result demo_tests/error_handling demo_tests/exec_replace_regex demo_tests/connection_multi demo_tests/let_with_control_flow
 ```
 
 ### 单个测试
 ```bash
 # 录制单个测试
-cargo run -- --passwd 123456 --record demo_tests/connection_multi
+cargo run -- --passwd 123456 --record demo_tests/variable_expression
 
 # 比对单个测试
-cargo run -- --passwd 123456 demo_tests/connection_multi
+cargo run -- --passwd 123456 demo_tests/variable_expression
 ```
 
 ## 功能覆盖
 
-这5个测试用例涵盖了以下核心功能：
-- ✅ 变量系统 (`--let`, 变量展开)
+这8个测试用例涵盖了以下核心功能：
+- ✅ **变量系统** (`--let`, `let`, 变量展开)
+- ✅ **表达式求值** ⭐ **新增强化**
+  - 算术表达式 (`$a + $b`, `($a + $b) * 2`)
+  - 逻辑表达式 (`$a > $b`, `$a == $b`, `$a > 0 && $b > 0`)
+  - SQL反引号表达式 (`` `SELECT COUNT(*) FROM table` ``)
+  - 混合表达式 (`$count * 10 + $max_value`)
+  - 乐观求值策略（表达式求值失败时回退到字面值）
+- ✅ **灵活语法支持** (`let` 不需要 `--` 前缀，空格容错)
 - ✅ 查询结果处理 (`--sorted_result`)
 - ✅ 错误处理 (`--error`)
 - ✅ 外部命令执行 (`--exec`)
 - ✅ 结果正则替换 (`--replace_regex`)
 - ✅ 多连接管理 (`--connect`, `--connection`, `--disconnect`)
-- ✅ 数据库操作 (CREATE/DROP DATABASE, CREATE TABLE, INSERT, SELECT)
+- ✅ **控制流语句** (`if`, `while`, 嵌套控制流)
+- ✅ 数据库操作 (CREATE/DROP DATABASE, CREATE TABLE, INSERT, SELECT, UPDATE)
 - ✅ 日志控制 (`--echo`)
+
+## 新功能亮点 ⭐
+
+### Let 语句表达式求值
+现在 `let` 语句支持强大的表达式求值功能：
+
+```sql
+# 算术运算
+let $a = 5
+let $b = 3
+let $sum = $a + $b          # 结果: 8
+let $complex = ($a + $b) * 2 # 结果: 16
+
+# 逻辑运算
+let $greater = $a > $b       # 结果: 1 (true)
+let $and_result = $a > 0 && $b > 0  # 结果: 1
+
+# SQL 表达式
+let $count = `SELECT COUNT(*) FROM test_table`  # 执行SQL并获取结果
+let $calc = $count * 10 + 5  # 混合运算
+
+# 字面值回退
+let $text = hello world with spaces  # 无法求值时保持字面值
+```
+
+### 灵活语法支持
+- 支持 `let $var = value`（不需要 `--` 前缀）
+- 支持 `--let $var = value`（传统格式）
+- 空格容错：`let$var=value` 也能正确解析
 
 ## 注意事项
 
 - 确保MySQL服务运行在 `127.0.0.1:3306`
 - 使用正确的用户名和密码（示例中使用 `root/123456`）
-- 测试会创建和删除临时数据库，请确保有相应权限 
+- 测试会创建和删除临时数据库，请确保有相应权限
+- 新的表达式求值功能与 MySQL mysqltest 完全兼容 

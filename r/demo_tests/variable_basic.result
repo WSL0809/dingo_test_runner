@@ -9,6 +9,6 @@ SELECT * FROM t_vars ORDER BY id
 1	Alice
 2	Bob
 # 获取行数并显示
-"Row count is `SELECT COUNT(*) FROM t_vars`"
+"Row count is 2"
 DROP DATABASE var_basic_db
 ### variable_basic.test 结束

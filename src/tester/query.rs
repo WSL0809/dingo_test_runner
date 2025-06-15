@@ -49,6 +49,11 @@ pub enum QueryType {
     Ping,
     Skip,
     Exit,
+    // Control flow commands
+    If,
+    While,
+    End,
+    CloseBrace, // } for closing control flow blocks
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
