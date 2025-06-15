@@ -84,8 +84,11 @@ pub struct Tester {
     in_concurrent_block: bool,
     /// Queries to be executed concurrently
     concurrent_queries: Vec<Query>,
+    #[allow(dead_code)]
     test_errors: Vec<String>,
+    #[allow(dead_code)]
     pc: usize,
+    #[allow(dead_code)]
     loop_stack: Vec<usize>,
 }
 
@@ -239,6 +242,12 @@ impl Tester {
         }
 
         test_result.success = test_result.failed_queries == 0;
+
+        // 最终验证：确保所有期望输出均已消费，防止遗漏行假通过
+        if !self.args.record {
+            self.verify_expected_consumed()?;
+        }
+
         Ok(test_result)
     }
 
@@ -733,12 +742,24 @@ impl Tester {
 
     /// Applies stored regex replacements to a string buffer
     pub fn apply_regex_replacements(&self, buffer: &mut String) {
-        if self.pending_replace_regex.is_empty() { return; }
-        let mut temp_buffer = buffer.clone();
-        for (regex, replacement) in &self.pending_replace_regex {
-            temp_buffer = regex.replace_all(&temp_buffer, replacement.as_str()).to_string();
+        use std::borrow::Cow;
+
+        if self.pending_replace_regex.is_empty() {
+            return;
         }
-        *buffer = temp_buffer;
+
+        let mut cow: Cow<'_, str> = Cow::Borrowed(buffer.as_str());
+        for (regex, replacement) in &self.pending_replace_regex {
+            // 调用前先获取 &str 引用，避免同时可变借用
+            let replaced = regex.replace_all(&cow, replacement.as_str());
+            if let Cow::Owned(s) = replaced {
+                cow = Cow::Owned(s);
+            }
+        }
+
+        if let Cow::Owned(s) = cow {
+            *buffer = s;
+        }
     }
 
     /// Get a reference to the expression evaluator
@@ -815,6 +836,25 @@ impl Tester {
         info!("Result file written for test: {}", test_name);
         Ok(())
     }
+
+    /// 在测试结束时验证是否仍有未消费的期望行
+    fn verify_expected_consumed(&self) -> Result<()> {
+        if let Some(content) = &self.result_file_content {
+            let expected_lines_count = content.lines().count();
+            if self.current_result_line - 1 < expected_lines_count {
+                let remaining_line = content
+                    .lines()
+                    .nth(self.current_result_line - 1)
+                    .unwrap_or("");
+                return Err(anyhow!(format!(
+                    "Output missing lines starting at expected line {}:\n    Expected: {}",
+                    self.current_result_line,
+                    remaining_line
+                )));
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Test execution result
@@ -858,8 +898,8 @@ impl Tester {
             }
         }
 
-        if !stack.is_empty() {
-            let unclosed_query = &queries[*stack.last().unwrap()];
+        if let Some(&unclosed_idx) = stack.last() {
+            let unclosed_query = &queries[unclosed_idx];
             return Err(anyhow!(
                 "Unclosed control block starting at line {}",
                 unclosed_query.line
@@ -1011,10 +1051,52 @@ impl Tester {
         let results = Arc::new(Mutex::new(Vec::<(usize, Result<String, mysql::Error>, Vec<String>)>::new()));
 
         indexed_queries.par_iter().for_each(|(index, query)| {
-            let mut conn = self.connection_manager.get_pooled_connection().unwrap();
+            // 尝试获取连接，若失败则将错误入结果集合并，不直接 panic
+            let conn_result = self.connection_manager.get_pooled_connection();
 
-            // Parse expected errors from query if embedded
-            let (actual_query, expected_errors) = if query.query.starts_with("--error:") {
+            let query_result: Result<String, mysql::Error> = match conn_result {
+                Err(_e) => {
+                    // 将连接错误转为 DriverError::CouldNotConnect(None)
+                    Err(mysql::Error::DriverError(mysql::DriverError::CouldNotConnect(None)))
+                }
+                Ok(mut conn) => {
+                    // Parse expected errors from query if embedded
+                    let (actual_query, expected_errors) = if query.query.starts_with("--error:") {
+                        let parts: Vec<&str> = query.query.splitn(3, ':').collect();
+                        if parts.len() == 3 {
+                            let errors_str = parts[1].trim_matches(|c| c == '[' || c == ']' || c == '"');
+                            let errors: Vec<String> = if errors_str.is_empty() {
+                                Vec::new()
+                            } else {
+                                errors_str.split(',').map(|s| s.trim().trim_matches('"').to_string()).collect()
+                            };
+                            (parts[2].to_string(), errors)
+                        } else {
+                            (query.query.clone(), Vec::new())
+                        }
+                    } else {
+                        (query.query.clone(), Vec::new())
+                    };
+
+                    // 执行查询
+                    conn.query_iter(&actual_query).and_then(|result| {
+                        let rows: Vec<String> = result.map(|row_result| {
+                            let row = row_result?;
+                            let row_values: Vec<String> = (0..row.len()).map(|i| {
+                                let value = row.get::<Option<String>, _>(i)
+                                    .unwrap_or_else(|| Some("NULL".to_string()))
+                                    .unwrap_or_else(|| "NULL".to_string());
+                                value
+                            }).collect();
+                            Ok(row_values.join("\t"))
+                        }).collect::<Result<Vec<String>, mysql::Error>>()?;
+                        Ok(rows.join("\n"))
+                    })
+                }
+            };
+
+            // Note：我们无法在闭包内 borrow self 可变，因此重新解析 expected_errors
+            let (_, expected_errors) = if query.query.starts_with("--error:") {
                 let parts: Vec<&str> = query.query.splitn(3, ':').collect();
                 if parts.len() == 3 {
                     let errors_str = parts[1].trim_matches(|c| c == '[' || c == ']' || c == '"');
@@ -1031,21 +1113,24 @@ impl Tester {
                 (query.query.clone(), Vec::new())
             };
 
-            let query_result = conn.query_iter(&actual_query).and_then(|result| {
-                let rows: Vec<String> = result.map(|row_result| {
-                    let row = row_result?;
-                    let row_values: Vec<String> = (0..row.len()).map(|i| {
-                        mysql::from_value_opt::<String>(row.get(i).unwrap()).unwrap_or_else(|_| "NULL".to_string())
-                    }).collect();
-                    Ok(row_values.join("\t"))
-                }).collect::<Result<Vec<String>, mysql::Error>>()?;
-                Ok(rows.join("\n"))
-            });
-
-            results.lock().unwrap().push((*index, query_result, expected_errors));
+            // 若 Mutex 被 poison，into_inner 仍可安全取得数据；仅记录告警日志
+            match results.lock() {
+                Ok(mut guard) => guard.push((*index, query_result, expected_errors)),
+                Err(poisoned) => {
+                    warn!("Results mutex poisoned, continuing with inner data");
+                    let mut guard = poisoned.into_inner();
+                    guard.push((*index, query_result, expected_errors));
+                }
+            }
         });
 
-        let mut final_results = results.lock().unwrap();
+        let mut final_results = match results.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                warn!("Results mutex poisoned during collection; using inner data");
+                poisoned.into_inner()
+            }
+        };
         final_results.sort_by_key(|(index, _, _)| *index);
 
         let mut output_parts: Vec<String> = Vec::new();
@@ -1090,6 +1175,9 @@ impl Tester {
 
         self.in_concurrent_block = false;
         self.concurrent_queries.clear();
+        // 并发块结束后，清理一次性修饰符，避免影响后续串行查询
+        self.pending_replace_regex.clear();
+        self.pending_sorted_result = false;
 
         Ok(())
     }

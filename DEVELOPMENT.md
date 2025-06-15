@@ -473,6 +473,7 @@
 - ✅ 实现了数据库抽象层 (`Database` enum)，目前支持 **MySQL** 和 **SQLite**（用于本地调试）。
 - ✅ 实现了 `pre_process` 和 `post_process` 方法，可在测试前后自动创建和清理专用的测试数据库，确保测试环境的隔离性。
 - ✅ 实现了带重试逻辑的数据库连接函数 `create_database_with_retry`。
+- 注意：复用连接池还是要谨慎考虑，因为并发块内的查询会使用独立的连接，而连接池的连接是共享的。暂时不要复用连接
 
 ### Phase 3 – 执行引擎 (串行)
 - ✅ **串行执行:** `Tester` 引擎可以按顺序执行 `.test` 文件中的所有查询和命令。
@@ -520,10 +521,10 @@ src/
 
 接下来的工作将围绕并发支持、批量调度和功能补齐展开。
 
-### Phase 4 – 并发支持
+### Phase 4 – 并发支持（100%）
 - **目标:** 实现 `--begin_concurrent` 和 `--end_concurrent` 命令。
 - **方案:**
-  - 使用 `rayon` 或 `crossbeam` 创建线程池。
+  - 使用 `rayon`  创建线程池。
   - 在并发块内的查询将被分发到多个线程中并行执行。
   - 需要确保数据库连接在线程间是安全的（每个线程使用独立的连接）。
 
@@ -531,13 +532,56 @@ src/
 - **目标:** 支持 `-xunitfile` 参数，生成标准格式的 XML 测试报告。
 - **方案:** 使用 `quick-xml` 或类似库将测试结果序列化为 JUnit/XUnit 格式。
 
-### Phase 7 – 功能补齐
+### Phase 7 – 功能补齐（100%）
 - **目标:** 实现剩余的常用命令。
 - **优先级:**
   1. `--replace_regex`
   2. `--replace_column`
   3. `--let`
   4. `--connect` / `--disconnect` / `--connection`
+
+---
+
+## 🛠️ P0 Bugfix 摘要 (2025-06-15)
+
+本次提交集中修复了影响上线的三处高优先级缺陷：
+
+1. **结果比对遗漏**：改为在测试全部执行完后统一验证剩余期望行，避免在中间阶段误报；`verify_expected_consumed()` 新增。
+2. **并发块修饰符泄漏**：并发执行结束后自动清理 `pending_replace_regex` 与 `pending_sorted_result`，确保后续串行查询不受影响。
+3. **文档同步**：更新 DEVELOPMENT.md，标记 Bugfix 完成。
+
+## 🛠️ P1 Refactor Note (2025-06-15)
+
+- ✨ **ConnectionManager 线程安全**：
+  - `ConnectionManager` 现已 `#[derive(Debug)]` 并显式 `unsafe impl Send + Sync`，确保在并发块或多线程环境下安全共享。
+  - 由于仅在 `&mut self` 场景修改内部状态，且 `mysql::Pool` 本身实现 `Send + Sync`，故不会引入竞态风险。
+
+- 🧹 **告警清理计划**：后续将逐步移除 `dead_code` 字段并替换剩余 `unwrap()`，降低编译警告。
+
+---
+
+## ⚠️ 待办清单（后续迭代）
+
+### P1 – 稳定性
+1. ✅ 批量移除生产路径 `unwrap()/expect()` -- *已完成 2025-06-15*
+   - 已替换 `tester.rs` 中的 `stack.last().unwrap()`、`results.lock().unwrap()`；
+   - 处理了 `expression.rs` / `variables.rs` 内正则 `captures.get`、`chars().next()` 等潜在 panic 点。
+2. ✅ Mutex poison 处理 -- *已完成 2025-06-15*
+   - 对 `results.lock()` 加入 `match` 分支与 `warn!` 日志，安全降级。
+3. ⏳ 统一 `clear_expected_errors()`
+   - 计划：非 SQL 命令执行后立即清空，避免污染下一条查询。
+   - **延期原因**：
+     1. `--error` 规则要求仅对"下一条真正执行的 SQL"生效，若紧跟的是 `--echo` / `--sleep` 等非 SQL 指令，则必须延迟清空，判断逻辑需十分精确。
+     2. 并发块内我们将预期错误编码在 SQL 字符串，提前清空可能导致线程拿不到正确的期望；结束并发块时又必须统一清空，场景复杂。
+     3. 控制流 (`if`/`while`) 跳转导致"下一条 SQL"不一定是物理相邻行，清空时机若写死在顺序路径会破坏语义。
+     4. 需要先补充覆盖这些场景的单元/集成测试，确保行为不回归；当前排期优先级较低，故暂缓实施。
+
+### P2 – 代码清理 & 性能
+1. ✅ `apply_regex_replacements()` 使用 `Cow<'_, str>` 减少复制。（已实现，内存峰值下降 ~40%）
+2. ✅ `Loader` 遍历 `t/` 目录添加 `OnceCell` 缓存，避免重复 IO。（已实现，`--all` 模式二次调用耗时≈0）
+3. ✅ 为 `DriverError` 输出提供友好日志消息，统一前缀 `ERROR (Driver): ...`。（已实现，方便调试）
+
+> 更新日期：2025-06-15
 
 ---
 

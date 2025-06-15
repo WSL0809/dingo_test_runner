@@ -99,8 +99,8 @@ fn main() -> Result<()> {
                 error!("✗ Test file '{}' failed to execute: {}", test_file, e);
             }
         }
-        // 避免在此处析构 Tester（可能阻塞于数据库连接关闭），直接泄漏内存，程序退出后由OS回收。
-        std::mem::forget(tester);
+        // 显式 drop Tester，确保连接及资源释放；若 hang 可考虑加超时机制
+        drop(tester);
     }
     
     // Print summary

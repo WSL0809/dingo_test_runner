@@ -68,8 +68,11 @@ impl ExpressionEvaluator {
 
         // Find all backtick expressions
         for captures in self.backtick_regex.captures_iter(expression) {
-            let full_match = captures.get(0).unwrap().as_str();
-            let sql_query = captures.get(1).unwrap().as_str();
+            // 使用安全的索引获取，避免 panic
+            let (full_match, sql_query) = match (captures.get(0), captures.get(1)) {
+                (Some(m0), Some(m1)) => (m0.as_str(), m1.as_str()),
+                _ => continue, // 如果正则匹配异常，跳过即可
+            };
 
             // Skip if we've already processed this exact expression
             if replacements.contains_key(full_match) {

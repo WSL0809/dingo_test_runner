@@ -10,6 +10,7 @@ use mysql::PooledConn;
 use std::collections::HashMap;
 
 /// Connection manager for handling multiple database connections
+#[derive(Debug)]
 pub struct ConnectionManager {
     /// Map of connection name to database instance
     connections: HashMap<String, Database>,
@@ -215,4 +216,9 @@ struct ConnectParams {
     password: String,
     database: String,
     port: String,
-} 
+}
+
+// ConnectionManager 内部仅在 &mut self 方法中修改状态；路由给 mysql::Pool 的操作本身是线程安全的。
+// 因此显式标记为 Send + Sync 以便跨线程共享。
+unsafe impl Send for ConnectionManager {}
+unsafe impl Sync for ConnectionManager {} 

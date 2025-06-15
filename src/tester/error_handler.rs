@@ -111,6 +111,9 @@ impl MySQLErrorHandler {
             mysql::Error::MySqlError(mysql_err) => {
                 format!("ERROR {} ({}): {}", mysql_err.code, mysql_err.state, mysql_err.message)
             }
+            mysql::Error::DriverError(driver_err) => {
+                format!("ERROR (Driver): {}", driver_err)
+            }
             _ => format!("ERROR: {}", error),
         }
     }

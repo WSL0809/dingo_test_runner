@@ -99,9 +99,11 @@ impl VariableContext {
         // Check if any variables were undefined
         let mut undefined_vars = Vec::new();
         for captures in self.var_regex.captures_iter(&result) {
-            let var_name = captures.get(1).unwrap().as_str();
-            if !self.variables.contains_key(var_name) {
-                undefined_vars.push(var_name.to_string());
+            if let Some(mat) = captures.get(1) {
+                let var_name = mat.as_str();
+                if !self.variables.contains_key(var_name) {
+                    undefined_vars.push(var_name.to_string());
+                }
             }
         }
 
@@ -155,9 +157,12 @@ impl VariableContext {
             return Err(anyhow!("Empty variable name in let statement"));
         }
 
-        // Validate variable name: must start with letter or underscore, then alphanumeric or underscore
-        if var_name.is_empty() || 
-           (!var_name.chars().next().unwrap().is_alphabetic() && var_name.chars().next().unwrap() != '_') ||
+        // 安全地获取首字符进行校验
+        let first_char = var_name.chars().next().ok_or_else(|| anyhow!(
+            "Invalid variable name '{}': must contain at least one character", var_name
+        ))?;
+
+        if (!first_char.is_alphabetic() && first_char != '_') ||
            !var_name.chars().all(|c| c.is_alphanumeric() || c == '_') {
             return Err(anyhow!("Invalid variable name '{}': must start with letter or underscore, followed by alphanumeric characters or underscores", var_name));
         }
