@@ -6,6 +6,7 @@
 use super::database::{Database, ConnectionInfo, create_database_with_retry};
 use anyhow::{anyhow, Result};
 use log::{debug, info};
+use mysql::PooledConn;
 use std::collections::HashMap;
 
 /// Connection manager for handling multiple database connections
@@ -45,6 +46,16 @@ impl ConnectionManager {
             default_connection_info,
             max_retries,
         })
+    }
+
+    /// Get a connection from the pool for concurrent execution.
+    /// This returns a raw `PooledConn` which can be used in a separate thread.
+    /// It uses the pool from the current active connection, which should have the correct database context.
+    pub fn get_pooled_connection(&self) -> Result<PooledConn> {
+        self.connections
+            .get(&self.current_connection)
+            .ok_or_else(|| anyhow!("Current connection '{}' not found", self.current_connection))?
+            .get_pooled_connection()
     }
 
     /// Get the current active database connection

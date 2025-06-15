@@ -5,7 +5,7 @@
 
 use super::variables::VariableContext;
 use super::database::Database;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use evalexpr::{eval, Value as EvalValue};
 use log::debug;
 use regex::Regex;

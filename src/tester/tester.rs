@@ -20,6 +20,9 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+use rayon::prelude::*;
+use mysql::prelude::*;
 
 /// Maximum number of loop iterations to prevent infinite loops
 const MAX_LOOP_ITERATIONS: usize = 10_000;
@@ -60,7 +63,7 @@ pub struct Tester {
     /// Result file for comparison (non-record mode)
     result_file_content: Option<String>,
     /// Current position in result file
-    result_file_position: usize,
+    current_result_line: usize,
     
     // --- One-shot modifiers for the next query ---
     /// Sort results for the next query
@@ -77,6 +80,13 @@ pub struct Tester {
     while_stack: Vec<WhileFrame>,
     /// Mapping from start index to end index for control structures
     control_flow_map: HashMap<usize, usize>,
+    /// Flag to indicate if we are inside a concurrent block
+    in_concurrent_block: bool,
+    /// Queries to be executed concurrently
+    concurrent_queries: Vec<Query>,
+    test_errors: Vec<String>,
+    pc: usize,
+    loop_stack: Vec<usize>,
 }
 
 impl Tester {
@@ -112,13 +122,18 @@ impl Tester {
             expected_errors: Vec::new(),
             error_handler: MySQLErrorHandler::new(),
             result_file_content: None,
-            result_file_position: 0,
+            current_result_line: 1, // Line numbers are 1-based
             pending_sorted_result: false,
             pending_replace_regex: Vec::new(),
             variable_context: VariableContext::new(),
             expression_evaluator: ExpressionEvaluator::new(),
             while_stack: Vec::new(),
             control_flow_map: HashMap::new(),
+            in_concurrent_block: false,
+            concurrent_queries: Vec::new(),
+            test_errors: Vec::new(),
+            pc: 0,
+            loop_stack: Vec::new(),
         })
     }
 
@@ -127,13 +142,15 @@ impl Tester {
         self.test_name = test_name.to_string();
         self.output_buffer.clear();
         self.expected_errors.clear();
-        self.result_file_position = 0;
+        self.current_result_line = 1;
         self.pending_sorted_result = false;
         self.pending_replace_regex.clear();
         
         // Clear control flow state
         self.while_stack.clear();
         self.control_flow_map.clear();
+        self.in_concurrent_block = false;
+        self.concurrent_queries.clear();
         
         info!("Starting test: {}", test_name);
         
@@ -746,48 +763,40 @@ impl Tester {
     }
 
     /// Compare current output with expected result
-    pub fn compare_with_result(&mut self, new_output: &str) -> Result<()> {
-        if let Some(ref expected_content) = self.result_file_content {
-            let expected_lines: Vec<&str> = expected_content.lines().collect();
-            let current_position = self.result_file_position;
-            
-            // Skip empty output
-            if new_output.trim().is_empty() {
-                return Ok(());
-            }
-            
-            let new_lines: Vec<&str> = new_output.lines().collect();
-            
-            debug!("Comparing output at position {}, new_lines: {:?}", current_position, new_lines);
-            debug!("Expected lines at position {}: {:?}", current_position,
-                &expected_lines[current_position..std::cmp::min(current_position + new_lines.len(), expected_lines.len())]);
-            
-            // Check if we have enough expected lines
-            if current_position + new_lines.len() > expected_lines.len() {
-                return Err(anyhow!(
-                    "Output has more lines than expected. Expected {} total lines, but got {} lines at position {}",
-                    expected_lines.len(),
-                    current_position + new_lines.len(),
-                    current_position
-                ));
-            }
-            
-            // Compare line by line
-            for (i, new_line) in new_lines.iter().enumerate() {
-                let expected_line = expected_lines[current_position + i];
-                if new_line != &expected_line {
-                    return Err(anyhow!(
-                        "Output mismatch at line {}:\nExpected: {}\nActual: {}",
-                        current_position + i + 1,
-                        expected_line,
-                        new_line
-                    ));
-                }
-            }
-            
-            self.result_file_position += new_lines.len();
+    pub fn compare_with_result(&mut self, output: &str) -> Result<()> {
+        if self.args.record {
+            self.output_buffer.write_all(output.as_bytes())?;
+            return Ok(());
         }
-        
+
+        if let Some(content) = &self.result_file_content {
+            let expected_lines: Vec<&str> = content.lines().collect();
+            let actual_lines = output.lines();
+
+            for actual_line in actual_lines {
+                let cursor = self.current_result_line - 1;
+
+                if cursor >= expected_lines.len() {
+                    let err_msg = format!("Output has more lines than expected. Extra line: '{}'", actual_line);
+                    return Err(anyhow!(err_msg));
+                }
+
+                let expected_line = expected_lines[cursor];
+                if actual_line != expected_line {
+                    let err_msg = format!(
+                        "Output mismatch at line {}:\n    Expected: {}\n    Actual: {}",
+                        self.current_result_line, expected_line, actual_line
+                    );
+                    return Err(anyhow!(err_msg));
+                }
+
+                self.current_result_line += 1;
+            }
+        } else {
+            if !output.is_empty() {
+                return Err(anyhow!("Result file not found, but output was produced."));
+            }
+        }
         Ok(())
     }
 
@@ -832,162 +841,259 @@ impl TestResult {
 impl Tester {
     /// Build control flow mapping for if/while/end structures
     fn build_control_flow_map(&mut self, queries: &[Query]) -> Result<()> {
-        self.control_flow_map.clear();
-        let mut stack = Vec::new(); // Stack of (start_index, query_type)
-        
+        let mut stack = Vec::new();
+
         for (i, query) in queries.iter().enumerate() {
             match query.query_type {
-                QueryType::If | QueryType::While => {
-                    stack.push((i, query.query_type));
-                }
-                QueryType::End | QueryType::CloseBrace => {
-                    if let Some((start_index, start_type)) = stack.pop() {
+                QueryType::If | QueryType::While => stack.push(i),
+                QueryType::End => {
+                    if let Some(start_index) = stack.pop() {
                         self.control_flow_map.insert(start_index, i);
-                        debug!("Control flow mapping: {} ({:?}) -> {} ({:?})", start_index, start_type, i, query.query_type);
+                        self.control_flow_map.insert(i, start_index);
                     } else {
-                        return Err(anyhow!("Unmatched '{:?}' at line {}", query.query_type, query.line));
+                        return Err(anyhow!("Mismatched 'end' at line {}", query.line));
                     }
                 }
                 _ => {}
             }
         }
-        
+
         if !stack.is_empty() {
-            let (unmatched_index, unmatched_type) = stack[0];
-            return Err(anyhow!("Unmatched '{:?}' at query index {}", unmatched_type, unmatched_index));
+            let unclosed_query = &queries[*stack.last().unwrap()];
+            return Err(anyhow!(
+                "Unclosed control block starting at line {}",
+                unclosed_query.line
+            ));
         }
-        
-        debug!("Built control flow map with {} entries", self.control_flow_map.len());
+
         Ok(())
     }
 
     /// Execute a query with control flow support
     /// Returns the next program counter value
-    fn execute_query_with_control_flow(&mut self, query: &Query, pc: usize, queries: &[Query]) -> Result<usize> {
-        debug!("Executing query at PC {}: {:?}", pc, query.query_type);
-        
-        match query.query_type {
-            QueryType::If => {
-                self.handle_if_command(&query.query, pc)
-            }
-            QueryType::While => {
-                self.handle_while_command(&query.query, pc)
-            }
-            QueryType::End | QueryType::CloseBrace => {
-                self.handle_end_command(pc)
-            }
-            _ => {
-                // Execute regular query
-                self.execute_query(query, pc + 1)?;
-                Ok(pc + 1)
-            }
+    fn execute_query_with_control_flow(&mut self, query: &Query, pc: usize, _queries: &[Query]) -> Result<usize> {
+        // Handle concurrent blocks first
+        if query.query_type == QueryType::BeginConcurrent {
+            self.in_concurrent_block = true;
+            self.concurrent_queries.clear();
+            return Ok(pc + 1);
         }
+
+        if query.query_type == QueryType::EndConcurrent {
+            if !self.in_concurrent_block {
+                return Err(anyhow!("--end_concurrent without --begin_concurrent at line {}", query.line));
+            }
+            self.in_concurrent_block = false;
+            self.execute_concurrent_queries()?;
+            return Ok(pc + 1);
+        }
+
+        if self.in_concurrent_block {
+            // Inside a concurrent block, queue up SQL queries along with their modifiers
+            match query.query_type {
+                QueryType::Query => {
+                    // Create a query with current expected errors and expand variables
+                    let mut concurrent_query = query.clone();
+                    // Expand variables in the SQL query before storing
+                    concurrent_query.query = self.variable_context.expand(&concurrent_query.query)?;
+                    // Store expected errors in the query for later use
+                    if !self.expected_errors.is_empty() {
+                        concurrent_query.query = format!("--error:{:?}:{}", self.expected_errors.join(","), concurrent_query.query);
+                        self.expected_errors.clear();
+                    }
+                    self.concurrent_queries.push(concurrent_query);
+                }
+                QueryType::Error => {
+                    // Store error expectations for the next query
+                    self.parse_expected_errors(&query.query)?;
+                }
+                _ => {
+                    // Execute other state-modifying commands immediately in serial.
+                    self.execute_query(query, pc)?;
+                }
+            }
+            return Ok(pc + 1);
+        }
+
+        // Handle control flow: if, while, end
+        let next_pc = match query.query_type {
+            QueryType::If => self.handle_if_command(&query.query, pc)?,
+            QueryType::While => self.handle_while_command(&query.query, pc)?,
+            QueryType::End => self.handle_end_command(pc)?,
+            _ => {
+                // Not a control flow command, execute it normally
+                self.execute_query(query, pc)?;
+                pc + 1
+            }
+        };
+
+        Ok(next_pc)
     }
 
     /// Handle if command
     fn handle_if_command(&mut self, condition: &str, pc: usize) -> Result<usize> {
-        debug!("Evaluating if condition: {}", condition);
-        
         // Evaluate the condition
-        let condition_result = self.expression_evaluator.evaluate_condition(
-            condition,
+        if self.expression_evaluator.evaluate_condition(
+            condition, 
             &self.variable_context,
-            self.connection_manager.current_database()?,
-        )?;
-        
-        debug!("If condition '{}' evaluated to: {}", condition, condition_result);
-        
-        if condition_result {
-            // Condition is true, continue to next statement
+            self.connection_manager.current_database()?
+        )? {
+            // Condition is true, continue to the next statement
             Ok(pc + 1)
         } else {
             // Condition is false, jump to matching end
-            let end_index = self.control_flow_map.get(&pc)
-                .ok_or_else(|| anyhow!("No matching 'end' found for 'if' at PC {}", pc))?;
+            let end_index = *self.control_flow_map.get(&pc)
+                .ok_or_else(|| anyhow!("Mismatched 'end' for 'if' at line {}", pc))?;
             Ok(end_index + 1)
         }
     }
 
     /// Handle while command
     fn handle_while_command(&mut self, condition: &str, pc: usize) -> Result<usize> {
-        debug!("Evaluating while condition: {}", condition);
-        
-        // Evaluate the condition
-        let condition_result = self.expression_evaluator.evaluate_condition(
+        let end_index = *self.control_flow_map.get(&pc)
+            .ok_or_else(|| anyhow!("Mismatched 'end' for 'while' at line {}", pc))?;
+
+        if self.expression_evaluator.evaluate_condition(
             condition,
             &self.variable_context,
-            self.connection_manager.current_database()?,
-        )?;
-        
-        debug!("While condition '{}' evaluated to: {}", condition, condition_result);
-        
-        if condition_result {
-            // Condition is true, enter the loop
-            let end_index = self.control_flow_map.get(&pc)
-                .ok_or_else(|| anyhow!("No matching 'end' found for 'while' at PC {}", pc))?;
-            
-            // Push while frame onto stack
-            let while_frame = WhileFrame {
+            self.connection_manager.current_database()?
+        )? {
+            // Condition is true, push to stack and continue
+            self.while_stack.push(WhileFrame {
                 start_index: pc,
-                end_index: *end_index,
+                end_index,
                 condition: condition.to_string(),
                 iteration_count: 0,
-            };
-            self.while_stack.push(while_frame);
+            });
             
             Ok(pc + 1) // Continue to first statement in loop
         } else {
             // Condition is false, skip the loop
-            let end_index = self.control_flow_map.get(&pc)
-                .ok_or_else(|| anyhow!("No matching 'end' found for 'while' at PC {}", pc))?;
             Ok(end_index + 1)
         }
     }
 
     /// Handle end command
     fn handle_end_command(&mut self, pc: usize) -> Result<usize> {
-        // Check if this end corresponds to an active while loop
-        if let Some(mut while_frame) = self.while_stack.pop() {
-            if while_frame.end_index == pc {
-                // This is the end of a while loop
-                while_frame.iteration_count += 1;
-                
-                // Check for infinite loop protection
-                if while_frame.iteration_count > MAX_LOOP_ITERATIONS {
-                    return Err(anyhow!(
-                        "While loop exceeded maximum iterations ({}). Possible infinite loop at PC {}",
-                        MAX_LOOP_ITERATIONS,
-                        while_frame.start_index
-                    ));
+        if let Some(frame) = self.while_stack.last_mut() {
+            if frame.end_index == pc {
+                // This 'end' matches an active while loop
+                frame.iteration_count += 1;
+                if frame.iteration_count >= MAX_LOOP_ITERATIONS {
+                    return Err(anyhow!("Infinite loop detected at line {}", frame.start_index + 1));
                 }
-                
-                debug!("While loop iteration {} at PC {}", while_frame.iteration_count, while_frame.start_index);
-                
-                // Re-evaluate the while condition
-                let condition_result = self.expression_evaluator.evaluate_condition(
-                    &while_frame.condition,
+
+                if self.expression_evaluator.evaluate_condition(
+                    &frame.condition,
                     &self.variable_context,
-                    self.connection_manager.current_database()?,
-                )?;
-                
-                if condition_result {
-                    // Continue the loop
-                    let start_index = while_frame.start_index;
-                    self.while_stack.push(while_frame);
-                    Ok(start_index + 1) // Jump back to first statement in loop
+                    self.connection_manager.current_database()?
+                )? {
+                    // Loop condition is still true, jump back to while
+                    return Ok(frame.start_index);
                 } else {
-                    // Exit the loop
-                    debug!("While loop condition false, exiting loop");
-                    Ok(pc + 1)
+                    // Loop condition is false, pop from stack and continue
+                    self.while_stack.pop();
+                    return Ok(pc + 1);
+                }
+            }
+        }
+        
+        // This 'end' corresponds to an 'if' statement, just continue
+        Ok(pc + 1)
+    }
+
+    fn execute_concurrent_queries(&mut self) -> Result<()> {
+        if self.concurrent_queries.is_empty() {
+            return Ok(());
+        }
+
+        let indexed_queries: Vec<_> = self.concurrent_queries.iter().cloned().enumerate().collect();
+        let results = Arc::new(Mutex::new(Vec::<(usize, Result<String, mysql::Error>, Vec<String>)>::new()));
+
+        indexed_queries.par_iter().for_each(|(index, query)| {
+            let mut conn = self.connection_manager.get_pooled_connection().unwrap();
+
+            // Parse expected errors from query if embedded
+            let (actual_query, expected_errors) = if query.query.starts_with("--error:") {
+                let parts: Vec<&str> = query.query.splitn(3, ':').collect();
+                if parts.len() == 3 {
+                    let errors_str = parts[1].trim_matches(|c| c == '[' || c == ']' || c == '"');
+                    let errors: Vec<String> = if errors_str.is_empty() {
+                        Vec::new()
+                    } else {
+                        errors_str.split(',').map(|s| s.trim().trim_matches('"').to_string()).collect()
+                    };
+                    (parts[2].to_string(), errors)
+                } else {
+                    (query.query.clone(), Vec::new())
                 }
             } else {
-                // This end doesn't match the current while frame, put it back
-                self.while_stack.push(while_frame);
-                Ok(pc + 1)
+                (query.query.clone(), Vec::new())
+            };
+
+            let query_result = conn.query_iter(&actual_query).and_then(|result| {
+                let rows: Vec<String> = result.map(|row_result| {
+                    let row = row_result?;
+                    let row_values: Vec<String> = (0..row.len()).map(|i| {
+                        mysql::from_value_opt::<String>(row.get(i).unwrap()).unwrap_or_else(|_| "NULL".to_string())
+                    }).collect();
+                    Ok(row_values.join("\t"))
+                }).collect::<Result<Vec<String>, mysql::Error>>()?;
+                Ok(rows.join("\n"))
+            });
+
+            results.lock().unwrap().push((*index, query_result, expected_errors));
+        });
+
+        let mut final_results = results.lock().unwrap();
+        final_results.sort_by_key(|(index, _, _)| *index);
+
+        let mut output_parts: Vec<String> = Vec::new();
+        for (_, result, expected_errors) in final_results.iter() {
+            match result {
+                Ok(output) => {
+                    if !expected_errors.is_empty() {
+                        // Expected error but query succeeded
+                        let err_msg = format!("Expected error(s) {:?}, but query succeeded", expected_errors);
+                        output_parts.push(format!("UNEXPECTED_SUCCESS: {}", err_msg));
+                    } else {
+                        // Apply one-time regex replacements if any
+                        let mut final_output = output.clone();
+                        self.apply_regex_replacements(&mut final_output);
+                        output_parts.push(final_output);
+                    }
+                }
+                Err(e) => {
+                    if !expected_errors.is_empty() && self.error_handler.check_expected_error(e, expected_errors) {
+                        let error_str = self.error_handler.format_error(e);
+                        output_parts.push(error_str);
+                    } else if expected_errors.is_empty() {
+                        // Unexpected error
+                        let error_str = self.error_handler.format_error(e);
+                        output_parts.push(format!("UNEXPECTED_ERROR: {}", error_str));
+                    } else {
+                        // Expected different error
+                        let error_str = self.error_handler.format_error(e);
+                        output_parts.push(format!("WRONG_ERROR: Expected {:?}, got {}", expected_errors, error_str));
+                    }
+                }
             }
-        } else {
-            // This is an end for an if statement
-            Ok(pc + 1)
         }
+        
+        let combined_output = output_parts.join("\n");
+
+        if !combined_output.is_empty() {
+            if let Err(e) = self.compare_with_result(&combined_output) {
+                return Err(e);
+            }
+        }
+
+        self.in_concurrent_block = false;
+        self.concurrent_queries.clear();
+
+        Ok(())
     }
 }
+
+
+

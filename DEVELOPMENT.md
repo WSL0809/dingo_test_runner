@@ -158,10 +158,12 @@
   - 它不会影响 `--echo` 或其他非 SQL 命令。
 - ✅ **连接管理** (`--connect / --connection / --disconnect`) 已实现，`ConnectionManager` 负责维护多连接池。
 
-#### Phase 5 – 并发支持（多线程）
-- [ ] 实现 `BEGIN_CONCURRENT / END_CONCURRENT` 队列
-- [ ] 使用 `crossbeam::channel` 聚合任务结果
-- [ ] 线程间共享写缓冲保护
+#### Phase 5 – 并发支持（多线程） (100%)
+- [x] 实现 `--BEGIN_CONCURRENT / --END_CONCURRENT` 标签，支持并发块解析。
+- [x] 并发块中的每条 SQL 使用独立 `mysql::PooledConn`，借助 `rayon` 线程池并行执行。
+- [x] 结果收集后按原查询顺序排序，确保 `.result` 文件输出确定性。
+- [x] 预期错误 (`--error`) 与一次性修饰符 (`--replace_regex` 等) 在并发环境下正确生效。
+- [x] 修复多连接上下文丢失、重复输出、换行错位等一系列并发细节 Bug。
 
 #### Phase 6 – 批量调度 & 结果汇总
 - [ ] 迁移 `load_all_tests` 逻辑
@@ -267,9 +269,9 @@
 
 ## 下一步工作计划
 
-1. **立即任务**: 完善 Phase 3 剩余功能 (错误码映射、更多指令支持)
-2. **本周目标**: 完成 Phase 3 (执行引擎串行实现)
-3. **下周目标**: 开始 Phase 4 (并发支持)
+1. **立即任务**: 启动 Phase 6 —— 批量调度与结果汇总框架（`load_all_tests`、任务调度、整体统计）。
+2. **本周目标**: 完成批量调度与结果汇总的 MVP，实现 `--all` 并生成测试摘要。 
+3. **下周目标**: 着手 Phase 7，开始集成 JUnit/XUnit 报告生成。
 
 ## 风险与挑战
 

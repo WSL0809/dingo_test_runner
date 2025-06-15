@@ -1,0 +1,9 @@
+# concurrent_mixed_control.test - 并发块与修饰符交互测试
+# 演示 sorted_result 与日志开关在并发块中的作用
+5
+3
+4
+# 并发块结束后再次并发执行，测试修饰符是否复位
+a
+c
+b

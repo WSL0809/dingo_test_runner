@@ -52,16 +52,41 @@
   - 模拟 `if-else` 逻辑
   - 累加计算
 
+### 9. `concurrent_basic.test` - 并发查询基础测试 ⭐ **新增**
+- **功能**: 验证 `--begin_concurrent` / `--end_concurrent` 能够并发执行多个简单查询
+- **覆盖**:
+  - 多个 SELECT 并发执行
+  - 与 `--error` 组合使用捕获预期错误
+
+### 10. `concurrent_error_handling.test` - 并发错误处理测试 ⭐ **新增**
+- **功能**: 在并发块中混合成功查询与预期失败查询，验证错误捕获与输出拼接顺序
+- **覆盖**:
+  - 并发块中 `--error` 与普通查询交替出现
+  - 不同 MySQL 错误码捕获
+
+### 11. `concurrent_mixed_control.test` - 并发块与日志/排序修饰符交互测试 ⭐ **新增**
+- **功能**: 验证在并发块中使用 `--sorted_result`、日志开关等一次性修饰符的行为
+- **覆盖**:
+  - 在并发块前设置 `--sorted_result` 并确保结果排序
+  - 在并发块内外切换查询/结果日志开关
+
+### 12. `concurrent_advanced.test` - 高级并发功能综合测试 ⭐ **新增**
+- **功能**: 演示并发块与变量系统、复杂查询的综合应用
+- **覆盖**:
+  - 并发块中使用变量展开
+  - 多个复杂 SELECT 查询并发执行
+  - 并发块中混合成功查询与多种错误类型
+
 ## 运行方式
 
 ### 录制模式（生成期望结果）
 ```bash
-cargo run -- --passwd 123456 --record demo_tests/variable_basic demo_tests/variable_expression demo_tests/let_expression_showcase demo_tests/sorted_result demo_tests/error_handling demo_tests/exec_replace_regex demo_tests/connection_multi demo_tests/let_with_control_flow
+cargo run -- --passwd 123456 --record demo_tests/variable_basic demo_tests/variable_expression demo_tests/let_expression_showcase demo_tests/sorted_result demo_tests/error_handling demo_tests/exec_replace_regex demo_tests/connection_multi demo_tests/let_with_control_flow demo_tests/concurrent_basic demo_tests/concurrent_error_handling demo_tests/concurrent_mixed_control demo_tests/concurrent_advanced
 ```
 
 ### 比对模式（验证测试结果）
 ```bash
-cargo run -- --passwd 123456 demo_tests/variable_basic demo_tests/variable_expression demo_tests/let_expression_showcase demo_tests/sorted_result demo_tests/error_handling demo_tests/exec_replace_regex demo_tests/connection_multi demo_tests/let_with_control_flow
+cargo run -- --passwd 123456 demo_tests/variable_basic demo_tests/variable_expression demo_tests/let_expression_showcase demo_tests/sorted_result demo_tests/error_handling demo_tests/exec_replace_regex demo_tests/connection_multi demo_tests/let_with_control_flow demo_tests/concurrent_basic demo_tests/concurrent_error_handling demo_tests/concurrent_mixed_control demo_tests/concurrent_advanced
 ```
 
 ### 单个测试
@@ -75,7 +100,7 @@ cargo run -- --passwd 123456 demo_tests/variable_expression
 
 ## 功能覆盖
 
-这8个测试用例涵盖了以下核心功能：
+这12个测试用例涵盖了以下核心功能：
 - ✅ **变量系统** (`--let`, `let`, 变量展开)
 - ✅ **表达式求值** ⭐ **新增强化**
   - 算术表达式 (`$a + $b`, `($a + $b) * 2`)
@@ -92,6 +117,7 @@ cargo run -- --passwd 123456 demo_tests/variable_expression
 - ✅ **控制流语句** (`if`, `while`, 嵌套控制流)
 - ✅ 数据库操作 (CREATE/DROP DATABASE, CREATE TABLE, INSERT, SELECT, UPDATE)
 - ✅ 日志控制 (`--echo`)
+- ✅ **并发执行** (`--begin_concurrent` / `--end_concurrent`) ⭐ **新增强化**
 
 ## 新功能亮点 ⭐
 

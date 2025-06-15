@@ -70,6 +70,12 @@ impl Database {
             Database::MySQL(db) => db.cleanup_after_test(test_name),
         }
     }
+
+    pub fn get_pooled_connection(&self) -> Result<mysql::PooledConn> {
+        match self {
+            Database::MySQL(db) => db.get_pooled_connection(),
+        }
+    }
 }
 
 /// Connection information structure
@@ -122,6 +128,10 @@ impl MySQLDatabase {
             pool,
             info: info.clone(),
         })
+    }
+
+    pub fn get_pooled_connection(&self) -> Result<mysql::PooledConn> {
+        self.pool.get_conn().map_err(Into::into)
     }
 
     pub fn query(&mut self, sql: &str) -> Result<Vec<Vec<String>>> {

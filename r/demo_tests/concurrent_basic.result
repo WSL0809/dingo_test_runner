@@ -1,0 +1,9 @@
+# concurrent_basic.test - 基础并发查询测试
+# 演示 begin_concurrent / end_concurrent 的最简用法
+1
+2
+ERROR 1146 (42S02): Table 'test_demo_tests_concurrent_basic.non_existent_table' doesn't exist
+3
+# 并发块执行完毕，继续串行命令
+SELECT 'finished'
+finished
