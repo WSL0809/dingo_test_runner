@@ -1,0 +1,21 @@
+# 测试 --let 变量赋值与展开、简单流程控制
+--echo ### variable_basic.test 开始
+
+--let $db = var_basic_db
+DROP DATABASE IF EXISTS $db;
+CREATE DATABASE $db;
+USE $db;
+
+--let $tbl = t_vars
+CREATE TABLE $tbl (id INT, name VARCHAR(50));
+INSERT INTO $tbl VALUES (1,'Alice'),(2,'Bob');
+
+--echo # 查询表内容，确保变量展开正确
+SELECT * FROM $tbl ORDER BY id;
+
+--echo # 获取行数并显示
+--let $row_cnt = `SELECT COUNT(*) FROM $tbl`
+--echo "Row count is $row_cnt"
+
+DROP DATABASE $db;
+--echo ### variable_basic.test 结束 

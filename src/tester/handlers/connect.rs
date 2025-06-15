@@ -6,7 +6,9 @@ use anyhow::Result;
 use log::info;
 
 pub fn execute(tester: &mut Tester, cmd: &Command) -> Result<()> {
-    tester.connection_manager.connect(&cmd.args)?;
-    info!("Connected to new database connection: {}", cmd.args);
+    // Expand variables in connection parameters
+    let expanded_args = tester.variable_context.expand(&cmd.args)?;
+    tester.connection_manager.connect(&expanded_args)?;
+    info!("Connected to new database connection: {}", expanded_args);
     Ok(())
 } 

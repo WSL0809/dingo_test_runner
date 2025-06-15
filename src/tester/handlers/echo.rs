@@ -7,8 +7,10 @@ use log::debug;
 use std::io::Write;
 
 pub fn execute(tester: &mut Tester, cmd: &Command) -> Result<()> {
-    let echo_output = format!("{}\n", cmd.args);
-    debug!("Echo: {}", cmd.args);
+    // Expand variables in the echo text
+    let expanded_text = tester.variable_context.expand(&cmd.args)?;
+    let echo_output = format!("{}\n", expanded_text);
+    debug!("Echo: {} -> {}", cmd.args, expanded_text);
     
     // Per user feedback, echo is NOT affected by modifiers.
     if tester.args.record {

@@ -8,3 +8,4 @@ pub mod connection_manager;
 pub mod command;
 pub mod handlers;
 pub mod registry;
+pub mod variables;

@@ -1,0 +1,32 @@
+# Variable functionality test with SQL queries
+
+
+# Test variable in table creation
+--let $table_name = test_users
+CREATE TABLE $table_name (
+    id INT PRIMARY KEY,
+    name VARCHAR(50),
+    age INT
+);
+
+# Test variables in INSERT statements
+--let $user_id = 1
+--let $user_name = Alice
+--let $user_age = 25
+INSERT INTO $table_name VALUES ($user_id, '$user_name', $user_age);
+
+--let $user_id = 2
+--let $user_name = Bob
+--let $user_age = 30
+INSERT INTO $table_name VALUES ($user_id, '$user_name', $user_age);
+
+# Test variables in SELECT statements
+--let $search_age = 25
+SELECT * FROM $table_name WHERE age = $search_age;
+
+# Test variable in column name (using backticks for safety)
+--let $column_name = name
+SELECT `$column_name` FROM $table_name ORDER BY id;
+
+# Cleanup
+DROP TABLE $table_name; 

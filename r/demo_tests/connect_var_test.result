@@ -1,0 +1,7 @@
+### connect_var_test.test 开始
+# 变量值检查
+"dbname = test"
+# 尝试连接，使用已存在的test数据库
+# 如果能到这里说明连接成功
+"Connection with variable successful"
+### connect_var_test.test 结束

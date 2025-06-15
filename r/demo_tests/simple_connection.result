@@ -1,0 +1,6 @@
+### simple_connection.test 开始
+# 测试基本连接功能
+# 切换到新连接
+# 断开连接
+# 切换回默认连接
+### simple_connection.test 结束

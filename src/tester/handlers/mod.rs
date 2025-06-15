@@ -1,5 +1,6 @@
 pub mod sleep;
 pub mod echo;
+pub mod exec;
 pub mod connect;
 pub mod connection;
 pub mod disconnect;
@@ -7,4 +8,5 @@ pub mod query_log;
 pub mod result_log;
 pub mod sorted_result;
 pub mod replace_regex;
-pub mod error; 
+pub mod error;
+pub mod let_handler; 

@@ -1,0 +1,8 @@
+Starting exec command tests
+Hello from exec
+Success test
+ERROR: Command failed with exit code 1
+Line 1
+Line 2
+Line 3
+Exec command tests completed

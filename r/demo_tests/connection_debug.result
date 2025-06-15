@@ -1,0 +1,20 @@
+### connection_debug.test 开始
+# 变量值检查
+"db1 = test_debug_db1"
+"db2 = test_debug_db2"
+DROP DATABASE IF EXISTS test_debug_db1
+DROP DATABASE IF EXISTS test_debug_db2
+CREATE DATABASE test_debug_db1
+CREATE DATABASE test_debug_db2
+# 尝试连接到第一个数据库
+# 如果能到这里说明第一个连接成功
+"First connection successful"
+# 切换到第一个连接
+# 创建表
+CREATE TABLE t1 (id INT)
+# 断开连接
+# 切换回默认连接
+# 清理
+DROP DATABASE test_debug_db1
+DROP DATABASE test_debug_db2
+### connection_debug.test 结束

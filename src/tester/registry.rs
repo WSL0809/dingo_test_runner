@@ -15,6 +15,7 @@ pub static COMMAND_REGISTRY: Lazy<HashMap<&'static str, CommandExecutor>> = Lazy
     // Register handlers here.
     m.insert("sleep", handlers::sleep::execute);
     m.insert("echo", handlers::echo::execute);
+    m.insert("exec", handlers::exec::execute);
     m.insert("connect", handlers::connect::execute);
     m.insert("connection", handlers::connection::execute);
     m.insert("disconnect", handlers::disconnect::execute);
@@ -29,6 +30,9 @@ pub static COMMAND_REGISTRY: Lazy<HashMap<&'static str, CommandExecutor>> = Lazy
     m.insert("sorted_result", handlers::sorted_result::execute);
     m.insert("replace_regex", handlers::replace_regex::execute);
     m.insert("error", handlers::error::execute);
+    
+    // Variable commands
+    m.insert("let", handlers::let_handler::execute);
     
     m
 }); 

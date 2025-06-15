@@ -4,6 +4,63 @@
 
 本项目旨在将现有的 Go 语言版本的 `mysql-test-runner` 迁移到 Rust 版本，采用同步实现方式，保持功能等价性和性能。
 
+### 🚀 快速开始 (Quick Start)
+
+> 按照下列步骤，你可以在本地克隆、构建并运行一个最小的测试用例。
+>
+> 如果你只想验证解析层功能，可跳过安装 MySQL，项目将自动回落到 SQLite。
+
+1. **准备环境**  
+   - Rust ≥ 1.78（推荐使用 `rustup` 安装）。  
+   - 可选：本地 **MySQL 8.0** 实例（默认以 `--host 127.0.0.1 --port 3306 --user root --passwd ""` 连接）。
+
+2. **克隆仓库并进入目录**
+   ```bash
+   git clone git@github.com:your-repo/mysql-tester-rs.git
+   cd mysql-tester-rs
+   ```
+
+3. **构建项目**
+   ```bash
+   cargo build --release
+   ```
+
+4. **运行单个测试文件**
+   ```bash
+   # 第一次：录制结果文件（生成 r/basic.result）
+   cargo run -- --record basic
+
+   # 第二次：与预期结果进行比对
+   cargo run -- basic
+   ```
+
+5. **批量运行全部测试**
+   ```bash
+   cargo run -- --all
+   ```
+
+6. **查看命令行帮助**
+   ```bash
+   cargo run -- --help
+   ```
+
+### 📂 目录导航
+
+下表罗列了项目顶层目录及其职责：
+
+| 路径 | 说明 |
+|------|------|
+| `src/` | 源代码根目录 |
+| `src/cli.rs` | CLI 参数解析逻辑 |
+| `src/main.rs` | 应用入口，集中调度 |
+| `src/loader.rs` | 测试文件加载器 |
+| `src/tester/` | 测试执行核心模块 |
+| `t/` | 原始 `.test` 用例（与 MySQL 官方格式兼容） |
+| `r/` | 预期 `.result` 文件（Record 模式生成） |
+| `tests/` | Rust 单元/集成测试 |
+| `benches/` | （可选）基准测试；当前目录暂未创建 |
+| `DEVELOPMENT.md` | 当前开发文档 |
+
 ## 开发进度
 
 ### ✅ 已完成阶段
@@ -23,12 +80,19 @@
   src/
   ├─ main.rs          # 主入口
   ├─ cli.rs           # CLI 参数解析
+  ├─ loader.rs        # 测试文件加载器
   ├─ tester/          # 核心逻辑模块
   │  ├─ mod.rs
   │  ├─ conn.rs       # 数据库连接管理
   │  ├─ parser.rs     # .test 文件解析器
   │  ├─ query.rs      # 查询结构定义
-  │  └─ tester.rs     # 测试执行器
+  │  ├─ tester.rs     # 测试执行器
+  │  ├─ database.rs   # 数据库抽象层
+  │  ├─ error_handler.rs # 错误处理模块
+  │  ├─ connection_manager.rs # 连接池管理
+  │  ├─ registry.rs   # 命令注册表
+  │  ├─ command.rs    # 命令定义
+  │  └─ handlers/     # 命令处理器
   ├─ util/            # 工具模块
   │  ├─ mod.rs
   │  └─ regex.rs      # 正则表达式工具
@@ -76,10 +140,10 @@
 - [x] 结果格式化和输出
 - [x] record 模式支持
 - [x] 基本指令处理 (echo, sleep, query log 控制)
-- [ ] 错误码映射处理
-- [ ] 更多指令支持 (replace_column, replace_regex 等)
+- [x] 错误码映射处理
+- [x] 更多指令支持 (replace_column, replace_regex 等)
 
-### �� 待完成阶段
+### 🔄 待完成阶段
 
 #### Phase 4 – 关键指令支持 (`--replace_regex` & 连接管理) (100%)
 - ✅ **`--replace_regex`:**
@@ -107,6 +171,14 @@
 - [ ] 实现 `--replace_column` 功能
 - [x] 实现 `--replace_regex` 功能
 - [x] 实现 `sorted_result` 功能
+- [x] 实现 `--exec` 功能
+- [x] **实现变量系统** (`--let` 和变量展开)
+  - 支持 mysqltest 变量 (`--let $var = value`)
+  - 支持环境变量 (`--let VAR = value`)
+  - 支持变量展开 (在 SQL、echo、exec 中使用 `$var`)
+  - 支持嵌套变量展开 (`--let $greeting = Hello $name`)
+  - 支持递归展开保护 (防止无限循环)
+  - 完整的单元测试覆盖
 - [ ] 实现其他剩余指令
 
 #### Phase 9 – 对照测试 & 性能评估
@@ -143,11 +215,18 @@
 - 保留参数名兼容性
 
 ### 4. 错误处理策略
-**决策**: `anyhow` + `thiserror`
+**决策**: 使用专门的错误处理模块
 **原因**:
-- `anyhow` 提供统一错误栈追踪
-- `thiserror` 提供结构化错误定义
-- 符合 Rust 生态最佳实践
+- 集中管理所有错误码映射
+- 提供统一的错误处理接口
+- 便于维护和扩展错误处理逻辑
+
+### 5. 连接管理策略
+**决策**: 使用 `ConnectionManager` 管理连接池
+**原因**:
+- 提供连接池的生命周期管理
+- 支持多连接并发操作
+- 实现连接重试和错误恢复
 
 ## 代码质量指标
 
@@ -177,18 +256,73 @@
 ## 测试策略
 
 ### 单元测试
-- ✅ 解析器测试 (5个测试用例)
-- ✅ 数据库抽象层测试 (2个测试用例)
-- ✅ 测试执行器测试 (1个测试用例)
-- 🔄 集成测试 (计划中)
+- ✅ 解析器测试 (`tests/unit/parser.rs`)
+  - 测试文件解析功能
+  - 测试命令识别
+  - 测试错误处理
+- ✅ 数据库抽象层测试 (`tests/unit/database.rs`)
+  - 测试连接管理
+  - 测试查询执行
+  - 测试事务处理
+- ✅ 测试执行器测试 (`tests/unit/tester.rs`)
+  - 测试基本执行流程
+  - 测试结果比对
+  - 测试错误处理
+- 🔄 命令处理器测试 (`tests/unit/handlers/`)
+  - 测试各个命令处理器
+  - 测试命令注册机制
 
 ### 集成测试
-- 🔄 完整的 .test 文件执行 (计划中)
-- 🔄 与 Go 版本输出对比 (计划中)
+- 🔄 基础功能测试 (`tests/integration/basic.rs`)
+  - 完整的 .test 文件执行
+  - 结果文件生成和比对
+- 🔄 并发测试 (`tests/integration/concurrent.rs`)
+  - 并发执行测试
+  - 连接池管理测试
+- 🔄 错误处理测试 (`tests/integration/error.rs`)
+  - 错误码映射测试
+  - 异常情况处理测试
 
 ### 性能测试
-- 🔄 大型测试文件基准测试 (计划中)
-- 🔄 并发性能测试 (计划中)
+- 🔄 大型测试文件基准测试
+  - 使用 `criterion` 进行基准测试
+  - 测试不同规模文件的执行时间
+- 🔄 并发性能测试
+  - 测试不同并发度下的性能表现
+  - 测试连接池性能
+
+### 测试工具
+- ✅ 使用 `mockall` 进行模拟测试
+- ✅ 使用 `criterion` 进行性能测试
+- ✅ 使用 `test-case` 进行参数化测试
+
+---
+
+## 🤝 贡献指南
+
+我们欢迎任何形式的贡献！请遵循以下流程：
+
+1. **Fork & Clone**：在 GitHub 上 Fork 本仓库，并将你的 Fork Clone 到本地。
+2. **创建分支**：使用语义化命名，例如 `feature/replace-column` 或 `bugfix/connection-timeout`。
+3. **本地开发**：
+   - 运行 `cargo fmt && cargo clippy --all-targets --all-features` 确保代码格式与静态检查通过。
+   - 为新增功能编写或完善 **单元/集成测试**，确保 `cargo test` 全绿。
+4. **提交 PR**：
+   - 在 PR 描述中说明变更动机和实现方案。
+   - 若包含破坏性修改，请在 PR 标题中注明 `BREAKING CHANGE:`。
+5. **代码评审**：至少 1 名 Maintainer Review+Approve 后合并。
+
+> Tips：我们使用 Conventional Commits 规范，示例：`feat(parser): 支持自定义分隔符`。
+
+## ❓ 常见问题（FAQ）
+
+| 问题 | 解答 |
+|------|------|
+| **为何选择同步实现而非 async？** | 为保持与 Go 版本一致的行为，同时降低认知负担。并发通过线程池实现即可满足当前性能需求。 |
+| **可以仅使用 SQLite 吗？** | 可以，解析层和大部分功能在 SQLite 下都能运行，便于本地快速调试。 |
+| **如何查看更详细的日志？** | 设置环境变量 `RUST_LOG=debug`，然后运行任意命令即可输出调试日志。 |
+| **Record 模式与比对模式的区别？** | Record 模式会生成或覆盖 `r/*.result` 文件；比对模式会将实时输出与这些文件进行逐行比较，发现差异即标红。 |
+| **项目的长期规划是什么？** | 详见上文"后续开发计划"，包括并发支持、XML 报告和完整的命令集实现。 |
 
 ---
 

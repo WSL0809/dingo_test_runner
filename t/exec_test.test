@@ -1,0 +1,20 @@
+# Test exec command functionality
+--echo Starting exec command tests
+
+# Test simple echo command
+--exec echo "Hello from exec"
+
+# Test command with expected success
+--exec echo "Success test"
+
+# Test command with expected failure
+--error 1
+--exec exit 1
+
+# Test command that produces no output
+--exec true
+
+# Test multiline output
+--exec printf "Line 1\nLine 2\nLine 3\n"
+
+--echo Exec command tests completed 

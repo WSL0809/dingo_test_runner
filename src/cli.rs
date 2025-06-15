@@ -52,7 +52,7 @@ pub struct Args {
     pub xunit_file: String,
 
     /// Maximum number of connection retry attempts
-    #[arg(long, default_value = "120")]
+    #[arg(long, default_value = "3")]
     pub retry_conn_count: i32,
 
     /// Return error instead of warning when --error directive doesn't match

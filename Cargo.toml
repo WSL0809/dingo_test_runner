@@ -3,6 +3,14 @@ name = "dingo_test_runner"
 version = "0.2.0"
 edition = "2021"
 
+[[bin]]
+name = "dingo_test_runner"
+path = "src/main.rs"
+
+[lib]
+name = "dingo_test_runner"
+path = "src/lib.rs"
+
 [dependencies]
 # MySQL 驱动
 mysql = "24.0"

@@ -1,0 +1,4 @@
+### exec_replace_regex.test 开始
+# 生成一个包含时间戳的 shell 输出
+<TIMESTAMP>
+### exec_replace_regex.test 结束

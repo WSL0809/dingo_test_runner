@@ -1,0 +1,5 @@
+### debug_connection.test 开始
+# 测试不使用变量的连接
+# 如果能到这里说明连接成功
+"Connection successful"
+### debug_connection.test 结束

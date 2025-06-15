@@ -1,0 +1,13 @@
+### sorted_result.test 开始
+CREATE DATABASE IF NOT EXISTS sort_db
+USE sort_db
+CREATE TABLE t_unsorted (val INT)
+INSERT INTO t_unsorted VALUES (3),(1),(2)
+# 原始顺序不可预期，这里不比对
+SELECT * FROM t_unsorted
+SELECT * FROM t_unsorted
+1
+2
+3
+DROP DATABASE sort_db
+### sorted_result.test 结束
