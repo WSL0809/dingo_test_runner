@@ -586,7 +586,7 @@ P0（立即修复）
 - ✅ 并发输出末尾缺失换行导致结果不一致
 - ✅ 移除 unsafe impl Send + Sync 并用 RwLock 或更细粒度封装替代
 P1（下一迭代）
-- 把 --error、--replace_regex 与 Query 结构绑定
+- ✅ 把 --error、--replace_regex 与 Query 结构绑定（已重构：新增 QueryOptions 字段，解析期注入，移除字符串前缀 hack）
 - 结果格式化/比对逻辑统一（串行 & 并发）
 - 大结果集流式输出
 P2（优化 & 强化）

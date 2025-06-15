@@ -255,6 +255,17 @@ impl Tester {
     fn execute_query(&mut self, query: &Query, query_num: usize) -> Result<()> {
         debug!("Executing query {:?} (line {}): {:?}", query_num, query.line, query.query_type);
 
+        // 注入绑定在 Query 上的一次性修饰符
+        if !query.options.expected_errors.is_empty() {
+            self.expected_errors = query.options.expected_errors.clone();
+        }
+        if !query.options.replace_regex.is_empty() {
+            self.pending_replace_regex = query.options.replace_regex.clone();
+        }
+        if query.options.sorted_result {
+            self.pending_sorted_result = true;
+        }
+
         match query.query_type {
             QueryType::Query => {
                 self.execute_sql_query(&query.query, query_num)?;
@@ -929,18 +940,28 @@ impl Tester {
         }
 
         if self.in_concurrent_block {
-            // Inside a concurrent block, queue up SQL queries along with their modifiers
             match query.query_type {
                 QueryType::Query => {
-                    // Create a query with current expected errors and expand variables
                     let mut concurrent_query = query.clone();
                     // Expand variables in the SQL query before storing
                     concurrent_query.query = self.variable_context.expand(&concurrent_query.query)?;
-                    // Store expected errors in the query for later use
+
+                    // 将一次性修饰符绑定到 QueryOptions
                     if !self.expected_errors.is_empty() {
-                        concurrent_query.query = format!("--error:{:?}:{}", self.expected_errors.join(","), concurrent_query.query);
+                        concurrent_query.options.expected_errors = self.expected_errors.clone();
                         self.expected_errors.clear();
                     }
+
+                    if !self.pending_replace_regex.is_empty() {
+                        concurrent_query.options.replace_regex = self.pending_replace_regex.clone();
+                        self.pending_replace_regex.clear();
+                    }
+
+                    if self.pending_sorted_result {
+                        concurrent_query.options.sorted_result = true;
+                        self.pending_sorted_result = false;
+                    }
+
                     self.concurrent_queries.push(concurrent_query);
                 }
                 QueryType::Error => {
@@ -948,7 +969,7 @@ impl Tester {
                     self.parse_expected_errors(&query.query)?;
                 }
                 _ => {
-                    // Execute other state-modifying commands immediately in serial.
+                    // Execute other commands immediately in serial.
                     self.execute_query(query, pc)?;
                 }
             }
@@ -1060,23 +1081,8 @@ impl Tester {
                     Err(mysql::Error::DriverError(mysql::DriverError::CouldNotConnect(None)))
                 }
                 Ok(mut conn) => {
-                    // Parse expected errors from query if embedded
-                    let (actual_query, _expected_errors) = if query.query.starts_with("--error:") {
-                        let parts: Vec<&str> = query.query.splitn(3, ':').collect();
-                        if parts.len() == 3 {
-                            let errors_str = parts[1].trim_matches(|c| c == '[' || c == ']' || c == '"');
-                            let errors: Vec<String> = if errors_str.is_empty() {
-                                Vec::new()
-                            } else {
-                                errors_str.split(',').map(|s| s.trim().trim_matches('"').to_string()).collect()
-                            };
-                            (parts[2].to_string(), errors)
-                        } else {
-                            (query.query.clone(), Vec::new())
-                        }
-                    } else {
-                        (query.query.clone(), Vec::new())
-                    };
+                    // 并发路径下，查询字符串已不包含错误前缀
+                    let actual_query = query.query.clone();
 
                     // 执行查询
                     conn.query_iter(&actual_query).and_then(|result| {
@@ -1090,28 +1096,23 @@ impl Tester {
                             }).collect();
                             Ok(row_values.join("\t"))
                         }).collect::<Result<Vec<String>, mysql::Error>>()?;
-                        Ok(rows.join("\n"))
+                        let mut output = rows.join("\n");
+                        // 应用一次性替换规则（仅对该 Query 生效）
+                        for (regex, replacement) in &query.options.replace_regex {
+                            output = regex.replace_all(&output, replacement.as_str()).into_owned();
+                        }
+                        if query.options.sorted_result {
+                            // 若要求排序，按照行排序
+                            let mut lines: Vec<&str> = output.lines().collect();
+                            lines.sort();
+                            output = lines.join("\n");
+                        }
+                        Ok(output)
                     })
                 }
             };
 
-            // Note：我们无法在闭包内 borrow self 可变，因此重新解析 expected_errors
-            let (_, expected_errors) = if query.query.starts_with("--error:") {
-                let parts: Vec<&str> = query.query.splitn(3, ':').collect();
-                if parts.len() == 3 {
-                    let errors_str = parts[1].trim_matches(|c| c == '[' || c == ']' || c == '"');
-                    let errors: Vec<String> = if errors_str.is_empty() {
-                        Vec::new()
-                    } else {
-                        errors_str.split(',').map(|s| s.trim().trim_matches('"').to_string()).collect()
-                    };
-                    (parts[2].to_string(), errors)
-                } else {
-                    (query.query.clone(), Vec::new())
-                }
-            } else {
-                (query.query.clone(), Vec::new())
-            };
+            let expected_errors: Vec<String> = query.options.expected_errors.clone();
 
             // 若 Mutex 被 poison，into_inner 仍可安全取得数据；仅记录告警日志
             match results.lock() {

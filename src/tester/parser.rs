@@ -2,7 +2,7 @@
 //! 
 //! This module handles parsing of MySQL test files, including various commands and queries.
 
-use super::query::{Query, QueryType};
+use super::query::{Query, QueryType, QueryOptions};
 use anyhow::{anyhow, Result};
 use phf::phf_map;
 
@@ -98,6 +98,7 @@ impl Parser {
                     query_type: QueryType::Comment,
                     query: line.to_string(),
                     line: line_num,
+                    options: QueryOptions::default(),
                 });
                 continue;
             }
@@ -111,6 +112,7 @@ impl Parser {
                     query_type,
                     query: query_content,
                     line: line_num - lines_consumed,
+                    options: QueryOptions::default(),
                 });
                 continue;
             }
@@ -125,6 +127,7 @@ impl Parser {
                     query_type,
                     query: query_content,
                     line: line_num - lines_consumed,
+                    options: QueryOptions::default(),
                 });
                 continue;
             }
@@ -135,6 +138,7 @@ impl Parser {
                     query_type: QueryType::CloseBrace,
                     query: String::new(),
                     line: line_num,
+                    options: QueryOptions::default(),
                 });
                 continue;
             }
@@ -145,6 +149,7 @@ impl Parser {
                     query_type: QueryType::End,
                     query: String::new(),
                     line: line_num,
+                    options: QueryOptions::default(),
                 });
                 continue;
             }
@@ -156,6 +161,7 @@ impl Parser {
                     query_type: QueryType::Let,
                     query: let_args,
                     line: line_num,
+                    options: QueryOptions::default(),
                 });
                 continue;
             }
@@ -168,6 +174,7 @@ impl Parser {
                 query_type: QueryType::Query,
                 query: query_content,
                 line: line_num - lines_consumed,
+                options: QueryOptions::default(),
             });
         }
 
