@@ -5,7 +5,7 @@
 
 use super::database::ConnectionInfo;
 use super::expression::ExpressionEvaluator;
-use super::parser::Parser;
+use super::parser::{QueryParser, default_parser};
 use super::query::{Query, QueryType};
 use super::variables::VariableContext;
 use crate::tester::command::Command;
@@ -201,7 +201,7 @@ impl Tester {
 
         // Read and parse test file
         let content = fs::read_to_string(&test_path)?;
-        let mut parser = Parser::new();
+        let mut parser = default_parser();
         let queries = parser.parse(&content)?;
 
         info!("Parsed {} queries from {}", queries.len(), test_path.display());

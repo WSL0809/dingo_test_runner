@@ -1,14 +1,10 @@
-pub mod command;
-pub mod conn;
 pub mod connection_manager;
 pub mod database;
 pub mod error_handler;
-pub mod expression;
+pub mod error_utils;
 pub mod handlers;
+pub mod loader;
 pub mod parser;
 #[cfg(feature = "pest")]
 pub mod pest_parser;
-pub mod query;
-pub mod registry;
-pub mod tester;
-pub mod variables;
+pub mod tester; 

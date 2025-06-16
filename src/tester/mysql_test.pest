@@ -1,0 +1,59 @@
+// MySQL Test File Grammar for Pest Parser
+// This grammar defines the structure of .test files used in MySQL testing
+
+WHITESPACE = _{ " " | "\t" }
+NEWLINE = _{ "\n" | "\r\n" | "\r" }
+
+// Main entry point - a test file consists of multiple lines
+test_file = { SOI ~ line* ~ EOI }
+
+// A line can be empty, comment, command, control flow, or SQL
+// Order matters! More specific rules should come first
+line = _{ 
+    empty_line |
+    comment |
+    command |
+    delimiter_change |
+    control_flow |
+    let_stmt |
+    sql_statement
+}
+
+// Empty lines (just whitespace and newline)
+empty_line = { WHITESPACE* ~ NEWLINE }
+
+// Comments start with # and continue to end of line
+comment = { "#" ~ comment_text ~ NEWLINE? }
+comment_text = { (!NEWLINE ~ ANY)* }
+
+// Commands start with -- followed by command name and arguments  
+command = { "--" ~ command_content ~ NEWLINE? }
+command_content = { (!NEWLINE ~ ANY)+ }
+
+// Delimiter change command (special case)
+delimiter_change = { "--" ~ "delimiter" ~ WHITESPACE+ ~ delimiter_value ~ NEWLINE? }
+delimiter_value = { (!NEWLINE ~ ANY)+ }
+
+// Control flow statements
+control_flow = _{ if_stmt | while_stmt | end_stmt | close_brace }
+
+if_stmt = { "if" ~ WHITESPACE* ~ "(" ~ condition ~ ")" ~ WHITESPACE* ~ block_start? ~ NEWLINE? }
+while_stmt = { "while" ~ WHITESPACE* ~ "(" ~ condition ~ ")" ~ WHITESPACE* ~ block_start? ~ NEWLINE? }
+end_stmt = { "end" ~ NEWLINE? }
+close_brace = { "}" ~ NEWLINE? }
+
+block_start = { "{" }
+condition = { (!")" ~ ANY)+ }
+
+// Let statements (can appear without -- prefix)
+// Support both "let $var = value" and "let$var=value" formats
+let_stmt = { "let" ~ WHITESPACE* ~ let_assignment ~ NEWLINE? }
+let_assignment = { (!NEWLINE ~ ANY)+ }
+
+// SQL statements - anything that doesn't match above patterns
+// This should be the last rule to catch remaining content
+sql_statement = { (!end_stmt ~ !close_brace ~ !let_stmt_lookahead ~ sql_content) ~ NEWLINE? }
+sql_content = { (!NEWLINE ~ ANY)+ }
+
+// Lookahead to prevent let statements from being parsed as SQL
+let_stmt_lookahead = { "let" ~ (WHITESPACE | "$" | ASCII_ALPHA) } 

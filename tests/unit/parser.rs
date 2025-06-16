@@ -1,8 +1,9 @@
-use dingo_test_runner::tester::parser::{Parser, QueryType};
+use dingo_test_runner::tester::parser::{QueryParser, default_parser};
+use dingo_test_runner::tester::query::QueryType;
 
 #[test]
 fn test_parse_simple_query() {
-    let mut parser = Parser::new();
+    let mut parser = default_parser();
     let content = "SELECT 1;";
     let queries = parser.parse(content).expect("Failed to parse simple query");
     
@@ -13,7 +14,7 @@ fn test_parse_simple_query() {
 
 #[test]
 fn test_parse_command() {
-    let mut parser = Parser::new();
+    let mut parser = default_parser();
     let content = "--echo hello world";
     let queries = parser.parse(content).expect("Failed to parse command");
     
@@ -24,7 +25,7 @@ fn test_parse_command() {
 
 #[test]
 fn test_parse_comment() {
-    let mut parser = Parser::new();
+    let mut parser = default_parser();
     let content = "# This is a comment";
     let queries = parser.parse(content).expect("Failed to parse comment");
     
@@ -34,7 +35,7 @@ fn test_parse_comment() {
 
 #[test]
 fn test_parse_multiline_query() {
-    let mut parser = Parser::new();
+    let mut parser = default_parser();
     let content = "SELECT 1\nFROM dual;";
     let queries = parser.parse(content).expect("Failed to parse multiline query");
     
@@ -45,7 +46,7 @@ fn test_parse_multiline_query() {
 
 #[test]
 fn test_delimiter_change() {
-    let mut parser = Parser::new();
+    let mut parser = default_parser();
     let content = "--delimiter //\nSELECT 1//\n--delimiter ;\nSELECT 2;";
     let queries = parser.parse(content).expect("Failed to parse delimiter change");
     

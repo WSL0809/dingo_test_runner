@@ -6,6 +6,38 @@ use super::query::{Query, QueryType, QueryOptions};
 use anyhow::{anyhow, Result};
 use phf::phf_map;
 
+/// Trait for parsing .test files into Query vectors
+/// 
+/// This abstraction allows for different parser implementations (handwritten, pest, etc.)
+/// while maintaining a consistent interface for the rest of the system.
+pub trait QueryParser: Send + Sync {
+    /// Parse a .test file content into a vector of queries
+    fn parse(&mut self, content: &str) -> Result<Vec<Query>>;
+}
+
+/// Factory function to create the default parser implementation
+pub fn default_parser() -> Box<dyn QueryParser> {
+    #[cfg(feature = "pest")]
+    {
+        Box::new(crate::tester::pest_parser::PestParser::new())
+    }
+    #[cfg(not(feature = "pest"))]
+    {
+        Box::new(HandwrittenParser::new())
+    }
+}
+
+/// Create a parser by name (for future extensibility)
+pub fn create_parser(parser_type: &str) -> Result<Box<dyn QueryParser>> {
+    match parser_type.to_lowercase().as_str() {
+        "handwritten" => Ok(Box::new(HandwrittenParser::new())),
+        #[cfg(feature = "pest")]
+        "pest" => Ok(Box::new(crate::tester::pest_parser::PestParser::new())),
+        "default" => Ok(default_parser()),
+        _ => Err(anyhow!("Unknown parser type: {}", parser_type)),
+    }
+}
+
 /// Static command mapping from command strings to QueryType
 static COMMAND_MAP: phf::Map<&'static str, QueryType> = phf_map! {
     "query" => QueryType::Query,
@@ -59,12 +91,12 @@ static COMMAND_MAP: phf::Map<&'static str, QueryType> = phf_map! {
     "end" => QueryType::End,
 };
 
-/// Parser for .test files
-pub struct Parser {
+/// Handwritten parser implementation for .test files
+pub struct HandwrittenParser {
     delimiter: String,
 }
 
-impl Default for Parser {
+impl Default for HandwrittenParser {
     fn default() -> Self {
         Self {
             delimiter: ";".to_string(),
@@ -72,7 +104,7 @@ impl Default for Parser {
     }
 }
 
-impl Parser {
+impl HandwrittenParser {
     pub fn new() -> Self {
         Self::default()
     }
@@ -394,5 +426,13 @@ impl Parser {
         } else {
             return Err(anyhow!("Invalid syntax after control flow condition: {}", line));
         }
+    }
+}
+
+/// Implementation of QueryParser trait for HandwrittenParser
+impl QueryParser for HandwrittenParser {
+    fn parse(&mut self, content: &str) -> Result<Vec<Query>> {
+        // Delegate to the existing parse method
+        self.parse(content)
     }
 }
