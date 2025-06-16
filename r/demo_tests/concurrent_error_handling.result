@@ -2,3 +2,6 @@
 # 在并发块中混合成功查询与预期错误验证捕获逻辑
 CREATE TABLE concurrent_err_tmp (id INT PRIMARY KEY)
 INSERT INTO concurrent_err_tmp VALUES (1), (2)
+ERROR 1062 (23000): Duplicate entry '1' for key 'concurrent_err_tmp.PRIMARY'
+ERROR 1146 (42S02): Table 'test_demo_tests_concurrent_error_handling.not_exist_tbl' doesn't exist
+DROP TABLE IF EXISTS concurrent_err_tmp

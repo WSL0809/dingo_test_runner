@@ -4,15 +4,15 @@ INSERT INTO products VALUES (1, 'Apple', 10, 5), (2, 'Banana', 5, 10), (3, 'Oran
 
 --- 场景1: 使用 while 循环和 let 模拟补货 ---
 "检查产品ID: 1, 当前库存: 5"
-" 库存不足, 需要补货: 5"
+"  库存不足, 需要补货: 5"
 UPDATE products SET stock = 10 WHERE id = 1
-" 已补货, 新库存: 10"
+"  已补货, 新库存: 10"
 "检查产品ID: 2, 当前库存: 10"
-" 库存充足, 无需操作"
+"  库存充足, 无需操作"
 "检查产品ID: 3, 当前库存: 0"
-" 库存不足, 需要补货: 10"
+"  库存不足, 需要补货: 10"
 UPDATE products SET stock = 10 WHERE id = 3
-" 已补货, 新库存: 10"
+"  已补货, 新库存: 10"
 
 --- 补货后库存检查 ---
 SELECT * FROM products ORDER BY id
@@ -22,9 +22,9 @@ SELECT * FROM products ORDER BY id
 
 --- 场景2: 嵌套循环计算总价值 ---
 "计算产品ID: 1 (价格: 10, 库存: 10)"
-" 产品价值 (10 * 10) = 100"
-" 内部循环临时值: 100"
-" 内部循环临时值: 101"
+"  产品价值 (10 * 10) = 100"
+"    内部循环临时值: 100"
+"    内部循环临时值: 101"
 
 "计算完成, 总价值: 100 (预期: 10*10 (Apple) + 8*10 (Orange) = 180)"
 DROP TABLE products

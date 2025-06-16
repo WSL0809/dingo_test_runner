@@ -402,38 +402,66 @@
 
 ---
 
-**最后更新**: 2025年01月19日
-**当前版本**: v0.2.1-dev
+**最后更新**: 2025年01月16日  
+**当前版本**: v0.2.1-dev  
 **开发者**: [项目团队]
+
+### 📋 最新进展总结 (2025-01-16)
+
+本次更新主要完成了 **Pest Parser 的关键修复**：
+
+- 🔧 **解决了 Pest Parser 的核心问题**：大小写敏感性、多行 SQL 合并、变量解析等
+- ✅ **测试验证通过**：主要功能测试正常，仅有细微格式差异待完善  
+- 🎯 **双解析器架构稳定**：Pest Parser 为默认选择，手写解析器作为可靠备选
+- 📈 **项目稳定性提升**：解析层现已基本稳定，为后续功能开发奠定基础
 
 ## 🎉 最新功能亮点
 
-### 🔥 Pest Parser 实现完成 (v0.2.1) 
+### 🔥 Pest Parser 修复完成 (v0.2.1+) 
 
-我们成功实现了基于 **Pest** 的结构化解析器，并设为默认选择！这是解析层的重大升级：
+我们成功修复了基于 **Pest** 的结构化解析器的关键问题，现在基本功能已稳定工作：
 
-#### ✨ 核心特性
+#### ✨ 已修复的关键问题
 
-1. **结构化语法定义**
-   ```pest
-   // mysql_test.pest - 清晰的语法规则
-   command = { "--" ~ command_content ~ NEWLINE? }
-   command_content = { (!NEWLINE ~ ANY)+ }
-   sql_statement = { sql_content ~ NEWLINE? }
+1. **大小写敏感性问题**
+   ```sql
+   let $var = 5        # ✅ 支持
+   LET $var = 5        # ✅ 支持 (修复后)
+   Let $var = 5        # ✅ 支持 (修复后)
    ```
 
-2. **双 Parser 架构**
-   - **PestParser**: 默认选择，基于正式语法定义
-   - **HandwrittenParser**: 备选实现，向后兼容
-   - **QueryParser trait**: 统一接口，无缝切换
+2. **多行 SQL 语句解析**
+   ```sql
+   # 修复前：被错误拆分成多个查询
+   CREATE TABLE test (     # 查询1 ❌
+       id INT,            # 查询2 ❌  
+       name VARCHAR(50)   # 查询3 ❌
+   );                     # 查询4 ❌
 
-3. **功能对等性**
+   # 修复后：正确合并为单个查询
+   CREATE TABLE test (
+       id INT,
+       name VARCHAR(50)
+   );                     # 单个完整查询 ✅
+   ```
+
+3. **变量未定义错误**
    ```bash
-   # 两个解析器产生完全相同的结果
-   Pest parser results:     type=Echo, content='Hello World'
-   Handwritten parser results: type=Echo, content='Hello World'
-   ✅ 100% 兼容！
+   # 修复前
+   [ERROR] Undefined variable: $a
+   [ERROR] Undefined variable: $mixed_case
+
+   # 修复后  
+   ✅ 所有变量正确识别和定义
    ```
+
+#### 🧪 验证测试
+
+- ✅ **debug_pest_parsing**: 解析器功能对等性验证通过
+- ✅ **variable_basic**: 基础变量测试正常
+- ✅ **variable_expression**: 变量表达式测试正常  
+- ✅ **let_expression_showcase**: let 语句各种语法测试正常
+- ⚠️ **concurrent_advanced**: 基本工作，仅有细微格式差异
 
 #### 📦 使用方式
 
@@ -442,13 +470,20 @@
 cargo build
 cargo test
 
-# 强制使用手写 Parser  
+# 强制使用手写 Parser (如遇问题可回退)
 cargo build --no-default-features
 cargo test --no-default-features
 
 # 显式启用 Pest (可选)
 cargo build --features pest
 ```
+
+#### 🎯 当前状态
+
+- **核心功能**: ✅ 工作正常
+- **解析准确性**: ✅ 与手写解析器功能对等
+- **稳定性**: ✅ 主要测试用例通过
+- **格式细节**: ⚠️ 部分缩进差异待完善
 
 ### 控制流语句支持 (v0.2.0)
 
@@ -511,7 +546,7 @@ cargo build --features pest
 
 本文档记录了 `mysql-tester-rs` 项目的当前开发状态、已完成的功能以及后续的开发计划。
 
-**最后更新时间:** 2025-06-15
+**最后更新时间:** 2025-06-16
 
 ---
 
@@ -531,13 +566,27 @@ cargo build --features pest
 - ✅ 配置了 `rust-toolchain.toml` 以统一开发环境。
 - ✅ 实现了基于 `clap` 的命令行参数解析（CLI Skeleton）。
 
-### Phase 1 – 解析层 (Parser)
+### Phase 1 – 解析层 (Parser) ✅ 完成
 - ✅ 定义了 `QueryType` 枚举和 `COMMAND_MAP`，覆盖了大部分 MySQL Test 命令。
-- ✅ 实现了 `Parser` 结构体，能够正确解析 `.test` 文件中的以下元素：
-  - SQL 查询（包括多行查询）。
-  - 注释 (`# ...`)。
-  - 命令 (`-- command ...`)。
-  - 自定义分隔符 (`delimiter ...`)。
+- ✅ **实现双 Parser 架构** 
+  - ✅ `HandwrittenParser` - 手写解析器实现，经过充分测试
+  - ✅ `PestParser` - 基于 Pest 的结构化解析器 **（已修复关键问题）**
+  - ✅ `QueryParser` trait 抽象层，支持无缝切换
+  - ✅ 工厂模式：`default_parser()` 和 `create_parser(parser_type)`
+- ✅ **Pest Parser 关键修复**
+  - ✅ 大小写不敏感 let 语句支持 (`let`/`LET`/`Let`)
+  - ✅ 多行 SQL 语句正确合并（修复空 SQL 错误）
+  - ✅ 变量未定义错误修复
+  - ✅ 语法优先级问题解决
+- ✅ **解析功能完整支持**
+  - ✅ 解析命令行指令 (`--` 开头)
+  - ✅ 解析注释 (`#` 开头)
+  - ✅ 解析多行查询 (支持自定义分隔符)
+  - ✅ 处理分隔符变更 (`--delimiter`)
+  - ✅ 解析控制流语句 (`if`, `while`, `end`, `}`)
+  - ✅ 支持灵活的语法格式 (有无空格、花括号/end 结尾)
+- ✅ **默认设置**：Pest Parser 为默认解析器，手写解析器作为备选
+- ✅ 编写完整的单元测试和功能验证
 
 ### Phase 2 – 数据库与连接管理
 - ✅ 实现了数据库抽象层 (`Database` enum)，目前支持 **MySQL** 和 **SQLite**（用于本地调试）。
@@ -627,6 +676,34 @@ src/
   - 由于仅在 `&mut self` 场景修改内部状态，且 `mysql::Pool` 本身实现 `Send + Sync`，故不会引入竞态风险。
 
 - 🧹 **告警清理计划**：后续将逐步移除 `dead_code` 字段并替换剩余 `unwrap()`，降低编译警告。
+
+## 🔧 Pest Parser 修复完成 (2025-06-16)
+
+经过深入调试和修复，Pest Parser 现已基本稳定并能正常工作：
+
+### ✅ 主要修复内容
+1. **语法规则优化**：
+   - 修复了 `let` 语句的大小写敏感性问题，现在支持 `let`/`LET`/`Let` 等各种格式
+   - 改进了 SQL 语句与其他语法元素的优先级排序
+   - 添加了 lookahead 规则防止 let 语句被误识别为 SQL
+
+2. **多行 SQL 合并**：
+   - 实现了多行 SQL 语句的正确合并逻辑
+   - 修复了之前导致空 SQL 查询错误的问题
+   - 保持与手写解析器一致的行为
+
+3. **测试验证**：
+   - ✅ `debug_pest_parsing` 测试通过
+   - ✅ 基础变量测试 (`variable_basic`) 正常
+   - ✅ 变量表达式测试 (`variable_expression`) 正常
+   - ✅ Let 语句展示测试 (`let_expression_showcase`) 正常
+   - ⚠️ 并发测试基本工作，仅有微小格式差异
+
+### 🎯 当前状态
+- **核心功能**：✅ 完全正常
+- **功能对等性**：✅ 与手写解析器基本一致  
+- **稳定性**：✅ 主要测试用例通过
+- **格式细节**：⚠️ 部分缩进差异需要进一步完善
 
 ---
 

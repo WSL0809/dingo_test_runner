@@ -42,6 +42,7 @@ impl PestParser {
     /// Convert pest parse tree to Query objects
     fn convert_to_queries(&mut self, pairs: pest::iterators::Pairs<Rule>) -> Result<Vec<Query>> {
         let mut queries = Vec::new();
+        let mut pending_sql_lines = Vec::new();
         let line_num = 1;
 
         for pair in pairs {
@@ -52,6 +53,11 @@ impl PestParser {
                     queries.extend(inner_queries);
                 }
                 Rule::comment => {
+                    // Finalize any pending SQL before processing comment
+                    if !pending_sql_lines.is_empty() {
+                        self.finalize_pending_sql(&mut queries, &mut pending_sql_lines, line_num)?;
+                    }
+                    
                     let comment_text = self.extract_comment_text(pair)?;
                     queries.push(Query {
                         query_type: QueryType::Comment,
@@ -61,6 +67,11 @@ impl PestParser {
                     });
                 }
                 Rule::command => {
+                    // Finalize any pending SQL before processing command
+                    if !pending_sql_lines.is_empty() {
+                        self.finalize_pending_sql(&mut queries, &mut pending_sql_lines, line_num)?;
+                    }
+                    
                     let (query_type, query_content) = self.parse_command_pair(pair)?;
                     queries.push(Query {
                         query_type,
@@ -70,6 +81,11 @@ impl PestParser {
                     });
                 }
                 Rule::delimiter_change => {
+                    // Finalize any pending SQL before changing delimiter
+                    if !pending_sql_lines.is_empty() {
+                        self.finalize_pending_sql(&mut queries, &mut pending_sql_lines, line_num)?;
+                    }
+                    
                     let delimiter_value = self.extract_delimiter_value(pair)?;
                     self.delimiter = delimiter_value.clone();
                     queries.push(Query {
@@ -80,6 +96,11 @@ impl PestParser {
                     });
                 }
                 Rule::if_stmt => {
+                    // Finalize any pending SQL before processing control flow
+                    if !pending_sql_lines.is_empty() {
+                        self.finalize_pending_sql(&mut queries, &mut pending_sql_lines, line_num)?;
+                    }
+                    
                     let condition = self.extract_condition(pair)?;
                     queries.push(Query {
                         query_type: QueryType::If,
@@ -89,6 +110,11 @@ impl PestParser {
                     });
                 }
                 Rule::while_stmt => {
+                    // Finalize any pending SQL before processing control flow
+                    if !pending_sql_lines.is_empty() {
+                        self.finalize_pending_sql(&mut queries, &mut pending_sql_lines, line_num)?;
+                    }
+                    
                     let condition = self.extract_condition(pair)?;
                     queries.push(Query {
                         query_type: QueryType::While,
@@ -98,6 +124,11 @@ impl PestParser {
                     });
                 }
                 Rule::end_stmt => {
+                    // Finalize any pending SQL before processing end
+                    if !pending_sql_lines.is_empty() {
+                        self.finalize_pending_sql(&mut queries, &mut pending_sql_lines, line_num)?;
+                    }
+                    
                     queries.push(Query {
                         query_type: QueryType::End,
                         query: String::new(),
@@ -106,6 +137,11 @@ impl PestParser {
                     });
                 }
                 Rule::close_brace => {
+                    // Finalize any pending SQL before processing close brace
+                    if !pending_sql_lines.is_empty() {
+                        self.finalize_pending_sql(&mut queries, &mut pending_sql_lines, line_num)?;
+                    }
+                    
                     queries.push(Query {
                         query_type: QueryType::CloseBrace,
                         query: String::new(),
@@ -115,18 +151,14 @@ impl PestParser {
                 }
                 Rule::sql_statement => {
                     let sql_content = self.extract_sql_statement(pair)?;
-                    if !sql_content.trim().is_empty() {
-                        // Remove trailing delimiter if present
-                        let cleaned_sql = self.remove_delimiter(&sql_content);
-                        queries.push(Query {
-                            query_type: QueryType::Query,
-                            query: cleaned_sql,
-                            line: line_num,
-                            options: QueryOptions::default(),
-                        });
-                    }
+                    self.process_sql_line(&mut pending_sql_lines, &mut queries, sql_content, line_num)?;
                 }
                 Rule::let_stmt => {
+                    // Finalize any pending SQL before processing let
+                    if !pending_sql_lines.is_empty() {
+                        self.finalize_pending_sql(&mut queries, &mut pending_sql_lines, line_num)?;
+                    }
+                    
                     let let_args = self.extract_let_args(pair)?;
                     queries.push(Query {
                         query_type: QueryType::Let,
@@ -136,7 +168,7 @@ impl PestParser {
                     });
                 }
                 Rule::empty_line => {
-                    // Skip empty lines
+                    // Skip empty lines but don't finalize SQL (allow SQL to span empty lines)
                 }
                 _ => {
                     // Handle other rules or skip
@@ -144,7 +176,61 @@ impl PestParser {
             }
         }
 
+        // Finalize any remaining SQL
+        if !pending_sql_lines.is_empty() {
+            self.finalize_pending_sql(&mut queries, &mut pending_sql_lines, line_num)?;
+        }
+
         Ok(queries)
+    }
+
+    /// Process a single SQL line, accumulating until delimiter is found
+    fn process_sql_line(&self, pending_sql_lines: &mut Vec<String>, queries: &mut Vec<Query>, sql_content: String, line_num: usize) -> Result<()> {
+        let trimmed_content = sql_content.trim();
+        if trimmed_content.is_empty() {
+            return Ok(());
+        }
+
+        // Check if this line ends with the delimiter
+        if trimmed_content.ends_with(&self.delimiter) {
+            // Remove delimiter and add to pending lines
+            let content_without_delimiter = trimmed_content
+                .strip_suffix(&self.delimiter)
+                .unwrap_or(trimmed_content)
+                .trim();
+            
+            if !content_without_delimiter.is_empty() {
+                pending_sql_lines.push(content_without_delimiter.to_string());
+            }
+            
+            // Finalize the SQL statement
+            self.finalize_pending_sql(queries, pending_sql_lines, line_num)?;
+        } else {
+            // Add to pending lines (multi-line SQL continues)
+            pending_sql_lines.push(trimmed_content.to_string());
+        }
+        
+        Ok(())
+    }
+
+    /// Finalize pending SQL lines into a single Query
+    fn finalize_pending_sql(&self, queries: &mut Vec<Query>, pending_sql_lines: &mut Vec<String>, line_num: usize) -> Result<()> {
+        if pending_sql_lines.is_empty() {
+            return Ok(());
+        }
+
+        let full_sql = pending_sql_lines.join("\n").trim().to_string();
+        if !full_sql.is_empty() {
+            queries.push(Query {
+                query_type: QueryType::Query,
+                query: full_sql,
+                line: line_num,
+                options: QueryOptions::default(),
+            });
+        }
+        
+        pending_sql_lines.clear();
+        Ok(())
     }
 
     fn parse_command_pair(&self, pair: pest::iterators::Pair<Rule>) -> Result<(QueryType, String)> {

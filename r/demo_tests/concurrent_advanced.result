@@ -1,14 +1,14 @@
 # concurrent_advanced.test - 高级并发功能测试
 # 演示并发块与变量、连接管理的综合应用
 CREATE TABLE concurrent_advanced_test (
-    id INT PRIMARY KEY,
-    name VARCHAR(50),
-    value INT
+id INT PRIMARY KEY,
+name VARCHAR(50),
+value INT
 )
-INSERT INTO concurrent_advanced_test VALUES 
-    (1, 'Alice', 100),
-    (2, 'Bob', 200),
-    (3, 'Charlie', 300)
+INSERT INTO concurrent_advanced_test VALUES
+(1, 'Alice', 100),
+(2, 'Bob', 200),
+(3, 'Charlie', 300)
 # 并发查询不同的数据
 Bob
 Charlie

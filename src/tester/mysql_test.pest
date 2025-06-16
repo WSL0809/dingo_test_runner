@@ -46,8 +46,8 @@ block_start = { "{" }
 condition = { (!")" ~ ANY)+ }
 
 // Let statements (can appear without -- prefix)
-// Support both "let $var = value" and "let$var=value" formats
-let_stmt = { "let" ~ WHITESPACE* ~ let_assignment ~ NEWLINE? }
+// Case insensitive: let, Let, LET all work
+let_stmt = { ^"let" ~ WHITESPACE* ~ let_assignment ~ NEWLINE? }
 let_assignment = { (!NEWLINE ~ ANY)+ }
 
 // SQL statements - anything that doesn't match above patterns
@@ -56,4 +56,5 @@ sql_statement = { (!end_stmt ~ !close_brace ~ !let_stmt_lookahead ~ sql_content)
 sql_content = { (!NEWLINE ~ ANY)+ }
 
 // Lookahead to prevent let statements from being parsed as SQL
-let_stmt_lookahead = { "let" ~ (WHITESPACE | "$" | ASCII_ALPHA) } 
+// Case insensitive lookahead
+let_stmt_lookahead = { ^"let" ~ (WHITESPACE | "$" | ASCII_ALPHA) } 
