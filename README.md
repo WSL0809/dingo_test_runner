@@ -1,3 +1,4 @@
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/WSL0809/dingo_test_runner)
 # MySQL Test Runner (Rust)
 
 一个用 Rust 重写的 MySQL 测试运行器，专注于 MySQL 数据库测试。
