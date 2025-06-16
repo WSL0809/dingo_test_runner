@@ -57,4 +57,4 @@ sql_content = { (!NEWLINE ~ ANY)+ }
 
 // Lookahead to prevent let statements from being parsed as SQL
 // Case insensitive lookahead
-let_stmt_lookahead = { ^"let" ~ (WHITESPACE | "$" | ASCII_ALPHA) } 
+let_stmt_lookahead = { ^"let" ~ (WHITESPACE | "$" | ASCII_ALPHA) }

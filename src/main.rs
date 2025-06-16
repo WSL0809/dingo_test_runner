@@ -34,12 +34,15 @@ fn main() -> Result<()> {
     let mut passed_tests = 0;
     let mut failed_tests = 0;
     
-    let tests_to_run = if args.all {
+    let resolved_tests = if args.all {
         // Load all tests from the `t/` directory
         match loader::load_all_tests() {
-            Ok(tests) => {
-                info!("Found {} tests to run.", tests.len());
-                tests
+            Ok(test_names) => {
+                info!("Found {} tests to run.", test_names.len());
+                test_names.into_iter().map(|name| {
+                    let path = std::env::current_dir().unwrap_or_default().join("t").join(format!("{}.test", name));
+                    cli::ResolvedTest { name, path }
+                }).collect()
             }
             Err(e) => {
                 error!("Failed to load tests: {}", e);
@@ -47,23 +50,35 @@ fn main() -> Result<()> {
             }
         }
     } else {
-        // Use the specific test files provided
-        args.test_files.clone()
+        // Resolve the specific test inputs provided
+        match args.resolve_test_inputs() {
+            Ok(tests) => {
+                info!("Resolved {} test(s) to run.", tests.len());
+                // Show what was resolved
+                for test in &tests {
+                    info!("  {} -> {}", test.name, test.path.display());
+                }
+                tests
+            }
+            Err(e) => {
+                error!("Failed to resolve test inputs: {}", e);
+                std::process::exit(1);
+            }
+        }
     };
 
-    if tests_to_run.is_empty() {
+    if resolved_tests.is_empty() {
         info!("No test files specified or found. Exiting.");
         return Ok(());
     }
 
-    for test_file in &tests_to_run {
+    for resolved_test in &resolved_tests {
         total_tests += 1;
-        info!("Running test file: {}", test_file);
+        info!("Running test: {} ({})", resolved_test.name, resolved_test.path.display());
         
-        // Check if test file exists before creating tester
-        let test_path = std::env::current_dir()?.join("t").join(format!("{}.test", test_file));
-        if !test_path.exists() {
-            error!("✗ Test file not found: {}", test_path.display());
+        // Check if test file exists
+        if !resolved_test.path.exists() {
+            error!("✗ Test file not found: {}", resolved_test.path.display());
             failed_tests += 1;
             continue;
         }
@@ -72,13 +87,13 @@ fn main() -> Result<()> {
         let mut tester = match Tester::new(base_args.clone()) {
             Ok(t) => t,
             Err(e) => {
-                error!("Failed to create tester for {}: {}", test_file, e);
+                error!("Failed to create tester for {}: {}", resolved_test.name, e);
                 failed_tests += 1;
                 continue; // Skip to the next test
             }
         };
 
-        match tester.run_test_file(test_file) {
+        match tester.run_test_file(&resolved_test.name) {
             Ok(result) => {
                 if result.success {
                     passed_tests += 1;
@@ -96,7 +111,7 @@ fn main() -> Result<()> {
             }
             Err(e) => {
                 failed_tests += 1;
-                error!("✗ Test file '{}' failed to execute: {}", test_file, e);
+                error!("✗ Test file '{}' failed to execute: {}", resolved_test.name, e);
             }
         }
         // 显式 drop Tester，确保连接及资源释放；若 hang 可考虑加超时机制

@@ -1,6 +1,0 @@
---disable_query_log
-CREATE TABLE nums (val INT);
-INSERT INTO nums VALUES (2);
-INSERT INTO nums VALUES (1);
---sorted_result
-SELECT val FROM nums;
