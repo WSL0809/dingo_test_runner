@@ -7,9 +7,10 @@ pub mod loader;
 
 use cli::Args;
 use tester::tester::Tester;
-use report::{TestSuiteResult, summary, xunit};
+use report::{TestSuiteResult, summary, xunit, html};
+use stub::email::MailSender;
 use anyhow::Result;
-use log::{error, info};
+use log::{error, info, warn};
 
 fn main() -> Result<()> {
     // Parse command line arguments
@@ -128,9 +129,66 @@ fn main() -> Result<()> {
         }
     }
     
+    // Send email report if configured
+    if let Some(email_config) = args.get_email_config() {
+        info!("Sending test report email...");
+        match send_email_report(&suite, &email_config, &args.xunit_file) {
+            Ok(_) => {
+                info!("Email report sent successfully");
+            }
+            Err(e) => {
+                warn!("Failed to send email report: {}", e);
+                // Don't exit with error for email failure
+            }
+        }
+    }
+    
     // Exit with appropriate code
     let exit_code = if suite.all_passed() { 0 } else { 1 };
     std::process::exit(exit_code);
+}
+
+/// Send email report with test results
+fn send_email_report(
+    suite_result: &TestSuiteResult,
+    email_config: &cli::EmailConfig,
+    xunit_file: &str,
+) -> Result<()> {
+    // Create mail sender
+    let mail_sender = MailSender::new(email_config.clone())?;
+    
+    // Generate plain text report
+    let plain_text_body = html::generate_plain_text_report(suite_result);
+    
+    // Generate HTML report (if email feature is enabled)
+    #[cfg(feature = "email")]
+    let html_body = {
+        let html_report = html::HtmlReport::new(suite_result, &suite_result.cases);
+        html_report.generate().unwrap_or_else(|e| {
+            warn!("Failed to generate HTML report: {}, falling back to plain text", e);
+            plain_text_body.clone()
+        })
+    };
+    
+    #[cfg(not(feature = "email"))]
+    let html_body = plain_text_body.clone();
+    
+    // Determine XUnit file path
+    let xunit_path = if !xunit_file.is_empty() && email_config.attach_xunit {
+        Some(std::path::Path::new(xunit_file))
+    } else {
+        None
+    };
+    
+    // Send email
+    mail_sender.send_test_report(
+        suite_result,
+        &plain_text_body,
+        &html_body,
+        xunit_path,
+    )?;
+    
+    Ok(())
 }
 
 fn init_logging(log_level: &str) -> Result<()> {

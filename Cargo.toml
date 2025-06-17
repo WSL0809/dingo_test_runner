@@ -46,8 +46,10 @@ quick-xml = "0.37.5"
 # 终端检测和彩色输出
 console = "0.15"
 
-# 邮件功能 (暂时保留依赖，但功能未实现)
+# 邮件功能
 lettre = { version = "0.11", optional = true }
+# HTML 模板引擎
+askama = { version = "0.12", optional = true }
 # 字符串映射
 phf = { version = "0.11.2", features = ["macros"] }
 
@@ -67,6 +69,6 @@ tempfile = "3.0"
 
 [features]
 default = ["pest"]
-email = ["lettre"]
+email = ["lettre", "askama"]
 pest = ["dep:pest", "dep:pest_derive"]
 

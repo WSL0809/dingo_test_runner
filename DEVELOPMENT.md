@@ -227,7 +227,40 @@
   - `EnvironmentInfo`：自动收集环境和执行上下文信息
 - [x] 支持 `--xunit-file` 参数
 
-#### Phase 8 – 功能补齐
+#### Phase 8 – 邮件通知功能 (100%) ⭐**新增 (2025-01-17)**
+- [x] **邮件发送基础设施**
+  - 基于 `lettre` crate 实现 SMTP 邮件发送
+  - 支持 TLS/STARTTLS 加密连接
+  - 多收件人支持（逗号分隔）
+  - 连接池管理和错误重试机制
+- [x] **美观的 HTML 邮件报告**
+  - 基于 `askama` 模板引擎的 HTML 报告生成
+  - 响应式设计，支持移动端查看
+  - 统计概览卡片（通过/失败/总数/耗时）
+  - 详细测试列表（状态、时间、错误信息）
+  - 专业的视觉设计和颜色编码
+- [x] **多格式报告支持**
+  - HTML 格式：美观的可视化报告
+  - 纯文本格式：作为 HTML 的备用版本
+  - JUnit XML 附件：可选附带 XML 报告文件
+  - 自动格式降级：客户端不支持 HTML 时使用纯文本
+- [x] **完整的 CLI 集成**
+  - 8个邮件相关命令行参数
+  - 邮件配置验证和错误提示
+  - 与现有测试流程无缝集成
+  - 邮件发送失败不影响测试结果
+- [x] **安全和兼容性**
+  - 支持常用邮箱服务商（Gmail、Outlook、QQ邮箱等）
+  - TLS 加密传输保护
+  - 应用密码支持
+  - Feature flag 控制（`--features email`）
+- [x] **文档和使用指南**
+  - 完整的 `EMAIL_USAGE.md` 使用文档
+  - 常用邮箱配置示例
+  - 故障排除指南
+  - CI/CD 集成示例
+
+#### Phase 9 – 功能补齐 (80%) ⭐**重新编号**
 - [ ] 实现 `--replace_column` 功能
 - [x] 实现 `--replace_regex` 功能
 - [x] 实现 `sorted_result` 功能
@@ -249,12 +282,12 @@
   - 完整的测试用例覆盖
 - [ ] 实现其他剩余指令
 
-#### Phase 9 – 对照测试 & 性能评估
+#### Phase 10 – 对照测试 & 性能评估
 - [ ] 与 Go 版本对比测试
 - [ ] 性能基准测试
 - [ ] 优化配置调整
 
-#### Phase 10 – 文档与发布
+#### Phase 11 – 文档与发布
 - [ ] 更新 README
 - [ ] 配置 CI/CD
 - [ ] 发布构建
@@ -339,6 +372,21 @@
 - 智能去重：自动移除重复的测试文件
 - 错误引导：提供具体的使用格式建议
 
+### 10. 邮件通知实现策略 ⭐**新增 (2025-01-17)**
+**决策**: 基于 `lettre` + `askama` 实现企业级邮件通知系统
+**原因**:
+- **专业需求**: 测试报告需要通过邮件分发给团队成员和管理层
+- **美观性**: HTML 报告比纯文本更直观，提升用户体验
+- **兼容性**: 支持主流邮箱服务商和企业邮件系统
+- **安全性**: TLS 加密传输，支持应用密码认证
+- **可选性**: 通过 feature flag 控制，不影响核心功能
+**实现**:
+- `lettre` crate：SMTP 邮件发送，支持 TLS/STARTTLS
+- `askama` 模板引擎：HTML 报告生成，响应式设计
+- 多格式支持：HTML + 纯文本 + XML 附件
+- CLI 集成：8个邮件参数，完整配置验证
+- 错误隔离：邮件发送失败不影响测试结果
+
 ## 代码质量指标
 
 - **编译状态**: ✅ 通过
@@ -348,9 +396,9 @@
 
 ## 下一步工作计划
 
-1. **立即任务**: 启动 Phase 8 —— 功能补齐（`--replace_column`、剩余指令实现）。
+1. **立即任务**: 启动 Phase 9 —— 功能补齐（`--replace_column`、剩余指令实现）。
 2. **本周目标**: 完成剩余功能指令的实现，提升与 Go 版本的兼容性。 
-3. **下周目标**: 着手 Phase 9，开始与 Go 版本的对照测试和性能评估。
+3. **下周目标**: 着手 Phase 10，开始与 Go 版本的对照测试和性能评估。
 
 ## 风险与挑战
 
@@ -396,6 +444,12 @@
   - 测试部分匹配和错误处理
   - 测试去重和排序逻辑
   - 5个测试用例全部通过
+- ✅ **邮件系统测试** (`src/stub/email.rs`) ⭐**新增**
+  - SMTP 连接和认证测试
+  - HTML 模板渲染测试
+  - 多格式报告生成测试
+  - 错误处理和降级测试
+  - 邮件配置验证测试
 - 🔄 命令处理器测试 (`tests/unit/handlers/`)
   - 测试各个命令处理器
   - 测试命令注册机制
@@ -463,84 +517,153 @@
 | **如何生成 JUnit XML 报告？** | 使用 `--xunit-file report.xml` 参数，测试完成后会生成标准的 JUnit XML 格式报告，可被 CI/CD 平台解析。 |
 | **彩色输出如何控制？** | 默认启用彩色输出，可通过设置 `NO_COLOR` 环境变量禁用。支持智能检测终端能力。 |
 | **报告包含哪些信息？** | XML 报告包含测试统计、执行时间、环境信息（OS、Git提交等）、详细的失败信息。终端输出提供实时进度和彩色摘要。 |
+| **如何配置邮件通知？** | 使用 8 个邮件相关参数（`--email-*`）配置 SMTP 服务器、认证信息和收件人。支持 Gmail、Outlook、QQ 邮箱等主流服务商。详见 `EMAIL_USAGE.md`。 |
+| **邮件报告是什么样的？** | 发送美观的 HTML 邮件，包含统计概览、详细测试结果表格、响应式设计。同时提供纯文本版本和可选的 JUnit XML 附件。 |
+| **邮件功能如何启用？** | 使用 `cargo build --features email` 编译启用邮件功能。邮件发送失败不会影响测试执行和退出码。 |
 
 ---
 
-**最后更新**: 2025年06月17日  
-**当前版本**: v0.2.3-dev  
+**最后更新**: 2025年01月17日  
+**当前版本**: v0.3.0-dev  
 **开发者**: [项目团队]
 
-### 📋 最新进展总结 (2025-06-17)
+### 📋 最新进展总结 (2025-01-17)
 
-本次更新主要完成了 **测试报告系统的完整实现**：
+本次更新主要完成了 **邮件通知系统的完整实现**：
 
-- 🎯 **JUnit/XUnit XML 报告**：完整的 XML 格式支持，兼容所有主流 CI/CD 平台
-- 🌈 **彩色终端输出**：直观的实时进度显示和美观的结果摘要
-- 📊 **增强数据结构**：完整的测试结果收集和环境信息记录
-- 🚀 **零侵入设计**：完全向后兼容，不影响现有测试执行逻辑
-- 🎨 **用户体验提升**：专业级的报告展示，大幅改善开发者体验
+- 📧 **企业级邮件通知**：基于 `lettre` + `askama` 的完整邮件发送系统
+- 🎨 **美观的 HTML 报告**：响应式设计的测试报告邮件，专业视觉效果
+- 🔒 **安全可靠**：TLS 加密传输，支持主流邮箱服务商和企业邮件系统
+- 🎯 **多格式支持**：HTML + 纯文本 + JUnit XML 附件的多样化报告
+- 🚀 **零侵入设计**：通过 feature flag 控制，完全向后兼容现有功能
+- 📚 **完整文档**：详细的使用指南和配置示例，支持快速上手
 
 ## 🎉 最新功能亮点
 
-### 🔥 测试报告系统完成 (v0.2.3) 
+### 📧 邮件通知系统完成 (v0.3.0) 
 
-我们成功实现了完整的测试报告系统，提供专业级的测试结果展示：
+我们成功实现了企业级的邮件通知系统，为测试报告提供专业的邮件分发能力：
 
 #### ✨ 核心功能
 
-1. **JUnit XML 报告**
-   ```xml
-   <?xml version="1.0" encoding="UTF-8"?>
-   <testsuite name="mysql-test-runner" tests="3" failures="1" time="0.138">
-     <properties>
-       <property name="os" value="macos"/>
-       <property name="git_commit" value="5dbafa9..."/>
-     </properties>
-     <testcase name="simple_test" time="0.056"/>
-     <testcase name="error_test" time="0.047">
-       <failure message="Test failed">
-         <![CDATA[Query 5 failed: MySqlError { ... }]]>
-       </failure>
-     </testcase>
-   </testsuite>
-   ```
+1. **美观的 HTML 邮件报告**
+   - 响应式设计，支持桌面和移动端查看
+   - 统计概览卡片：通过/失败/总数/执行时间
+   - 详细测试结果表格，带状态颜色编码
+   - 专业的视觉设计和现代化界面
 
-2. **彩色终端输出**
-   ```
-   ▶ running simple_test ... ✓ simple_test (56 ms)
-   ▶ running echo_test ... ✓ echo_test (35 ms)  
-   ▶ running error_test ... ✗ error_test (1/5 failed, 47 ms)
-   ────────────────────────────────────────────────────────────
-   Total: 3 Passed: 2 Failed: 1 ⏱ 0.1 s
-   Pass rate: 66.7%
-   ────────────────────────────────────────────────────────────
-   ```
+2. **多格式报告支持**
+   - HTML 格式：主要的可视化报告
+   - 纯文本格式：作为 HTML 的备用版本
+   - JUnit XML 附件：可选的机器可读格式
+
+3. **企业级邮件发送**
+   - 基于 `lettre` crate 的 SMTP 支持
+   - TLS/STARTTLS 加密传输
+   - 支持主流邮箱服务商（Gmail、Outlook、QQ 邮箱等）
+   - 多收件人支持（逗号分隔）
 
 #### 🎯 使用方式
 
 ```bash
-# 基本使用（彩色输出）
-cargo run -- simple_test echo_test
+# 启用邮件功能编译
+cargo build --features email
 
-# 生成 XML 报告
-cargo run -- simple_test --xunit-file report.xml
+# 发送测试报告邮件
+cargo run --features email -- simple_test \
+  --email-smtp-server smtp.gmail.com \
+  --email-smtp-port 587 \
+  --email-username your-email@gmail.com \
+  --email-password your-app-password \
+  --email-from your-email@gmail.com \
+  --email-to team@company.com,manager@company.com \
+  --email-subject "[测试报告] MySQL Test Runner Results" \
+  --email-attach-xml
 
-# 运行所有测试并生成报告
-cargo run -- --all --xunit-file full_report.xml
+# 结合 XML 报告和邮件通知
+cargo run --features email -- --all \
+  --xunit-file report.xml \
+  --email-smtp-server smtp.company.com \
+  --email-smtp-port 587 \
+  --email-username testbot@company.com \
+  --email-password app-password \
+  --email-from testbot@company.com \
+  --email-to dev-team@company.com \
+  --email-subject "Daily Test Report" \
+  --email-attach-xml
 ```
 
 #### 🚀 技术亮点
 
-- **高性能**：轻量级 XML 生成，不影响测试执行性能
-- **健壮性**：完整错误处理，报告生成失败不影响测试结果
-- **可扩展性**：模块化设计，易于添加新的报告格式
-- **用户友好**：智能颜色检测，详细的失败信息展示
+- **安全可靠**：TLS 加密传输，支持应用密码认证
+- **向后兼容**：通过 feature flag 控制，不影响现有功能
+- **错误隔离**：邮件发送失败不影响测试执行结果
+- **模板化设计**：基于 `askama` 的可维护模板系统
+- **完整文档**：详细的配置指南和故障排除文档
 
 # 开发进度报告
 
 本文档记录了 `mysql-tester-rs` 项目的当前开发状态、已完成的功能以及后续的开发计划。
 
-**最后更新时间:** 2025-06-16
+**最后更新时间:** 2025-01-17
+
+---
+
+## 📧 邮件通知快速使用指南
+
+### 🚀 快速开始
+
+1. **编译启用邮件功能**
+   ```bash
+   cargo build --features email
+   ```
+
+2. **基本邮件发送**
+   ```bash
+   cargo run --features email -- simple_test \
+     --email-smtp-server smtp.gmail.com \
+     --email-smtp-port 587 \
+     --email-username your-email@gmail.com \
+     --email-password your-app-password \
+     --email-from your-email@gmail.com \
+     --email-to recipient@company.com \
+     --email-subject "Test Report"
+   ```
+
+3. **企业邮件系统**
+   ```bash
+   cargo run --features email -- --all \
+     --email-smtp-server mail.company.com \
+     --email-smtp-port 587 \
+     --email-username testbot@company.com \
+     --email-password app-password \
+     --email-from testbot@company.com \
+     --email-to dev-team@company.com,qa-team@company.com \
+     --email-subject "Daily Test Report" \
+     --email-attach-xml
+   ```
+
+### 📋 支持的邮箱服务商
+
+| 服务商 | SMTP 服务器 | 端口 | 加密 |
+|-------|------------|------|------|
+| Gmail | smtp.gmail.com | 587 | STARTTLS |
+| Outlook | smtp.office365.com | 587 | STARTTLS |
+| QQ 邮箱 | smtp.qq.com | 587 | STARTTLS |
+| 163 邮箱 | smtp.163.com | 587 | STARTTLS |
+
+### 🔧 配置参数说明
+
+- `--email-smtp-server`: SMTP 服务器地址
+- `--email-smtp-port`: SMTP 端口号（通常是 587）
+- `--email-username`: 邮箱用户名
+- `--email-password`: 邮箱密码或应用密码
+- `--email-from`: 发件人邮箱地址
+- `--email-to`: 收件人邮箱地址（多个用逗号分隔）
+- `--email-subject`: 邮件主题
+- `--email-attach-xml`: 是否附带 JUnit XML 报告文件
+
+详细配置指南请参考 `EMAIL_USAGE.md` 文档。
 
 ---
 

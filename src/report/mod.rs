@@ -2,6 +2,7 @@ use crate::tester::tester::{TestResult, TestStatus};
 
 pub mod xunit;
 pub mod summary;
+pub mod html;
 
 /// Test suite result aggregating multiple test cases
 #[derive(Debug, Clone)]

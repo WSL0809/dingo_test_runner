@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="mysql-test-runner" tests="3" failures="0" skipped="0" time="0.154" timestamp="2025-06-17T09:48:44.840468+00:00">
+<testsuite name="mysql-test-runner" tests="2" failures="0" skipped="0" time="0.113" timestamp="2025-06-17T11:14:53.995260+00:00">
   <properties>
     <property name="os" value="macos"/>
     <property name="rust_version" value="0.2.0"/>
-    <property name="git_commit" value="5dbafa9840b8db4703f036eea0ea65011e940250"/>
-    <property name="cli_args" value="target/debug/dingo_test_runner simple_test echo_test variable_simple --xunit-file batch_report.xml"/>
+    <property name="git_commit" value="effc9f88e44fd02c218054228ffc4a3557749d64"/>
+    <property name="cli_args" value="target/debug/dingo_test_runner echo_test simple_test --email-enable --email-smtp-host smtp.partner.outlook.cn --email-smtp-port 587 --email-username dingodb-ci@zetyun.com --email-password _Dj2024! --email-from dingodb-ci@zetyun.com --email-to wangsl@zetyun.com --email-enable-tls --xunit-file batch_report.xml"/>
   </properties>
-  <testcase name="simple_test" classname="mysql-test.simple_test" time="0.070"/>
-  <testcase name="echo_test" classname="mysql-test.echo_test" time="0.035"/>
-  <testcase name="variable_simple" classname="mysql-test.variable_simple" time="0.049"/>
+  <testcase name="echo_test" classname="mysql-test.echo_test" time="0.056"/>
+  <testcase name="simple_test" classname="mysql-test.simple_test" time="0.057"/>
 </testsuite>

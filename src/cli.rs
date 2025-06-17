@@ -120,6 +120,20 @@ pub struct ResolvedTest {
     pub path: PathBuf,
 }
 
+/// Email configuration for test result notifications
+#[derive(Debug, Clone)]
+pub struct EmailConfig {
+    pub smtp_host: String,
+    pub smtp_port: u16,
+    pub username: String,
+    pub password: String,
+    pub from: String,
+    pub to: Vec<String>,
+    pub enable_tls: bool,
+    pub subject: String,
+    pub attach_xunit: bool,
+}
+
 impl Args {
     /// Parse command line arguments
     pub fn parse_args() -> Self {
@@ -148,6 +162,9 @@ impl Args {
         if !self.all && self.test_files.is_empty() {
             return Err(anyhow!("No test files specified. Use --all to run all tests or specify test files."));
         }
+
+        // Validate email configuration
+        self.validate_email_config()?;
 
         Ok(())
     }
@@ -340,6 +357,78 @@ impl Args {
             .file_name()
             .unwrap_or_default();
         Ok(file_name.to_string_lossy().to_string())
+    }
+
+    /// Get email configuration if email is enabled
+    pub fn get_email_config(&self) -> Option<EmailConfig> {
+        if !self.email_enable || self.email_smtp_host.is_empty() || self.email_to.is_empty() {
+            return None;
+        }
+
+        let to_addresses: Vec<String> = self.email_to
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        if to_addresses.is_empty() {
+            return None;
+        }
+
+        let subject = if self.email_to.contains("Test Report") {
+            format!("MySQL Test Report - {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"))
+        } else {
+            "MySQL Test Report".to_string()
+        };
+
+        Some(EmailConfig {
+            smtp_host: self.email_smtp_host.clone(),
+            smtp_port: self.email_smtp_port as u16,
+            username: self.email_username.clone(),
+            password: self.email_password.clone(),
+            from: if self.email_from.is_empty() {
+                self.email_username.clone()
+            } else {
+                self.email_from.clone()
+            },
+            to: to_addresses,
+            enable_tls: self.email_enable_tls,
+            subject,
+            attach_xunit: !self.xunit_file.is_empty(),
+        })
+    }
+
+    /// Validate email configuration
+    pub fn validate_email_config(&self) -> Result<()> {
+        if !self.email_enable {
+            return Ok(());
+        }
+
+        if self.email_smtp_host.is_empty() {
+            return Err(anyhow!("SMTP host is required when email is enabled"));
+        }
+
+        if self.email_username.is_empty() {
+            return Err(anyhow!("Email username is required when email is enabled"));
+        }
+
+        if self.email_password.is_empty() {
+            return Err(anyhow!("Email password is required when email is enabled"));
+        }
+
+        if self.email_to.is_empty() {
+            return Err(anyhow!("Email recipients are required when email is enabled"));
+        }
+
+        // Validate email addresses format (basic validation)
+        for addr in self.email_to.split(',') {
+            let addr = addr.trim();
+            if !addr.contains('@') || addr.len() < 5 {
+                return Err(anyhow!("Invalid email address: {}", addr));
+            }
+        }
+
+        Ok(())
     }
 }
 
