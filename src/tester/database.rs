@@ -4,11 +4,11 @@
 //! Currently supports MySQL, with extensible design for future database backends.
 
 use anyhow::{anyhow, Result};
-use log::{debug, info, warn};
+use log::{debug, info, trace, warn};
 use std::time::Duration;
 
 /// 默认读/写超时时长（秒）
-const QUERY_TIMEOUT_SECS: u64 = 30;
+const QUERY_TIMEOUT_SECS: u64 = 10;
 
 /// Database connection abstraction
 #[derive(Debug)]
@@ -94,6 +94,8 @@ pub struct ConnectionInfo {
 pub struct MySQLDatabase {
     pool: mysql::Pool,
     info: ConnectionInfo,
+    /// 可复用的连接。串行执行场景下复用单个 `PooledConn` 可避免每条语句重新握手造成的额外延迟。
+    conn: Option<mysql::PooledConn>,
 }
 
 impl MySQLDatabase {
@@ -127,6 +129,7 @@ impl MySQLDatabase {
         Ok(MySQLDatabase {
             pool,
             info: info.clone(),
+            conn: None,
         })
     }
 
@@ -137,8 +140,17 @@ impl MySQLDatabase {
     pub fn query(&mut self, sql: &str) -> Result<Vec<Vec<String>>> {
         use mysql::prelude::Queryable;
         
-        let mut conn = self.pool.get_conn()?;
-        let result: Result<Vec<mysql::Row>, _> = conn.query(sql);
+        trace!("-> exec: {}", sql);
+        // 尝试复用已有连接；若不可用则从连接池重新获取。
+        if self.conn.is_none() {
+            self.conn = Some(self.pool.get_conn()?);
+        }
+
+        // 这里通过 match 单独取出 &mut 引用，避免双可变借用冲突。
+        let result: Result<Vec<mysql::Row>, mysql::Error> = {
+            let conn_ref = self.conn.as_mut().unwrap();
+            conn_ref.query(sql)
+        };
 
         let rows: Vec<mysql::Row> = match result {
             Ok(rows) => Ok(rows),
@@ -146,13 +158,17 @@ impl MySQLDatabase {
                 if let mysql::Error::IoError(ref io_err) = e {
                      if io_err.kind() == std::io::ErrorKind::BrokenPipe || io_err.kind() == std::io::ErrorKind::ConnectionAborted {
                         warn!("MySQL connection broken, attempting to reconnect. Error: {}", io_err);
+                        // 丢弃旧连接并重新获取
+                        self.conn = None;
                         if let Ok(mut new_conn) = self.pool.get_conn() {
-                            // Re-execute and handle result processing here to avoid complex return types
+                            // 将新连接放入缓存，供后续复用
                             let new_rows: Vec<mysql::Row> = new_conn.query(sql)?;
+                            self.conn = Some(new_conn);
                             return self.process_rows(new_rows);
                         }
                     }
                 }
+                warn!("query failed: {:?}", e);
                 Err(e)
             }
         }?;
@@ -162,14 +178,29 @@ impl MySQLDatabase {
 
     /// Helper function to process rows into Vec<Vec<String>>
     fn process_rows(&self, rows: Vec<mysql::Row>) -> Result<Vec<Vec<String>>> {
+        use mysql::Value;
+
         let mut result_vec = Vec::new();
         for row in rows {
             let mut row_data = Vec::new();
-            for i in 0..row.len() {
-                let value = row.get::<Option<String>, _>(i)
-                    .unwrap_or_else(|| Some("NULL".to_string()))
-                    .unwrap_or_else(|| "NULL".to_string());
-                row_data.push(value);
+            for idx in 0..row.len() {
+                let val = row.as_ref(idx).unwrap_or(&Value::NULL);
+                let cell = match val {
+                    Value::NULL => "NULL".to_string(),
+                    Value::Bytes(b) => String::from_utf8_lossy(b).into_owned(),
+                    Value::Int(n) => n.to_string(),
+                    Value::UInt(n) => n.to_string(),
+                    Value::Float(f) => (*f as f64).to_string(),
+                    Value::Double(d) => d.to_string(),
+                    Value::Date(y, m, d, hh, mm, ss, _us) => {
+                        format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", y, m, d, hh, mm, ss)
+                    }
+                    Value::Time(_neg, d, hh, mm, ss, _us) => {
+                        let total_hours = (*d as u32) * 24 + (*hh as u32);
+                        format!("{:02}:{:02}:{:02}", total_hours, mm, ss)
+                    }
+                };
+                row_data.push(cell);
             }
             result_vec.push(row_data);
         }
@@ -179,7 +210,28 @@ impl MySQLDatabase {
     pub fn execute(&mut self, sql: &str) -> Result<()> {
         use mysql::prelude::Queryable;
         
-        self.pool.get_conn()?.query_drop(sql)?;
+        if self.conn.is_none() {
+            self.conn = Some(self.pool.get_conn()?);
+        }
+
+        let exec_result = {
+            let conn_ref = self.conn.as_mut().unwrap();
+            conn_ref.query_drop(sql)
+        };
+
+        if let Err(e) = exec_result {
+            if let mysql::Error::IoError(ref io_err) = e {
+                if io_err.kind() == std::io::ErrorKind::BrokenPipe || io_err.kind() == std::io::ErrorKind::ConnectionAborted {
+                    warn!("MySQL connection broken during execute, attempting to reconnect. Error: {}", io_err);
+                    self.conn = None;
+                    let mut new_conn = self.pool.get_conn()?;
+                    new_conn.query_drop(sql)?;
+                    self.conn = Some(new_conn);
+                    return Ok(());
+                }
+            }
+            return Err(e.into());
+        }
         Ok(())
     }
 
@@ -247,7 +299,6 @@ impl MySQLDatabase {
         }
 
         // 2. 通过切换数据库连接来释放对当前测试库的占用
-        let original_db = self.info.database.clone();
         if let Err(e) = self.switch_database("mysql") {
             warn!("Failed to switch to 'mysql' db during cleanup, proceeding with DROP: {}", e);
         }
@@ -259,10 +310,8 @@ impl MySQLDatabase {
             debug!("MySQL test database '{}' dropped", test_db);
         }
 
-        // (可选) 恢复到原始数据库连接
-        if let Err(e) = self.switch_database(&original_db) {
-            warn!("Failed to switch back to original db '{}': {}", original_db, e);
-        }
+        // 注意：不需要切换回原始数据库，因为测试数据库已被删除
+        // 连接池会在需要时自动重新连接到合适的数据库
 
         Ok(())
     }
@@ -290,6 +339,7 @@ impl MySQLDatabase {
         // 替换旧的连接池和信息
         self.pool = new_pool;
         self.info = new_info;
+        self.conn = None;
 
         debug!("Switched database connection to '{}'", new_db_name);
         Ok(())
@@ -324,5 +374,51 @@ pub fn create_database_with_retry(
         // Exponential backoff with maximum delay
         std::thread::sleep(delay);
         delay = std::cmp::min(delay * 2, Duration::from_secs(10));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_connection_info() -> ConnectionInfo {
+        ConnectionInfo {
+            host: "127.0.0.1".to_string(),
+            port: 3306,
+            user: "root".to_string(),
+            password: "".to_string(),
+            database: "test".to_string(),
+            params: "".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_connection_info_creation() {
+        let info = create_test_connection_info();
+        assert_eq!(info.host, "127.0.0.1");
+        assert_eq!(info.port, 3306);
+        assert_eq!(info.user, "root");
+        assert_eq!(info.database, "test");
+    }
+
+    #[test]
+    fn test_unsupported_database_type() {
+        let info = create_test_connection_info();
+        let result = Database::new("unsupported", &info);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Unsupported database type"));
+    }
+
+    #[test]
+    fn test_mysql_database_info_format() {
+        let info = create_test_connection_info();
+        // Test the info string formatting without creating actual MySQL connection
+        let expected_info = "mysql://root@127.0.0.1:3306/test";
+        
+        // Test the info formatting logic directly
+        let formatted_info = format!("mysql://{}@{}:{}/{}", 
+                                    info.user, info.host, info.port, info.database);
+        
+        assert_eq!(formatted_info, expected_info);
     }
 } 

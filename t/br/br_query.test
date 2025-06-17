@@ -1,0 +1,48 @@
+# cargo run --release -- --host 172.30.14.172 --passwd 123123 --port 3307 --log-level trace  t/br/br_query.test
+# ddl-添加列测试
+--connect (conn1,172.30.14.172,root,123123,test_br_br)
+--connection conn1
+show tables;
+show create table t_ddl_br_add_column;
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{2}/TIMESTAMP/
+select * from t_ddl_br_add_column;
+show index from t_ddl_br_add_column;
+
+# ddl-重命名索引测试
+show create table t_ddl_br_rename_index;
+show index from t_ddl_br_rename_index;
+
+# ddl-删除列测试
+
+show create table t_ddl_br_drop_column;
+show index from t_ddl_br_drop_column;
+
+# ddl-修改列定义测试
+show create table t_ddl_br_modify_column;
+
+# ddl-调整 auto_increment 测试
+
+show create table t_ddl_br_auto_increment;
+
+# ddl-修改表注释测试
+show create table t_ddl_br_comment;
+
+# ddl-创建视图测试
+DROP VIEW IF EXISTS v_ddl_br;
+CREATE VIEW v_ddl_br AS SELECT * FROM t_ddl_br_view_base;
+
+show create table t_ddl_br_view_base;
+
+# ddl-索引可见性测试
+show create table t_ddl_br_index_visibility;
+show index from t_ddl_br_index_visibility;
+
+# rename table
+
+show create table t_ddl_br_rename_table_new;
+select * from t_ddl_br_rename_table_new;
+
+# rebase auto_increment
+
+SHOW create table t_ddl_br_rebase_auto_increment;
+select * from t_ddl_br_rebase_auto_increment;
