@@ -1,0 +1,193 @@
+DROP TABLE IF EXISTS t_ddl_br_add_column
+CREATE TABLE t_ddl_br_add_column (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(255) NOT NULL,
+age INT NOT NULL,
+email VARCHAR(255) NOT NULL,
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+INDEX idx_name (name),
+UNIQUE KEY idx_email (email)
+)
+INSERT INTO t_ddl_br_add_column (name, age, email) VALUES
+('test', 18, 'test@test.com'),
+('test2', 20, 'test2@test.com'),
+('test3', 22, 'test3@test.com')
+ALTER TABLE t_ddl_br_add_column ADD COLUMN new_column INT
+show create table t_ddl_br_add_column
+t_ddl_br_add_column	CREATE TABLE `t_ddl_br_add_column`(
+    `id` INT NOT NULL auto_increment,
+    `name` VARCHAR(255) NOT NULL,
+    `age` INT NOT NULL,
+    `email` VARCHAR(255) NOT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `new_column` INT,
+    PRIMARY KEY (`id`),
+    UNIQUE INDEX idx_email(`email`) replica=3,
+    INDEX idx_name(`name`) replica=3
+) engine=TXN_LSM  replica=3 AUTO_INCREMENT=10002
+select * from t_ddl_br_add_column
+1	test	18	test@test.com	TIMESTAMP	NULL
+2	test2	20	test2@test.com	TIMESTAMP	NULL
+3	test3	22	test3@test.com	TIMESTAMP1	NULL
+show index from t_ddl_br_add_column
+t_ddl_br_add_column	0	PRIMARY	1	id	A	0	NULL	NULL	 	TXN_LSM	 	 	YES	NULL	YES	NO
+t_ddl_br_add_column	1	idx_email	1	email	A	0	NULL	NULL	NO	TXN_LSM	 	 	YES	NULL	YES	NO
+t_ddl_br_add_column	0	idx_name	1	name	A	0	NULL	NULL	NO	TXN_LSM	 	 	YES	NULL	YES	NO
+DROP TABLE IF EXISTS t_ddl_br_rename_index
+CREATE TABLE t_ddl_br_rename_index (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(255) NOT NULL,
+new_column INT,
+email VARCHAR(255) NOT NULL,
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+CREATE INDEX idx_new_column2 ON t_ddl_br_rename_index (new_column)
+ALTER TABLE t_ddl_br_rename_index RENAME INDEX idx_new_column2 TO idx_new_column
+show create table t_ddl_br_rename_index
+t_ddl_br_rename_index	CREATE TABLE `t_ddl_br_rename_index`(
+    `id` INT NOT NULL auto_increment,
+    `name` VARCHAR(255) NOT NULL,
+    `new_column` INT,
+    `email` VARCHAR(255) NOT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    INDEX idx_new_column(`new_column`) replica=3
+) engine=TXN_LSM  replica=3
+show index from t_ddl_br_rename_index
+t_ddl_br_rename_index	0	PRIMARY	1	id	A	0	NULL	NULL	 	TXN_LSM	 	 	YES	NULL	YES	NO
+t_ddl_br_rename_index	0	idx_new_column	1	new_column	A	0	NULL	NULL	YES	TXN_LSM	 	 	YES	NULL	YES	NO
+DROP TABLE IF EXISTS t_ddl_br_drop_column
+CREATE TABLE t_ddl_br_drop_column (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(255) NOT NULL,
+age INT NOT NULL,
+email VARCHAR(255) NOT NULL,
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+ALTER TABLE t_ddl_br_drop_column DROP COLUMN age
+show create table t_ddl_br_drop_column
+t_ddl_br_drop_column	CREATE TABLE `t_ddl_br_drop_column`(
+    `id` INT NOT NULL auto_increment,
+    `name` VARCHAR(255) NOT NULL,
+    `email` VARCHAR(255) NOT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`)
+) engine=TXN_LSM  replica=3
+show index from t_ddl_br_drop_column
+t_ddl_br_drop_column	0	PRIMARY	1	id	A	0	NULL	NULL	 	TXN_LSM	 	 	YES	NULL	YES	NO
+DROP TABLE IF EXISTS t_ddl_br_modify_column
+CREATE TABLE t_ddl_br_modify_column (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(100) NOT NULL,
+email VARCHAR(255) NOT NULL
+)
+ALTER TABLE t_ddl_br_modify_column MODIFY COLUMN name VARCHAR(255)
+show create table t_ddl_br_modify_column
+t_ddl_br_modify_column	CREATE TABLE `t_ddl_br_modify_column`(
+    `id` INT NOT NULL auto_increment,
+    `name` VARCHAR(255),
+    `email` VARCHAR(255) NOT NULL,
+    PRIMARY KEY (`id`)
+) engine=TXN_LSM  replica=3
+DROP TABLE IF EXISTS t_ddl_br_auto_increment
+CREATE TABLE t_ddl_br_auto_increment (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(255) NOT NULL
+)
+ALTER TABLE t_ddl_br_auto_increment AUTO_INCREMENT = 100
+show create table t_ddl_br_auto_increment
+t_ddl_br_auto_increment	CREATE TABLE `t_ddl_br_auto_increment`(
+    `id` INT NOT NULL auto_increment,
+    `name` VARCHAR(255) NOT NULL,
+    PRIMARY KEY (`id`)
+) engine=TXN_LSM  replica=3 AUTO_INCREMENT=30101
+DROP TABLE IF EXISTS t_ddl_br_comment
+CREATE TABLE t_ddl_br_comment (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(255) NOT NULL
+)
+ALTER TABLE t_ddl_br_comment COMMENT = 'test1212'
+show create table t_ddl_br_comment
+t_ddl_br_comment	CREATE TABLE `t_ddl_br_comment`(
+    `id` INT NOT NULL auto_increment,
+    `name` VARCHAR(255) NOT NULL,
+    PRIMARY KEY (`id`)
+) engine=TXN_LSM  replica=3 comment='test1212'
+DROP TABLE IF EXISTS t_ddl_br_view_base
+CREATE TABLE t_ddl_br_view_base (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(255) NOT NULL
+)
+DROP VIEW IF EXISTS v_ddl_br
+CREATE VIEW v_ddl_br AS SELECT * FROM t_ddl_br_view_base
+show create table t_ddl_br_view_base
+t_ddl_br_view_base	CREATE TABLE `t_ddl_br_view_base`(
+    `id` INT NOT NULL auto_increment,
+    `name` VARCHAR(255) NOT NULL,
+    PRIMARY KEY (`id`)
+) engine=TXN_LSM  replica=3
+DROP TABLE IF EXISTS t_ddl_br_index_visibility
+CREATE TABLE t_ddl_br_index_visibility (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(255) NOT NULL,
+email VARCHAR(255),
+INDEX idx_name (name)
+)
+ALTER TABLE t_ddl_br_index_visibility ALTER INDEX idx_name INVISIBLE
+show create table t_ddl_br_index_visibility
+t_ddl_br_index_visibility	CREATE TABLE `t_ddl_br_index_visibility`(
+    `id` INT NOT NULL auto_increment,
+    `name` VARCHAR(255) NOT NULL,
+    `email` VARCHAR(255),
+    PRIMARY KEY (`id`),
+    INDEX idx_name(`name`) replica=3
+) engine=TXN_LSM  replica=3
+show index from t_ddl_br_index_visibility
+t_ddl_br_index_visibility	0	PRIMARY	1	id	A	0	NULL	NULL	 	TXN_LSM	 	 	YES	NULL	YES	NO
+t_ddl_br_index_visibility	0	idx_name	1	name	A	0	NULL	NULL	NO	TXN_LSM	 	 	NO	NULL	YES	NO
+DROP TABLE IF EXISTS t_ddl_br_rename_table
+CREATE TABLE t_ddl_br_rename_table (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(255) NOT NULL
+)
+RENAME TABLE t_ddl_br_rename_table TO t_ddl_br_rename_table_new
+show create table t_ddl_br_rename_table_new
+t_ddl_br_rename_table_new	CREATE TABLE `t_ddl_br_rename_table_new`(
+    `id` INT NOT NULL auto_increment,
+    `name` VARCHAR(255) NOT NULL,
+    PRIMARY KEY (`id`)
+) engine=TXN_LSM  replica=3
+select * from t_ddl_br_rename_table_new
+DROP TABLE IF EXISTS t_ddl_br_rebase_auto_increment
+CREATE TABLE t_ddl_br_rebase_auto_increment (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(255) NOT NULL
+)
+INSERT INTO t_ddl_br_rebase_auto_increment (name) VALUES ('test')
+INSERT INTO t_ddl_br_rebase_auto_increment (name) VALUES ('test2')
+INSERT INTO t_ddl_br_rebase_auto_increment (name) VALUES ('test3')
+ALTER TABLE t_ddl_br_rebase_auto_increment AUTO_INCREMENT = 100000
+INSERT INTO t_ddl_br_rebase_auto_increment (name) VALUES ('test4')
+INSERT INTO t_ddl_br_rebase_auto_increment (name) VALUES ('test5')
+INSERT INTO t_ddl_br_rebase_auto_increment (name) VALUES ('test6')
+SHOW create table t_ddl_br_rebase_auto_increment
+t_ddl_br_rebase_auto_increment	CREATE TABLE `t_ddl_br_rebase_auto_increment`(
+    `id` INT NOT NULL auto_increment,
+    `name` VARCHAR(255) NOT NULL,
+    PRIMARY KEY (`id`)
+) engine=TXN_LSM  replica=3 AUTO_INCREMENT=130001
+select * from t_ddl_br_rebase_auto_increment
+1	test
+2	test2
+3	test3
+120000	test4
+120001	test5
+120002	test6
+1. 创建序列
+CREATE SEQUENCE test_seq START WITH 100 INCREMENT 5 MINVALUE 100 MAXVALUE 200
+2. 获取下一个值(105)
+SELECT NEXTVAL('test_seq')
+3. 再获取一次(110)
+SELECT NEXTVAL('test_seq')
+4. 再获取一次(115)
+SELECT NEXTVAL('test_seq')
