@@ -195,75 +195,110 @@ impl Tester {
     /// Execute a test file
     pub fn run_test_file<P: AsRef<Path>>(&mut self, test_file: P) -> Result<TestResult> {
         let test_name = test_file.as_ref().to_string_lossy().to_string();
+        let start_time = std::time::Instant::now();
         
         // 构造默认测试文件路径 (基于实例创建时记录的 current_dir)
-        let mut test_path = self
-            .current_dir
-            .join("t")
-            .join(format!("{}.test", test_name));
-
-        // 若路径不存在，回退到编译期项目根目录 (解决并行测试修改 cwd 导致路径紊乱问题)
+        let mut test_path = self.current_dir.join("t").join(&test_name);
         if !test_path.exists() {
-            let alt_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("t")
-                .join(format!("{}.test", test_name));
-            if alt_path.exists() {
-                test_path = alt_path;
-            }
+            test_path = test_path.with_extension("test");
+        }
+        if !test_path.exists() {
+            test_path = test_file.as_ref().to_path_buf();
         }
 
-        self.set_test(&test_name)?;
+        let mut result = TestResult::new(&test_name);
+        result.classname = format!("mysql-test.{}", test_name);
 
-        // Read and parse test file
-        let content = fs::read_to_string(&test_path)?;
+        // Set the test name for this instance
+        if let Err(e) = self.set_test(&test_name) {
+            result.add_error(format!("Failed to initialize test: {}", e));
+            result.set_duration(start_time.elapsed().as_millis() as u64);
+            return Ok(result);
+        }
+
+        // Read and parse the test file
+        let content = match fs::read_to_string(&test_path) {
+            Ok(content) => content,
+            Err(e) => {
+                result.add_error(format!("Failed to read test file {}: {}", test_path.display(), e));
+                result.set_duration(start_time.elapsed().as_millis() as u64);
+                return Ok(result);
+            }
+        };
+
+        // Parse queries using the default parser
         let mut parser = default_parser();
-        let queries = parser.parse(&content)?;
+        let queries = match parser.parse(&content) {
+            Ok(queries) => queries,
+            Err(e) => {
+                result.add_error(format!("Failed to parse test file: {}", e));
+                result.set_duration(start_time.elapsed().as_millis() as u64);
+                return Ok(result);
+            }
+        };
 
-        info!("Parsed {} queries from {}", queries.len(), test_path.display());
+        if queries.is_empty() {
+            result.add_error("No queries found in test file".to_string());
+            result.set_duration(start_time.elapsed().as_millis() as u64);
+            return Ok(result);
+        }
 
-        // Build control flow mapping
-        self.build_control_flow_map(&queries)?;
+        // Build control flow map
+        if let Err(e) = self.build_control_flow_map(&queries) {
+            result.add_error(format!("Failed to build control flow map: {}", e));
+            result.set_duration(start_time.elapsed().as_millis() as u64);
+            return Ok(result);
+        }
 
         // Execute queries with control flow support
-        let mut test_result = TestResult::new(&test_name);
-        let mut pc = 0; // Program counter
-        
+        let mut pc = 0;
         while pc < queries.len() {
             let query = &queries[pc];
             match self.execute_query_with_control_flow(query, pc, &queries) {
                 Ok(next_pc) => {
-                    test_result.passed_queries += 1;
+                    result.passed_queries += 1;
                     pc = next_pc;
                 }
                 Err(e) => {
-                    error!("Line {} (PC {}): {}", query.line, pc, e);
-                    test_result.failed_queries += 1;
-                    test_result.errors.push(format!("Line {}: {}", query.line, e));
+                    result.failed_queries += 1;
+                    result.add_error(format!("Query {} failed: {}", pc + 1, e));
                     if self.args.fail_fast {
-                        break; // 快速失败，终止后续查询
+                        break;
                     }
-                    pc += 1; // Continue to next query on error
+                    pc += 1;
                 }
             }
         }
 
-        // Post-process
-        self.post_process()?;
+        // Post-process: cleanup database state
+        if let Err(e) = self.post_process() {
+            result.add_error(format!("Post-process failed: {}", e));
+        }
 
         // Write result file if in record mode
-        // 但如果启用了 fail_fast 且有失败的查询，则不生成 result 文件
-        if self.args.record && !(self.args.fail_fast && test_result.failed_queries > 0) {
-            self.write_result_file(&test_name)?;
+        if self.args.record {
+            if let Err(e) = self.write_result_file(&test_name) {
+                result.add_error(format!("Failed to write result file: {}", e));
+            }
+        } else {
+            // Verify all expected results were consumed
+            if let Err(e) = self.verify_expected_consumed() {
+                result.add_error(format!("Result verification failed: {}", e));
+            }
         }
 
-        test_result.success = test_result.failed_queries == 0;
-
-        // 最终验证：确保所有期望输出均已消费，防止遗漏行假通过
-        if !self.args.record {
-            self.verify_expected_consumed()?;
+        // Set final result status
+        if result.failed_queries > 0 || !result.errors.is_empty() {
+            result.mark_failed();
         }
 
-        Ok(test_result)
+        // Capture output
+        result.set_stdout(String::from_utf8_lossy(&self.output_buffer).to_string());
+        
+        // Set duration
+        result.set_duration(start_time.elapsed().as_millis() as u64);
+
+        Ok(result)
     }
 
     /// Execute a single query or command
@@ -884,12 +919,30 @@ impl Tester {
 }
 
 /// Test execution result
+#[derive(Debug, Clone)]
 pub struct TestResult {
     pub test_name: String,
     pub success: bool,
     pub passed_queries: usize,
     pub failed_queries: usize,
     pub errors: Vec<String>,
+    /// Test execution duration in milliseconds
+    pub duration_ms: u64,
+    /// Test status (for XML reporting)
+    pub status: TestStatus,
+    /// Standard output captured during test
+    pub stdout: String,
+    /// Standard error captured during test  
+    pub stderr: String,
+    /// Test class name (typically the file path)
+    pub classname: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TestStatus {
+    Passed,
+    Failed,
+    Skipped,
 }
 
 impl TestResult {
@@ -900,7 +953,39 @@ impl TestResult {
             passed_queries: 0,
             failed_queries: 0,
             errors: Vec::new(),
+            duration_ms: 0,
+            status: TestStatus::Passed,
+            stdout: String::new(),
+            stderr: String::new(),
+            classname: format!("mysql-test.{}", test_name),
         }
+    }
+
+    /// Mark test as failed
+    pub fn mark_failed(&mut self) {
+        self.success = false;
+        self.status = TestStatus::Failed;
+    }
+
+    /// Add an error message
+    pub fn add_error(&mut self, error: String) {
+        self.errors.push(error);
+        self.mark_failed();
+    }
+
+    /// Set test duration
+    pub fn set_duration(&mut self, duration_ms: u64) {
+        self.duration_ms = duration_ms;
+    }
+
+    /// Set stdout output
+    pub fn set_stdout(&mut self, stdout: String) {
+        self.stdout = stdout;
+    }
+
+    /// Set stderr output  
+    pub fn set_stderr(&mut self, stderr: String) {
+        self.stderr = stderr;
     }
 }
 

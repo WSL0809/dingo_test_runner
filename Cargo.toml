@@ -40,6 +40,12 @@ chrono = { version = "0.4", features = ["serde"] }
 rayon = "1.7"
 crossbeam = "0.8"
 
+# XML 生成 (用于 JUnit 报告)
+quick-xml = "0.37.5"
+
+# 终端检测和彩色输出
+console = "0.15"
+
 # 邮件功能 (暂时保留依赖，但功能未实现)
 lettre = { version = "0.11", optional = true }
 # 字符串映射

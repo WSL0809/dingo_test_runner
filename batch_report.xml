@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="mysql-test-runner" tests="3" failures="0" skipped="0" time="0.154" timestamp="2025-06-17T09:48:44.840468+00:00">
+  <properties>
+    <property name="os" value="macos"/>
+    <property name="rust_version" value="0.2.0"/>
+    <property name="git_commit" value="5dbafa9840b8db4703f036eea0ea65011e940250"/>
+    <property name="cli_args" value="target/debug/dingo_test_runner simple_test echo_test variable_simple --xunit-file batch_report.xml"/>
+  </properties>
+  <testcase name="simple_test" classname="mysql-test.simple_test" time="0.070"/>
+  <testcase name="echo_test" classname="mysql-test.echo_test" time="0.035"/>
+  <testcase name="variable_simple" classname="mysql-test.variable_simple" time="0.049"/>
+</testsuite>

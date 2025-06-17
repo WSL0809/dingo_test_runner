@@ -7,6 +7,7 @@ pub mod loader;
 
 use cli::Args;
 use tester::tester::Tester;
+use report::{TestSuiteResult, summary, xunit};
 use anyhow::Result;
 use log::{error, info};
 
@@ -26,14 +27,13 @@ fn main() -> Result<()> {
     info!("MySQL Test Runner (Rust) v0.2.0");
     info!("Connecting to {}@{}:{}", args.user, args.host, args.port);
     
+    // Create test suite result
+    let mut suite = TestSuiteResult::new("mysql-test-runner");
+    
     // Create a clone of args for reuse in the loop
     let base_args = args.clone();
 
-    // Run tests
-    let mut total_tests = 0;
-    let mut passed_tests = 0;
-    let mut failed_tests = 0;
-    
+    // Resolve tests to run
     let resolved_tests = if args.all {
         // Load all tests from the `t/` directory
         match loader::load_all_tests() {
@@ -72,14 +72,17 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    // Run tests
     for resolved_test in &resolved_tests {
-        total_tests += 1;
-        info!("Running test: {} ({})", resolved_test.name, resolved_test.path.display());
+        // Print running indicator
+        summary::print_running_test(&resolved_test.name);
         
         // Check if test file exists
         if !resolved_test.path.exists() {
-            error!("✗ Test file not found: {}", resolved_test.path.display());
-            failed_tests += 1;
+            let mut failed_case = tester::tester::TestResult::new(&resolved_test.name);
+            failed_case.add_error(format!("Test file not found: {}", resolved_test.path.display()));
+            summary::print_case_result(&failed_case);
+            suite.add_case(failed_case);
             continue;
         }
         
@@ -87,45 +90,46 @@ fn main() -> Result<()> {
         let mut tester = match Tester::new(base_args.clone()) {
             Ok(t) => t,
             Err(e) => {
-                error!("Failed to create tester for {}: {}", resolved_test.name, e);
-                failed_tests += 1;
-                continue; // Skip to the next test
+                let mut failed_case = tester::tester::TestResult::new(&resolved_test.name);
+                failed_case.add_error(format!("Failed to create tester: {}", e));
+                summary::print_case_result(&failed_case);
+                suite.add_case(failed_case);
+                continue;
             }
         };
 
+        // Run the test
         match tester.run_test_file(&resolved_test.name) {
             Ok(result) => {
-                if result.success {
-                    passed_tests += 1;
-                    info!("✓ Test '{}' passed ({} queries)", result.test_name, result.passed_queries);
-                } else {
-                    failed_tests += 1;
-                    error!("✗ Test '{}' failed ({}/{} queries failed)", 
-                        result.test_name, result.failed_queries, 
-                        result.passed_queries + result.failed_queries);
-                    
-                    for error in &result.errors {
-                        error!("  {}", error);
-                    }
-                }
+                summary::print_case_result(&result);
+                suite.add_case(result);
             }
             Err(e) => {
-                failed_tests += 1;
-                error!("✗ Test file '{}' failed to execute: {}", resolved_test.name, e);
+                let mut failed_case = tester::tester::TestResult::new(&resolved_test.name);
+                failed_case.add_error(format!("Test execution failed: {}", e));
+                summary::print_case_result(&failed_case);
+                suite.add_case(failed_case);
             }
         }
-        // 显式 drop Tester，确保连接及资源释放；若 hang 可考虑加超时机制
+        
+        // 显式 drop Tester，确保连接及资源释放
         drop(tester);
     }
     
-    // Print summary
-    info!("Test execution completed:");
-    info!("  Total tests: {}", total_tests);
-    info!("  Passed: {}", passed_tests);
-    info!("  Failed: {}", failed_tests);
+    // Print final summary
+    summary::print_summary(&suite);
     
-    // 显式退出，避免底层线程或连接阻止程序结束
-    let exit_code = if failed_tests > 0 { 1 } else { 0 };
+    // Write JUnit XML report if requested
+    if !args.xunit_file.is_empty() {
+        if let Err(e) = xunit::write_xunit_report(&suite, &args.xunit_file) {
+            error!("Failed to write JUnit XML report: {}", e);
+        } else {
+            info!("JUnit XML report written to: {}", args.xunit_file);
+        }
+    }
+    
+    // Exit with appropriate code
+    let exit_code = if suite.all_passed() { 0 } else { 1 };
     std::process::exit(exit_code);
 }
 

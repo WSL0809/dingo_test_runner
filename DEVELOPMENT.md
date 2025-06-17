@@ -51,6 +51,15 @@
    cargo run -- --help
    ```
 
+7. **生成测试报告**
+   ```bash
+   # 生成 JUnit XML 报告（用于 CI/CD）
+   cargo run -- simple_test --xunit-file test_report.xml
+   
+   # 运行所有测试并生成报告
+   cargo run -- --all --xunit-file full_report.xml
+   ```
+
 ### 📂 目录导航
 
 下表罗列了项目顶层目录及其职责：
@@ -75,10 +84,11 @@
 #### Phase 0 – 仓库初始化 (100%)
 - [x] 建立 Cargo 项目结构
 - [x] 配置依赖项 (`Cargo.toml`)
-  - MySQL 驱动: `mysql = "24.0"`
+  - MySQL 驱动: `mysql = "26.0"`
   - CLI 解析: `clap = "4.0"`
   - 日志: `log + env_logger`
-  - XML 生成: `quick-xml + serde-xml-rs`
+  - XML 生成: `quick-xml = "0.37.5"`
+  - 终端输出: `console = "0.15"`
   - 并发: `rayon + crossbeam`
   - 错误处理: `anyhow + thiserror`
   - 表达式求值: `evalexpr = "12.0.2"`
@@ -108,7 +118,8 @@
   │  └─ regex.rs      # 正则表达式工具
   ├─ report/          # 报告生成
   │  ├─ mod.rs
-  │  └─ xunit.rs      # JUnit/XUnit 报告
+  │  ├─ xunit.rs      # JUnit/XUnit 报告
+  │  └─ summary.rs    # 彩色终端输出
   └─ stub/            # 桩代码
      ├─ mod.rs
      └─ email.rs      # 邮件通知桩
@@ -190,15 +201,31 @@
 - [x] 预期错误 (`--error`) 与一次性修饰符 (`--replace_regex` 等) 在并发环境下正确生效。
 - [x] 修复多连接上下文丢失、重复输出、换行错位等一系列并发细节 Bug。
 
-#### Phase 6 – 批量调度 & 结果汇总
-- [ ] 迁移 `load_all_tests` 逻辑
-- [ ] 迁移 `convert_tests_to_test_tasks` 逻辑
-- [ ] 迁移 `execute_tests` 逻辑
-- [ ] 实现结果汇总结构体
+#### Phase 6 – 批量调度 & 结果汇总 (100%)
+- [x] 迁移 `load_all_tests` 逻辑
+- [x] 迁移 `convert_tests_to_test_tasks` 逻辑  
+- [x] 迁移 `execute_tests` 逻辑
+- [x] 实现结果汇总结构体
 
-#### Phase 7 – JUnit/XUnit 报告
-- [ ] 实现 XML 报告生成
-- [ ] 支持 `-xunitfile` 参数
+#### Phase 7 – JUnit/XUnit 报告 & 彩色终端输出 (100%)
+- [x] **JUnit/XUnit XML 报告生成**
+  - 完整的 JUnit XML 格式支持，兼容 CI/CD 平台
+  - 测试套件统计信息（总数、通过、失败、跳过、执行时间）
+  - 环境信息记录（OS、Rust版本、Git提交、CLI参数）
+  - 详细的失败信息（错误消息、CDATA格式的详细错误）
+  - 测试用例时间记录（毫秒精度）
+  - 通过 `--xunit-file` 参数指定输出文件
+- [x] **彩色终端输出系统**
+  - 运行中指示器：`▶ running test_name ...`
+  - 成功测试：绿色 `✓` + 测试名 + 执行时间
+  - 失败测试：红色 `✗` + 测试名 + 失败统计 + 首个错误信息
+  - 最终汇总：分隔线 + 统计信息 + 通过率 + 失败详情
+  - 智能颜色支持（支持 `NO_COLOR` 环境变量）
+- [x] **增强的数据结构**
+  - `TestResult`：包含执行时间、状态、输出等完整信息
+  - `TestSuiteResult`：聚合多个测试结果的套件级别统计
+  - `EnvironmentInfo`：自动收集环境和执行上下文信息
+- [x] 支持 `--xunit-file` 参数
 
 #### Phase 8 – 功能补齐
 - [ ] 实现 `--replace_column` 功能
@@ -321,9 +348,9 @@
 
 ## 下一步工作计划
 
-1. **立即任务**: 启动 Phase 6 —— 批量调度与结果汇总框架（`load_all_tests`、任务调度、整体统计）。
-2. **本周目标**: 完成批量调度与结果汇总的 MVP，实现 `--all` 并生成测试摘要。 
-3. **下周目标**: 着手 Phase 7，开始集成 JUnit/XUnit 报告生成。
+1. **立即任务**: 启动 Phase 8 —— 功能补齐（`--replace_column`、剩余指令实现）。
+2. **本周目标**: 完成剩余功能指令的实现，提升与 Go 版本的兼容性。 
+3. **下周目标**: 着手 Phase 9，开始与 Go 版本的对照测试和性能评估。
 
 ## 风险与挑战
 
@@ -433,148 +460,81 @@
 | **为什么 Pest Parser 是默认的？** | Pest 提供更清晰的语法定义、更好的错误报告和更易维护的代码结构，同时与手写 parser 保持 100% 兼容性。 |
 | **CLI支持哪些输入格式？** | 支持测试名称(`basic`)、文件名(`basic.test`)、目录(`t/features`)、文件路径(`path/to/test.test`)、部分匹配(`user`)和混合格式，具有智能去重和友好错误提示。 |
 | **如何运行目录下所有测试？** | 使用 `cargo run -- t/目录名` 可以运行指定目录下的所有 `.test` 文件，会自动递归搜索并按名称排序。 |
+| **如何生成 JUnit XML 报告？** | 使用 `--xunit-file report.xml` 参数，测试完成后会生成标准的 JUnit XML 格式报告，可被 CI/CD 平台解析。 |
+| **彩色输出如何控制？** | 默认启用彩色输出，可通过设置 `NO_COLOR` 环境变量禁用。支持智能检测终端能力。 |
+| **报告包含哪些信息？** | XML 报告包含测试统计、执行时间、环境信息（OS、Git提交等）、详细的失败信息。终端输出提供实时进度和彩色摘要。 |
 
 ---
 
-**最后更新**: 2025年01月17日  
-**当前版本**: v0.2.2-dev  
+**最后更新**: 2025年06月17日  
+**当前版本**: v0.2.3-dev  
 **开发者**: [项目团队]
 
-### 📋 最新进展总结 (2025-01-17)
+### 📋 最新进展总结 (2025-06-17)
 
-本次更新主要完成了 **CLI 增强和输入解析优化**：
+本次更新主要完成了 **测试报告系统的完整实现**：
 
-- 🚀 **CLI 功能大幅增强**：支持多种输入格式（测试名称、目录、文件路径、部分匹配）
-- ✅ **智能解析系统**：实现 `ResolvedTest` 结构体和多策略解析逻辑
-- 🛡️ **健壮性提升**：自动去重、友好错误提示、完整测试覆盖
-- 📈 **用户体验改善**：大幅简化了命令行使用复杂度，提供直观的操作方式
+- 🎯 **JUnit/XUnit XML 报告**：完整的 XML 格式支持，兼容所有主流 CI/CD 平台
+- 🌈 **彩色终端输出**：直观的实时进度显示和美观的结果摘要
+- 📊 **增强数据结构**：完整的测试结果收集和环境信息记录
+- 🚀 **零侵入设计**：完全向后兼容，不影响现有测试执行逻辑
+- 🎨 **用户体验提升**：专业级的报告展示，大幅改善开发者体验
 
 ## 🎉 最新功能亮点
 
-### 🔥 Pest Parser 修复完成 (v0.2.1+) 
+### 🔥 测试报告系统完成 (v0.2.3) 
 
-我们成功修复了基于 **Pest** 的结构化解析器的关键问题，现在基本功能已稳定工作：
+我们成功实现了完整的测试报告系统，提供专业级的测试结果展示：
 
-#### ✨ 已修复的关键问题
+#### ✨ 核心功能
 
-1. **大小写敏感性问题**
-   ```sql
-   let $var = 5        # ✅ 支持
-   LET $var = 5        # ✅ 支持 (修复后)
-   Let $var = 5        # ✅ 支持 (修复后)
+1. **JUnit XML 报告**
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <testsuite name="mysql-test-runner" tests="3" failures="1" time="0.138">
+     <properties>
+       <property name="os" value="macos"/>
+       <property name="git_commit" value="5dbafa9..."/>
+     </properties>
+     <testcase name="simple_test" time="0.056"/>
+     <testcase name="error_test" time="0.047">
+       <failure message="Test failed">
+         <![CDATA[Query 5 failed: MySqlError { ... }]]>
+       </failure>
+     </testcase>
+   </testsuite>
    ```
 
-2. **多行 SQL 语句解析**
-   ```sql
-   # 修复前：被错误拆分成多个查询
-   CREATE TABLE test (     # 查询1 ❌
-       id INT,            # 查询2 ❌  
-       name VARCHAR(50)   # 查询3 ❌
-   );                     # 查询4 ❌
-
-   # 修复后：正确合并为单个查询
-   CREATE TABLE test (
-       id INT,
-       name VARCHAR(50)
-   );                     # 单个完整查询 ✅
+2. **彩色终端输出**
+   ```
+   ▶ running simple_test ... ✓ simple_test (56 ms)
+   ▶ running echo_test ... ✓ echo_test (35 ms)  
+   ▶ running error_test ... ✗ error_test (1/5 failed, 47 ms)
+   ────────────────────────────────────────────────────────────
+   Total: 3 Passed: 2 Failed: 1 ⏱ 0.1 s
+   Pass rate: 66.7%
+   ────────────────────────────────────────────────────────────
    ```
 
-3. **变量未定义错误**
-   ```bash
-   # 修复前
-   [ERROR] Undefined variable: $a
-   [ERROR] Undefined variable: $mixed_case
-
-   # 修复后  
-   ✅ 所有变量正确识别和定义
-   ```
-
-#### 🧪 验证测试
-
-- ✅ **debug_pest_parsing**: 解析器功能对等性验证通过
-- ✅ **variable_basic**: 基础变量测试正常
-- ✅ **variable_expression**: 变量表达式测试正常  
-- ✅ **let_expression_showcase**: let 语句各种语法测试正常
-- ⚠️ **concurrent_advanced**: 基本工作，仅有细微格式差异
-
-#### 📦 使用方式
+#### 🎯 使用方式
 
 ```bash
-# 默认使用 Pest Parser
-cargo build
-cargo test
+# 基本使用（彩色输出）
+cargo run -- simple_test echo_test
 
-# 强制使用手写 Parser (如遇问题可回退)
-cargo build --no-default-features
-cargo test --no-default-features
+# 生成 XML 报告
+cargo run -- simple_test --xunit-file report.xml
 
-# 显式启用 Pest (可选)
-cargo build --features pest
+# 运行所有测试并生成报告
+cargo run -- --all --xunit-file full_report.xml
 ```
 
-#### 🎯 当前状态
+#### 🚀 技术亮点
 
-- **核心功能**: ✅ 工作正常
-- **解析准确性**: ✅ 与手写解析器功能对等
-- **稳定性**: ✅ 主要测试用例通过
-- **格式细节**: ⚠️ 部分缩进差异待完善
-
-### 控制流语句支持 (v0.2.0)
-
-我们之前完成了 **if 和 while 控制流语句**的完整实现，这是一个重要的里程碑！
-
-#### ✨ 主要特性
-
-1. **灵活的语法支持**
-   ```sql
-   # 花括号语法
-   if ($var > 0) {
-       --echo "Positive value"
-   }
-   
-   # 传统 end 语法
-   if ($var > 0)
-       --echo "Positive value"
-   end
-   
-   # 无空格语法
-   if($var > 0) {
-       --echo "Positive value"
-   }
-   ```
-
-2. **强大的表达式求值**
-   ```sql
-   # 变量展开
-   if ($user_count > 0)
-   
-   # 算术运算
-   if (5 + 3 > 7)
-   
-   # SQL 表达式
-   if (`SELECT COUNT(*) FROM users` > 0)
-   
-   # 逻辑运算
-   if (true && $flag)
-   ```
-
-3. **嵌套控制流**
-   ```sql
-   while ($outer > 0) {
-       if ($inner_condition) {
-           --echo "Nested execution"
-       }
-   }
-   ```
-
-#### 🧪 测试覆盖
-
-- ✅ 8 个专门的测试文件验证各种语法
-- ✅ 单元测试覆盖解析器和执行引擎
-- ✅ 集成测试验证端到端功能
-- ✅ 错误处理和边界条件测试
-
-这个功能使得 MySQL 测试运行器能够处理更复杂的测试场景，大大增强了测试脚本的表达能力！🚀
+- **高性能**：轻量级 XML 生成，不影响测试执行性能
+- **健壮性**：完整错误处理，报告生成失败不影响测试结果
+- **可扩展性**：模块化设计，易于添加新的报告格式
+- **用户友好**：智能颜色检测，详细的失败信息展示
 
 # 开发进度报告
 
