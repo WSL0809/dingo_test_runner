@@ -7,8 +7,10 @@ pub mod loader;
 
 use cli::Args;
 use tester::tester::Tester;
+use report::{TestSuiteResult, summary, xunit, html};
+use stub::email::MailSender;
 use anyhow::Result;
-use log::{error, info};
+use log::{error, info, warn};
 
 fn main() -> Result<()> {
     // Parse command line arguments
@@ -26,14 +28,13 @@ fn main() -> Result<()> {
     info!("MySQL Test Runner (Rust) v0.2.0");
     info!("Connecting to {}@{}:{}", args.user, args.host, args.port);
     
+    // Create test suite result
+    let mut suite = TestSuiteResult::new("mysql-test-runner");
+    
     // Create a clone of args for reuse in the loop
     let base_args = args.clone();
 
-    // Run tests
-    let mut total_tests = 0;
-    let mut passed_tests = 0;
-    let mut failed_tests = 0;
-    
+    // Resolve tests to run
     let resolved_tests = if args.all {
         // Load all tests from the `t/` directory
         match loader::load_all_tests() {
@@ -72,14 +73,17 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    // Run tests
     for resolved_test in &resolved_tests {
-        total_tests += 1;
-        info!("Running test: {} ({})", resolved_test.name, resolved_test.path.display());
+        // Print running indicator
+        summary::print_running_test(&resolved_test.name);
         
         // Check if test file exists
         if !resolved_test.path.exists() {
-            error!("✗ Test file not found: {}", resolved_test.path.display());
-            failed_tests += 1;
+            let mut failed_case = tester::tester::TestResult::new(&resolved_test.name);
+            failed_case.add_error(format!("Test file not found: {}", resolved_test.path.display()));
+            summary::print_case_result(&failed_case);
+            suite.add_case(failed_case);
             continue;
         }
         
@@ -87,46 +91,104 @@ fn main() -> Result<()> {
         let mut tester = match Tester::new(base_args.clone()) {
             Ok(t) => t,
             Err(e) => {
-                error!("Failed to create tester for {}: {}", resolved_test.name, e);
-                failed_tests += 1;
-                continue; // Skip to the next test
+                let mut failed_case = tester::tester::TestResult::new(&resolved_test.name);
+                failed_case.add_error(format!("Failed to create tester: {}", e));
+                summary::print_case_result(&failed_case);
+                suite.add_case(failed_case);
+                continue;
             }
         };
 
+        // Run the test
         match tester.run_test_file(&resolved_test.name) {
             Ok(result) => {
-                if result.success {
-                    passed_tests += 1;
-                    info!("✓ Test '{}' passed ({} queries)", result.test_name, result.passed_queries);
-                } else {
-                    failed_tests += 1;
-                    error!("✗ Test '{}' failed ({}/{} queries failed)", 
-                        result.test_name, result.failed_queries, 
-                        result.passed_queries + result.failed_queries);
-                    
-                    for error in &result.errors {
-                        error!("  {}", error);
-                    }
-                }
+                summary::print_case_result(&result);
+                suite.add_case(result);
             }
             Err(e) => {
-                failed_tests += 1;
-                error!("✗ Test file '{}' failed to execute: {}", resolved_test.name, e);
+                let mut failed_case = tester::tester::TestResult::new(&resolved_test.name);
+                failed_case.add_error(format!("Test execution failed: {}", e));
+                summary::print_case_result(&failed_case);
+                suite.add_case(failed_case);
             }
         }
-        // 显式 drop Tester，确保连接及资源释放；若 hang 可考虑加超时机制
+        
+        // 显式 drop Tester，确保连接及资源释放
         drop(tester);
     }
     
-    // Print summary
-    info!("Test execution completed:");
-    info!("  Total tests: {}", total_tests);
-    info!("  Passed: {}", passed_tests);
-    info!("  Failed: {}", failed_tests);
+    // Print final summary
+    summary::print_summary(&suite);
     
-    // 显式退出，避免底层线程或连接阻止程序结束
-    let exit_code = if failed_tests > 0 { 1 } else { 0 };
+    // Write JUnit XML report if requested
+    if !args.xunit_file.is_empty() {
+        if let Err(e) = xunit::write_xunit_report(&suite, &args.xunit_file) {
+            error!("Failed to write JUnit XML report: {}", e);
+        } else {
+            info!("JUnit XML report written to: {}", args.xunit_file);
+        }
+    }
+    
+    // Send email report if configured
+    if let Some(email_config) = args.get_email_config() {
+        info!("Sending test report email...");
+        match send_email_report(&suite, &email_config, &args.xunit_file) {
+            Ok(_) => {
+                info!("Email report sent successfully");
+            }
+            Err(e) => {
+                warn!("Failed to send email report: {}", e);
+                // Don't exit with error for email failure
+            }
+        }
+    }
+    
+    // Exit with appropriate code
+    let exit_code = if suite.all_passed() { 0 } else { 1 };
     std::process::exit(exit_code);
+}
+
+/// Send email report with test results
+fn send_email_report(
+    suite_result: &TestSuiteResult,
+    email_config: &cli::EmailConfig,
+    xunit_file: &str,
+) -> Result<()> {
+    // Create mail sender
+    let mail_sender = MailSender::new(email_config.clone())?;
+    
+    // Generate plain text report
+    let plain_text_body = html::generate_plain_text_report(suite_result);
+    
+    // Generate HTML report (if email feature is enabled)
+    #[cfg(feature = "email")]
+    let html_body = {
+        let html_report = html::HtmlReport::new(suite_result, &suite_result.cases);
+        html_report.generate().unwrap_or_else(|e| {
+            warn!("Failed to generate HTML report: {}, falling back to plain text", e);
+            plain_text_body.clone()
+        })
+    };
+    
+    #[cfg(not(feature = "email"))]
+    let html_body = plain_text_body.clone();
+    
+    // Determine XUnit file path
+    let xunit_path = if !xunit_file.is_empty() && email_config.attach_xunit {
+        Some(std::path::Path::new(xunit_file))
+    } else {
+        None
+    };
+    
+    // Send email
+    mail_sender.send_test_report(
+        suite_result,
+        &plain_text_body,
+        &html_body,
+        xunit_path,
+    )?;
+    
+    Ok(())
 }
 
 fn init_logging(log_level: &str) -> Result<()> {
