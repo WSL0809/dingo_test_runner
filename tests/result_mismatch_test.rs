@@ -1,8 +1,8 @@
 //! Integration test: result file有多余行时应失败
 
-use std::process::Command;
 use std::fs;
 use std::path::Path;
+use std::process::Command;
 
 fn get_binary_path() -> String {
     if Path::new("target/release/dingo_test_runner").exists() {
@@ -47,9 +47,12 @@ fn test_result_missing_lines_detection() {
     println!("STDOUT: {}", String::from_utf8_lossy(&output.stdout));
     println!("STDERR: {}", String::from_utf8_lossy(&output.stderr));
 
-    assert!(!output.status.success(), "Process should fail due to missing lines");
+    assert!(
+        !output.status.success(),
+        "Process should fail due to missing lines"
+    );
 
     // 清理
     let _ = fs::remove_file(test_path);
     let _ = fs::remove_file(result_path);
-} 
+}

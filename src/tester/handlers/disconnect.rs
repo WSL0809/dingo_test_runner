@@ -12,4 +12,4 @@ pub fn execute(tester: &mut Tester, cmd: &Command) -> Result<()> {
     tester.connection_manager.disconnect(conn_name)?;
     info!("Disconnected connection: {}", conn_name);
     Ok(())
-} 
+}

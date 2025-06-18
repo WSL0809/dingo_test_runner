@@ -1,36 +1,38 @@
 pub mod cli;
+pub mod loader;
 pub mod report;
 pub mod stub;
 pub mod tester;
 pub mod util;
-pub mod loader;
 
-use cli::Args;
-use tester::tester::Tester;
-use report::{TestSuiteResult, summary, xunit, html, ReportRenderer, create_renderer_with_allure_dir};
-use stub::email::MailSender;
 use anyhow::Result;
+use cli::Args;
 use log::{error, info, warn};
+use report::{
+    create_renderer_with_allure_dir, html, summary, xunit, ReportRenderer, TestSuiteResult,
+};
+use stub::email::MailSender;
+use tester::tester::Tester;
 
 fn main() -> Result<()> {
     // Parse command line arguments
     let args = Args::parse_args();
-    
+
     // Validate arguments
     if let Err(e) = args.validate() {
         eprintln!("Error: {}", e);
         std::process::exit(1);
     }
-    
+
     // Initialize logging
     init_logging(&args.log_level)?;
-    
+
     info!("MySQL Test Runner (Rust) v0.2.0");
     info!("Connecting to {}@{}:{}", args.user, args.host, args.port);
-    
+
     // Create test suite result
     let mut suite = TestSuiteResult::new("mysql-test-runner");
-    
+
     // Create a clone of args for reuse in the loop
     let base_args = args.clone();
 
@@ -40,10 +42,16 @@ fn main() -> Result<()> {
         match loader::load_all_tests() {
             Ok(test_names) => {
                 info!("Found {} tests to run.", test_names.len());
-                test_names.into_iter().map(|name| {
-                    let path = std::env::current_dir().unwrap_or_default().join("t").join(format!("{}.test", name));
-                    cli::ResolvedTest { name, path }
-                }).collect()
+                test_names
+                    .into_iter()
+                    .map(|name| {
+                        let path = std::env::current_dir()
+                            .unwrap_or_default()
+                            .join("t")
+                            .join(format!("{}.test", name));
+                        cli::ResolvedTest { name, path }
+                    })
+                    .collect()
             }
             Err(e) => {
                 error!("Failed to load tests: {}", e);
@@ -77,16 +85,19 @@ fn main() -> Result<()> {
     for resolved_test in &resolved_tests {
         // Print running indicator
         summary::print_running_test(&resolved_test.name);
-        
+
         // Check if test file exists
         if !resolved_test.path.exists() {
             let mut failed_case = tester::tester::TestResult::new(&resolved_test.name);
-            failed_case.add_error(format!("Test file not found: {}", resolved_test.path.display()));
+            failed_case.add_error(format!(
+                "Test file not found: {}",
+                resolved_test.path.display()
+            ));
             summary::print_case_result(&failed_case);
             suite.add_case(failed_case);
             continue;
         }
-        
+
         // Create a new tester instance for each test file to ensure isolation
         let mut tester = match Tester::new(base_args.clone()) {
             Ok(t) => t,
@@ -112,11 +123,11 @@ fn main() -> Result<()> {
                 suite.add_case(failed_case);
             }
         }
-        
+
         // 显式 drop Tester，确保连接及资源释放
         drop(tester);
     }
-    
+
     // Generate and output report using the new renderer architecture
     // Determine if Allure output should be used
     let allure_dir = if !args.allure_dir.is_empty() {
@@ -124,13 +135,13 @@ fn main() -> Result<()> {
     } else {
         None
     };
-    
+
     let report_format = if allure_dir.is_some() {
         "allure"
     } else {
         &args.report_format
     };
-    
+
     match create_renderer_with_allure_dir(report_format, allure_dir) {
         Ok(renderer) => {
             match renderer.render(&suite) {
@@ -177,7 +188,7 @@ fn main() -> Result<()> {
             summary::print_summary(&suite);
         }
     }
-    
+
     // Write JUnit XML report if requested (backwards compatibility)
     if !args.xunit_file.is_empty() && args.report_format != "xunit" && allure_dir.is_none() {
         if let Err(e) = xunit::write_xunit_report(&suite, &args.xunit_file) {
@@ -186,7 +197,7 @@ fn main() -> Result<()> {
             info!("JUnit XML report written to: {}", args.xunit_file);
         }
     }
-    
+
     // Send email report if configured
     if let Some(email_config) = args.get_email_config() {
         info!("Sending test report email...");
@@ -200,7 +211,7 @@ fn main() -> Result<()> {
             }
         }
     }
-    
+
     // Exit with appropriate code
     let exit_code = if suite.all_passed() { 0 } else { 1 };
     std::process::exit(exit_code);
@@ -214,38 +225,36 @@ fn send_email_report(
 ) -> Result<()> {
     // Create mail sender
     let mail_sender = MailSender::new(email_config.clone())?;
-    
+
     // Generate plain text report
     let plain_text_body = html::generate_plain_text_report(suite_result);
-    
+
     // Generate HTML report (if email feature is enabled)
     #[cfg(feature = "email")]
     let html_body = {
         let html_report = html::HtmlReport::new(suite_result, &suite_result.cases);
         html_report.generate().unwrap_or_else(|e| {
-            warn!("Failed to generate HTML report: {}, falling back to plain text", e);
+            warn!(
+                "Failed to generate HTML report: {}, falling back to plain text",
+                e
+            );
             plain_text_body.clone()
         })
     };
-    
+
     #[cfg(not(feature = "email"))]
     let html_body = plain_text_body.clone();
-    
+
     // Determine XUnit file path
     let xunit_path = if !xunit_file.is_empty() && email_config.attach_xunit {
         Some(std::path::Path::new(xunit_file))
     } else {
         None
     };
-    
+
     // Send email
-    mail_sender.send_test_report(
-        suite_result,
-        &plain_text_body,
-        &html_body,
-        xunit_path,
-    )?;
-    
+    mail_sender.send_test_report(suite_result, &plain_text_body, &html_body, xunit_path)?;
+
     Ok(())
 }
 
@@ -258,11 +267,11 @@ fn init_logging(log_level: &str) -> Result<()> {
         "trace" => log::LevelFilter::Trace,
         _ => log::LevelFilter::Error,
     };
-    
+
     env_logger::Builder::new()
         .filter_level(level)
         .format_timestamp_secs()
         .init();
-    
+
     Ok(())
 }

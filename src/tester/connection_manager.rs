@@ -1,9 +1,9 @@
 //! Connection Manager for MySQL Test Runner
-//! 
+//!
 //! This module manages multiple database connections for test execution,
 //! allowing tests to create, switch between, and manage multiple database connections.
 
-use super::database::{Database, ConnectionInfo, create_database_with_retry};
+use super::database::{create_database_with_retry, ConnectionInfo, Database};
 use anyhow::{anyhow, Result};
 use log::{debug, info};
 use mysql::PooledConn;
@@ -26,21 +26,15 @@ const DEFAULT_CONNECTION_NAME: &str = "default";
 
 impl ConnectionManager {
     /// Create a new connection manager with default connection
-    pub fn new(
-        default_connection_info: ConnectionInfo,
-        max_retries: u32,
-    ) -> Result<Self> {
+    pub fn new(default_connection_info: ConnectionInfo, max_retries: u32) -> Result<Self> {
         let mut connections = HashMap::new();
-        
+
         // Create default connection (always MySQL for now)
-        let default_db = create_database_with_retry(
-            "mysql",
-            &default_connection_info,
-            max_retries,
-        )?;
-        
+        let default_db =
+            create_database_with_retry("mysql", &default_connection_info, max_retries)?;
+
         connections.insert(DEFAULT_CONNECTION_NAME.to_string(), default_db);
-        
+
         Ok(ConnectionManager {
             connections,
             current_connection: DEFAULT_CONNECTION_NAME.to_string(),
@@ -71,19 +65,19 @@ impl ConnectionManager {
     pub fn connect(&mut self, params: &str) -> Result<()> {
         let connect_params = self.parse_connect_params(params)?;
         let connection_info = self.build_connection_info(&connect_params)?;
-        
+
         // Create new database connection (always MySQL)
-        let database = create_database_with_retry(
-            "mysql",
-            &connection_info,
-            self.max_retries,
-        )?;
-        
+        let database = create_database_with_retry("mysql", &connection_info, self.max_retries)?;
+
         // Store the connection and switch to it
-        self.connections.insert(connect_params.connection_name.clone(), database);
+        self.connections
+            .insert(connect_params.connection_name.clone(), database);
         self.current_connection = connect_params.connection_name;
-        
-        info!("Connected and switched to connection: {}", self.current_connection);
+
+        info!(
+            "Connected and switched to connection: {}",
+            self.current_connection
+        );
         Ok(())
     }
 
@@ -92,7 +86,7 @@ impl ConnectionManager {
         if !self.connections.contains_key(conn_name) {
             return Err(anyhow!("Connection '{}' does not exist", conn_name));
         }
-        
+
         self.current_connection = conn_name.to_string();
         debug!("Switched to connection: {}", conn_name);
         Ok(())
@@ -103,17 +97,20 @@ impl ConnectionManager {
         if conn_name == DEFAULT_CONNECTION_NAME {
             return Err(anyhow!("Cannot disconnect the default connection"));
         }
-        
+
         if !self.connections.contains_key(conn_name) {
             return Err(anyhow!("Connection '{}' does not exist", conn_name));
         }
-        
+
         // If we're disconnecting the current connection, switch to default
         if self.current_connection == conn_name {
             self.current_connection = DEFAULT_CONNECTION_NAME.to_string();
-            info!("Switched back to default connection after disconnecting '{}'", conn_name);
+            info!(
+                "Switched back to default connection after disconnecting '{}'",
+                conn_name
+            );
         }
-        
+
         self.connections.remove(conn_name);
         info!("Disconnected connection: {}", conn_name);
         Ok(())
@@ -126,9 +123,11 @@ impl ConnectionManager {
 
     /// Get current connection information
     pub fn current_connection_info(&self) -> String {
-        format!("Current connection: {} (available: {:?})", 
-                self.current_connection, 
-                self.list_connections())
+        format!(
+            "Current connection: {} (available: {:?})",
+            self.current_connection,
+            self.list_connections()
+        )
     }
 
     /// Parse connection parameters from string
@@ -136,22 +135,24 @@ impl ConnectionManager {
     fn parse_connect_params(&self, params: &str) -> Result<ConnectParams> {
         let trimmed = params.trim();
         if !trimmed.starts_with('(') || !trimmed.ends_with(')') {
-            return Err(anyhow!("Connect parameters must be enclosed in parentheses"));
+            return Err(anyhow!(
+                "Connect parameters must be enclosed in parentheses"
+            ));
         }
-        
-        let inner = &trimmed[1..trimmed.len()-1];
+
+        let inner = &trimmed[1..trimmed.len() - 1];
         let parts: Vec<&str> = inner.split(',').map(|s| s.trim()).collect();
-        
+
         if parts.is_empty() {
             return Err(anyhow!("Connection name is required"));
         }
-        
+
         // Fill missing parameters with empty strings
         let mut filled_parts = parts.clone();
         while filled_parts.len() < 6 {
             filled_parts.push("");
         }
-        
+
         Ok(ConnectParams {
             connection_name: filled_parts[0].to_string(),
             host: filled_parts[1].to_string(),
@@ -192,7 +193,9 @@ impl ConnectionManager {
         let port = if params.port.is_empty() {
             self.default_connection_info.port
         } else {
-            params.port.parse::<u16>()
+            params
+                .port
+                .parse::<u16>()
                 .map_err(|_| anyhow!("Invalid port: {}", params.port))?
         };
 
@@ -249,7 +252,8 @@ mod tests {
             max_retries: 1,
         };
 
-        let params = manager.parse_connect_params("(conn1,localhost,user,pass,db,3307)")
+        let params = manager
+            .parse_connect_params("(conn1,localhost,user,pass,db,3307)")
             .expect("Failed to parse full connection parameters");
         assert_eq!(params.connection_name, "conn1");
         assert_eq!(params.host, "localhost");
@@ -268,7 +272,8 @@ mod tests {
             max_retries: 1,
         };
 
-        let params = manager.parse_connect_params("(conn1)")
+        let params = manager
+            .parse_connect_params("(conn1)")
             .expect("Failed to parse minimal connection parameters");
         assert_eq!(params.connection_name, "conn1");
         assert_eq!(params.host, "");
@@ -293,7 +298,8 @@ mod tests {
             port: "".to_string(),
         };
 
-        let info = manager.build_connection_info(&params)
+        let info = manager
+            .build_connection_info(&params)
             .expect("Failed to build connection info with defaults");
         assert_eq!(info.host, "127.0.0.1");
         assert_eq!(info.user, "root");
@@ -305,9 +311,9 @@ mod tests {
         // This test would require actual database connections
         // In a real implementation, we would mock the database layer
         // For now, we test the logic that doesn't require database access
-        
+
         let connection_info = create_test_connection_info();
-        
+
         // Test the connection name parsing and validation logic
         let manager = ConnectionManager {
             connections: HashMap::new(),
@@ -324,4 +330,4 @@ mod tests {
         let info = manager.current_connection_info();
         assert!(info.contains("default"));
     }
-} 
+}

@@ -1,5 +1,5 @@
 //! Database abstraction layer
-//! 
+//!
 //! This module provides a unified interface for different database types.
 //! Currently supports MySQL, with extensible design for future database backends.
 
@@ -32,7 +32,10 @@ impl Database {
             //     let pg_db = PostgreSQLDatabase::new(connection_info)?;
             //     Ok(Database::PostgreSQL(pg_db))
             // }
-            _ => Err(anyhow!("Unsupported database type: {}. Currently only 'mysql' is supported.", db_type)),
+            _ => Err(anyhow!(
+                "Unsupported database type: {}. Currently only 'mysql' is supported.",
+                db_type
+            )),
         }
     }
 
@@ -139,7 +142,7 @@ impl MySQLDatabase {
 
     pub fn query(&mut self, sql: &str) -> Result<Vec<Vec<String>>> {
         use mysql::prelude::Queryable;
-        
+
         trace!("-> exec: {}", sql);
         // 尝试复用已有连接；若不可用则从连接池重新获取。
         if self.conn.is_none() {
@@ -156,8 +159,13 @@ impl MySQLDatabase {
             Ok(rows) => Ok(rows),
             Err(e) => {
                 if let mysql::Error::IoError(ref io_err) = e {
-                     if io_err.kind() == std::io::ErrorKind::BrokenPipe || io_err.kind() == std::io::ErrorKind::ConnectionAborted {
-                        warn!("MySQL connection broken, attempting to reconnect. Error: {}", io_err);
+                    if io_err.kind() == std::io::ErrorKind::BrokenPipe
+                        || io_err.kind() == std::io::ErrorKind::ConnectionAborted
+                    {
+                        warn!(
+                            "MySQL connection broken, attempting to reconnect. Error: {}",
+                            io_err
+                        );
                         // 丢弃旧连接并重新获取
                         self.conn = None;
                         if let Ok(mut new_conn) = self.pool.get_conn() {
@@ -172,7 +180,7 @@ impl MySQLDatabase {
                 Err(e)
             }
         }?;
-        
+
         self.process_rows(rows)
     }
 
@@ -209,7 +217,7 @@ impl MySQLDatabase {
 
     pub fn execute(&mut self, sql: &str) -> Result<()> {
         use mysql::prelude::Queryable;
-        
+
         if self.conn.is_none() {
             self.conn = Some(self.pool.get_conn()?);
         }
@@ -221,7 +229,9 @@ impl MySQLDatabase {
 
         if let Err(e) = exec_result {
             if let mysql::Error::IoError(ref io_err) = e {
-                if io_err.kind() == std::io::ErrorKind::BrokenPipe || io_err.kind() == std::io::ErrorKind::ConnectionAborted {
+                if io_err.kind() == std::io::ErrorKind::BrokenPipe
+                    || io_err.kind() == std::io::ErrorKind::ConnectionAborted
+                {
                     warn!("MySQL connection broken during execute, attempting to reconnect. Error: {}", io_err);
                     self.conn = None;
                     let mut new_conn = self.pool.get_conn()?;
@@ -236,7 +246,10 @@ impl MySQLDatabase {
     }
 
     pub fn info(&self) -> String {
-        format!("mysql://{}@{}:{}/{}", self.info.user, self.info.host, self.info.port, self.info.database)
+        format!(
+            "mysql://{}@{}:{}/{}",
+            self.info.user, self.info.host, self.info.port, self.info.database
+        )
     }
 
     /// Helper to transform arbitrary test names into valid MySQL schema names
@@ -275,13 +288,16 @@ impl MySQLDatabase {
         self.execute(&format!("CREATE DATABASE `{}`", test_db))?;
         // 切换到新创建的数据库，通过重新建立连接池
         self.switch_database(&test_db)?;
-        info!("MySQL test database '{}' created and connection switched.", test_db);
+        info!(
+            "MySQL test database '{}' created and connection switched.",
+            test_db
+        );
         Ok(())
     }
 
     pub fn cleanup_after_test(&mut self, test_name: &str) -> Result<()> {
         let test_db = format!("test_{}", Self::sanitize_db_name(test_name));
-        
+
         // 1. 查询并删除所有表，避免遗留大型表阻塞 DROP DATABASE
         let table_rows = self.query(&format!(
             "SELECT table_name AS tbl_name FROM information_schema.tables WHERE table_schema = '{}'",
@@ -300,12 +316,18 @@ impl MySQLDatabase {
 
         // 2. 通过切换数据库连接来释放对当前测试库的占用
         if let Err(e) = self.switch_database("mysql") {
-            warn!("Failed to switch to 'mysql' db during cleanup, proceeding with DROP: {}", e);
+            warn!(
+                "Failed to switch to 'mysql' db during cleanup, proceeding with DROP: {}",
+                e
+            );
         }
 
         // 3. 最终删除数据库
         if let Err(e) = self.execute(&format!("DROP DATABASE IF EXISTS `{}`", test_db)) {
-             warn!("Failed to drop database '{}': {}. This may happen if the connection was lost.", test_db, e);
+            warn!(
+                "Failed to drop database '{}': {}. This may happen if the connection was lost.",
+                test_db, e
+            );
         } else {
             debug!("MySQL test database '{}' dropped", test_db);
         }
@@ -357,16 +379,23 @@ pub fn create_database_with_retry(
 
     loop {
         attempt += 1;
-        
+
         match Database::new(db_type, connection_info) {
             Ok(db) => {
-                info!("Successfully connected to {} database on attempt {}", db_type, attempt);
+                info!(
+                    "Successfully connected to {} database on attempt {}",
+                    db_type, attempt
+                );
                 return Ok(db);
             }
             Err(e) => {
                 warn!("Database connection failed on attempt {}: {}", attempt, e);
                 if attempt >= max_retries {
-                    return Err(anyhow!("Failed to connect after {} attempts: {}", max_retries, e));
+                    return Err(anyhow!(
+                        "Failed to connect after {} attempts: {}",
+                        max_retries,
+                        e
+                    ));
                 }
             }
         }
@@ -406,7 +435,10 @@ mod tests {
         let info = create_test_connection_info();
         let result = Database::new("unsupported", &info);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Unsupported database type"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Unsupported database type"));
     }
 
     #[test]
@@ -414,11 +446,13 @@ mod tests {
         let info = create_test_connection_info();
         // Test the info string formatting without creating actual MySQL connection
         let expected_info = "mysql://root@127.0.0.1:3306/test";
-        
+
         // Test the info formatting logic directly
-        let formatted_info = format!("mysql://{}@{}:{}/{}", 
-                                    info.user, info.host, info.port, info.database);
-        
+        let formatted_info = format!(
+            "mysql://{}@{}:{}/{}",
+            info.user, info.host, info.port, info.database
+        );
+
         assert_eq!(formatted_info, expected_info);
     }
-} 
+}

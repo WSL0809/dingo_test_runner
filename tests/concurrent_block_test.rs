@@ -1,8 +1,8 @@
 //! Integration test: 并发块中查询错误应优雅处理且不 panic。
 
-use std::process::Command;
 use std::fs;
 use std::path::Path;
+use std::process::Command;
 
 fn get_binary_path() -> String {
     if Path::new("target/release/dingo_test_runner").exists() {
@@ -46,4 +46,4 @@ SELECT * FROM non_existing_table;
     // 清理
     let _ = fs::remove_file(test_path);
     let _ = fs::remove_file(Path::new("r").join(format!("{}.result", test_name)));
-} 
+}

@@ -1,10 +1,10 @@
 //! Expression evaluation module for control flow conditions
-//! 
+//!
 //! This module handles evaluation of expressions used in if and while statements,
 //! including variable substitution, SQL backtick expressions, and basic arithmetic/comparison operations.
 
-use super::variables::VariableContext;
 use super::database::Database;
+use super::variables::VariableContext;
 use anyhow::Result;
 use evalexpr::{eval, Value as EvalValue};
 use log::debug;
@@ -32,7 +32,7 @@ impl ExpressionEvaluator {
     }
 
     /// Evaluate an expression to a boolean result
-    /// 
+    ///
     /// The expression can contain:
     /// - Variables (will be expanded using variable_context)
     /// - SQL backtick expressions (will be executed against database)
@@ -62,7 +62,11 @@ impl ExpressionEvaluator {
     }
 
     /// Resolve SQL backtick expressions in the string
-    pub fn resolve_sql_expressions(&self, expression: &str, database: &mut Database) -> Result<String> {
+    pub fn resolve_sql_expressions(
+        &self,
+        expression: &str,
+        database: &mut Database,
+    ) -> Result<String> {
         let mut result = expression.to_string();
         let mut replacements = HashMap::new();
 
@@ -208,4 +212,4 @@ mod tests {
         assert_eq!(expanded2, "0");
         assert!(!evaluator.evaluate_final_expression(&expanded2).unwrap());
     }
-} 
+}

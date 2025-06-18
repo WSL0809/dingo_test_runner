@@ -1,5 +1,5 @@
 //! Email notification functionality for test results
-//! 
+//!
 //! This module provides email sending capabilities for test reports,
 //! supporting both HTML and plain text formats with optional attachments.
 
@@ -12,7 +12,7 @@ use lettre::{
     SmtpTransport, Transport,
 };
 #[cfg(feature = "email")]
-use log::{info, warn, error};
+use log::{error, info, warn};
 #[cfg(feature = "email")]
 use std::path::Path;
 
@@ -34,16 +34,17 @@ impl MailSender {
     /// Create a new mail sender with the given configuration
     pub fn new(config: EmailConfig) -> Result<Self> {
         let credentials = Credentials::new(config.username.clone(), config.password.clone());
-        
+
         let mut transport_builder = SmtpTransport::relay(&config.smtp_host)?
             .port(config.smtp_port)
             .credentials(credentials);
 
         // Configure TLS
         if config.enable_tls {
-            transport_builder = transport_builder.tls(lettre::transport::smtp::client::Tls::Required(
-                lettre::transport::smtp::client::TlsParameters::new(config.smtp_host.clone())?
-            ));
+            transport_builder =
+                transport_builder.tls(lettre::transport::smtp::client::Tls::Required(
+                    lettre::transport::smtp::client::TlsParameters::new(config.smtp_host.clone())?,
+                ));
         }
 
         let transport = transport_builder
@@ -71,7 +72,10 @@ impl MailSender {
         html_body: &str,
         xunit_file_path: Option<&Path>,
     ) -> Result<()> {
-        info!("Preparing to send test report email to {} recipients", self.config.to.len());
+        info!(
+            "Preparing to send test report email to {} recipients",
+            self.config.to.len()
+        );
 
         // Create email parts
         let plain_part = SinglePart::builder()
@@ -126,9 +130,15 @@ impl MailSender {
         }
 
         if error_count > 0 {
-            warn!("Email sending completed with {} successes and {} failures", success_count, error_count);
+            warn!(
+                "Email sending completed with {} successes and {} failures",
+                success_count, error_count
+            );
         } else {
-            info!("📧 All emails sent successfully to {} recipients", success_count);
+            info!(
+                "📧 All emails sent successfully to {} recipients",
+                success_count
+            );
         }
 
         Ok(())
@@ -141,7 +151,8 @@ impl MailSender {
         multipart: &MultiPart,
         suite_result: &TestSuiteResult,
     ) -> Result<()> {
-        let to: Mailbox = recipient.parse()
+        let to: Mailbox = recipient
+            .parse()
             .map_err(|e| anyhow!("Invalid recipient email address '{}': {}", recipient, e))?;
 
         let subject = format!(
@@ -188,7 +199,9 @@ pub struct MailSender;
 #[cfg(not(feature = "email"))]
 impl MailSender {
     pub fn new(_config: crate::cli::EmailConfig) -> anyhow::Result<Self> {
-        Err(anyhow::anyhow!("Email feature is not enabled. Please compile with --features email"))
+        Err(anyhow::anyhow!(
+            "Email feature is not enabled. Please compile with --features email"
+        ))
     }
 
     pub fn send_test_report(
