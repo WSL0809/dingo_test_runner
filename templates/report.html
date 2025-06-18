@@ -15,9 +15,10 @@
         }
 
         .container {
-            max-width: 800px;
+            max-width: 600px;
+            width: 100%;
             margin: 0 auto;
-            background-color: white;
+            background-color: #ffffff;
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             overflow: hidden;
@@ -80,6 +81,7 @@
             width: 100%;
             border-collapse: collapse;
             margin: 20px 0;
+            min-width: 600px;
         }
 
         .test-table th,
@@ -120,6 +122,7 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            word-break: break-all;
         }
 
         .footer {
@@ -129,6 +132,34 @@
             text-align: center;
             color: #6c757d;
             font-size: 12px;
+        }
+
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+            .content {
+                padding: 20px 15px;
+            }
+            .header {
+                padding: 20px 15px;
+            }
+            .header h1 {
+                font-size: 22px;
+            }
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+            }
+            .stat-card {
+                padding: 15px 10px;
+            }
         }
     </style>
 </head>
@@ -162,6 +193,7 @@
 
             <!-- 测试详情 -->
             <h2>🧪 测试详情</h2>
+            <div class="table-responsive">
             <table class="test-table">
                 <thead>
                     <tr>
@@ -196,6 +228,7 @@
                     {% endfor %}
                 </tbody>
             </table>
+            </div>
         </div>
 
         <div class="footer">
