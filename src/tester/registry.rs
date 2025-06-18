@@ -19,20 +19,23 @@ pub static COMMAND_REGISTRY: Lazy<HashMap<&'static str, CommandExecutor>> = Lazy
     m.insert("connect", handlers::connect::execute);
     m.insert("connection", handlers::connection::execute);
     m.insert("disconnect", handlers::disconnect::execute);
-    
+
     // Log control commands
     m.insert("disable_query_log", handlers::query_log::disable_query_log);
     m.insert("enable_query_log", handlers::query_log::enable_query_log);
-    m.insert("disable_result_log", handlers::result_log::disable_result_log);
+    m.insert(
+        "disable_result_log",
+        handlers::result_log::disable_result_log,
+    );
     m.insert("enable_result_log", handlers::result_log::enable_result_log);
-    
+
     // Result modifiers
     m.insert("sorted_result", handlers::sorted_result::execute);
     m.insert("replace_regex", handlers::replace_regex::execute);
     m.insert("error", handlers::error::execute);
-    
+
     // Variable commands
     m.insert("let", handlers::let_handler::execute);
-    
+
     m
-}); 
+});

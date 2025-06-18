@@ -15,4 +15,4 @@ pub fn enable_query_log(tester: &mut Tester, _cmd: &Command) -> Result<()> {
     tester.enable_query_log = true;
     debug!("Query log enabled");
     Ok(())
-} 
+}

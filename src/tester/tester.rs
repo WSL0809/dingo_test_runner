@@ -1,29 +1,29 @@
 //! Test execution engine
-//! 
+//!
 //! This module handles the execution of MySQL test cases, including database setup,
 //! query execution, result comparison, and cleanup.
 
 use super::database::ConnectionInfo;
 use super::expression::ExpressionEvaluator;
-use super::parser::{QueryParser, default_parser};
+use super::parser::{default_parser, QueryParser};
 use super::query::{Query, QueryType};
 use super::variables::VariableContext;
+use crate::cli::Args;
 use crate::tester::command::Command;
 use crate::tester::connection_manager::ConnectionManager;
 use crate::tester::error_handler::MySQLErrorHandler;
 use crate::tester::registry::COMMAND_REGISTRY;
-use crate::cli::Args;
 use anyhow::{anyhow, Result};
+use chrono;
 use log::{debug, error, info, warn};
+use mysql::prelude::*;
+use rayon::prelude::*;
 use regex::Regex;
 use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use rayon::prelude::*;
-use mysql::prelude::*;
-use chrono;
 
 /// Maximum number of loop iterations to prevent infinite loops
 const MAX_LOOP_ITERATIONS: usize = 10_000;
@@ -65,7 +65,7 @@ pub struct Tester {
     result_file_content: Option<String>,
     /// Current position in result file
     current_result_line: usize,
-    
+
     // --- One-shot modifiers for the next query ---
     /// Sort results for the next query
     pub pending_sorted_result: bool,
@@ -73,7 +73,7 @@ pub struct Tester {
     pub pending_replace_regex: Vec<(Regex, String)>,
     /// Variable context for storing test variables
     pub variable_context: VariableContext,
-    
+
     // --- Control flow fields ---
     /// Expression evaluator for if/while conditions
     expression_evaluator: ExpressionEvaluator,
@@ -100,7 +100,9 @@ pub struct Tester {
 impl Tester {
     /// Create a new tester instance
     pub fn new(args: Args) -> Result<Self> {
-        let port = args.port.parse::<u16>()
+        let port = args
+            .port
+            .parse::<u16>()
             .map_err(|_| anyhow!("Invalid port: {}", args.port))?;
 
         // Create connection info
@@ -114,10 +116,8 @@ impl Tester {
         };
 
         // Create connection manager with default connection
-        let connection_manager = ConnectionManager::new(
-            connection_info,
-            args.retry_conn_count as u32,
-        )?;
+        let connection_manager =
+            ConnectionManager::new(connection_info, args.retry_conn_count as u32)?;
 
         Ok(Tester {
             connection_manager,
@@ -155,25 +155,30 @@ impl Tester {
         self.current_result_line = 1;
         self.pending_sorted_result = false;
         self.pending_replace_regex.clear();
-        
+
         // Clear control flow state
         self.while_stack.clear();
         self.control_flow_map.clear();
         self.in_concurrent_block = false;
         self.concurrent_queries.clear();
-        
+
         info!("Starting test: {}", test_name);
-        
+
         // Load result file for comparison if not in record mode
         if !self.args.record {
             self.load_result_file(test_name)?;
-            debug!("Loaded result file with {} lines", 
-                   self.result_file_content.as_ref().map(|c| c.lines().count()).unwrap_or(0));
+            debug!(
+                "Loaded result file with {} lines",
+                self.result_file_content
+                    .as_ref()
+                    .map(|c| c.lines().count())
+                    .unwrap_or(0)
+            );
         }
-        
+
         // Pre-process: setup database state
         self.pre_process()?;
-        
+
         Ok(())
     }
 
@@ -192,9 +197,11 @@ impl Tester {
     /// Post-process: cleanup database state after test
     fn post_process(&mut self) -> Result<()> {
         if !self.args.reserve_schema {
-            self.connection_manager.current_database()?.cleanup_after_test(&self.test_name)?;
+            self.connection_manager
+                .current_database()?
+                .cleanup_after_test(&self.test_name)?;
         }
-        
+
         info!("Test '{}' completed", self.test_name);
         Ok(())
     }
@@ -203,7 +210,7 @@ impl Tester {
     pub fn run_test_file<P: AsRef<Path>>(&mut self, test_file: P) -> Result<TestResult> {
         let test_name = test_file.as_ref().to_string_lossy().to_string();
         let start_time = std::time::Instant::now();
-        
+
         // 构造默认测试文件路径 (基于实例创建时记录的 current_dir)
         let mut test_path = self.current_dir.join("t").join(&test_name);
         if !test_path.exists() {
@@ -227,7 +234,11 @@ impl Tester {
         let content = match fs::read_to_string(&test_path) {
             Ok(content) => content,
             Err(e) => {
-                result.add_error(format!("Failed to read test file {}: {}", test_path.display(), e));
+                result.add_error(format!(
+                    "Failed to read test file {}: {}",
+                    test_path.display(),
+                    e
+                ));
                 result.set_duration(start_time.elapsed().as_millis() as u64);
                 return Ok(result);
             }
@@ -270,10 +281,10 @@ impl Tester {
                     result.failed_queries += 1;
                     let error_msg = format!("Query {} failed: {}", pc + 1, e);
                     result.add_error(error_msg);
-                    
+
                     // Record detailed failure information for Allure
                     self.record_query_failure(&mut result, &e);
-                    
+
                     if self.args.fail_fast {
                         break;
                     }
@@ -306,7 +317,7 @@ impl Tester {
 
         // Capture output
         result.set_stdout(String::from_utf8_lossy(&self.output_buffer).to_string());
-        
+
         // Set duration
         result.set_duration(start_time.elapsed().as_millis() as u64);
 
@@ -318,7 +329,10 @@ impl Tester {
 
     /// Execute a single query and handle its result
     fn execute_query(&mut self, query: &Query, query_num: usize) -> Result<()> {
-        debug!("Executing query {:?} (line {}): {:?}", query_num, query.line, query.query_type);
+        debug!(
+            "Executing query {:?} (line {}): {:?}",
+            query_num, query.line, query.query_type
+        );
 
         // 注入绑定在 Query 上的一次性修饰符
         if !query.options.expected_errors.is_empty() {
@@ -346,14 +360,14 @@ impl Tester {
                     args: query.query.clone(),
                     line: query.line,
                 };
-                
+
                 // Execute from registry
                 if let Some(executor) = COMMAND_REGISTRY.get(cmd.name.as_str()) {
                     executor(self, &cmd)?;
                 } else {
                     return Err(anyhow!("'exec' command handler not found in registry"));
                 }
-                
+
                 // Clear modifiers and expected errors after exec command
                 self.expected_errors.clear();
                 self.pending_sorted_result = false;
@@ -369,7 +383,7 @@ impl Tester {
                     args: query.query.clone(),
                     line: query.line,
                 };
-                
+
                 // Execute from registry
                 if let Some(executor) = COMMAND_REGISTRY.get(cmd.name.as_str()) {
                     executor(self, &cmd)?;
@@ -377,13 +391,13 @@ impl Tester {
                     // Fallback to original implementation
                     self.handle_echo(&query.query)?;
                 }
-                
+
                 // Clear any pending error expectations as they don't apply to echo commands
                 if !self.expected_errors.is_empty() {
                     warn!("--error directive before --echo is ignored");
                     self.expected_errors.clear();
                 }
-            },
+            }
             QueryType::Sleep => {
                 // Create a command object on the fly to use the new handler system.
                 let cmd = Command {
@@ -391,7 +405,7 @@ impl Tester {
                     args: query.query.clone(),
                     line: query.line,
                 };
-                
+
                 // Execute from registry
                 if let Some(executor) = COMMAND_REGISTRY.get(cmd.name.as_str()) {
                     executor(self, &cmd)?;
@@ -405,7 +419,7 @@ impl Tester {
                     warn!("--error directive before --sleep is ignored");
                     self.expected_errors.clear();
                 }
-            },
+            }
             QueryType::Delimiter => {
                 // Handled by parser
                 // Clear any pending error expectations as they don't apply to delimiter commands
@@ -420,77 +434,77 @@ impl Tester {
                     args: query.query.clone(),
                     line: query.line,
                 };
-                
+
                 if let Some(executor) = COMMAND_REGISTRY.get(cmd.name.as_str()) {
                     executor(self, &cmd)?;
                 } else {
                     self.enable_query_log = false;
                 }
-                
+
                 // Clear any pending error expectations as they don't apply to log control commands
                 if !self.expected_errors.is_empty() {
                     warn!("--error directive before --disable_query_log is ignored");
                     self.expected_errors.clear();
                 }
-            },
+            }
             QueryType::EnableQueryLog => {
                 let cmd = Command {
                     name: "enable_query_log".to_string(),
                     args: query.query.clone(),
                     line: query.line,
                 };
-                
+
                 if let Some(executor) = COMMAND_REGISTRY.get(cmd.name.as_str()) {
                     executor(self, &cmd)?;
                 } else {
                     self.enable_query_log = true;
                 }
-                
+
                 // Clear any pending error expectations as they don't apply to log control commands
                 if !self.expected_errors.is_empty() {
                     warn!("--error directive before --enable_query_log is ignored");
                     self.expected_errors.clear();
                 }
-            },
+            }
             QueryType::DisableResultLog => {
                 let cmd = Command {
                     name: "disable_result_log".to_string(),
                     args: query.query.clone(),
                     line: query.line,
                 };
-                
+
                 if let Some(executor) = COMMAND_REGISTRY.get(cmd.name.as_str()) {
                     executor(self, &cmd)?;
                 } else {
                     self.enable_result_log = false;
                 }
-                
+
                 // Clear any pending error expectations as they don't apply to log control commands
                 if !self.expected_errors.is_empty() {
                     warn!("--error directive before --disable_result_log is ignored");
                     self.expected_errors.clear();
                 }
-            },
+            }
             QueryType::EnableResultLog => {
                 let cmd = Command {
                     name: "enable_result_log".to_string(),
                     args: query.query.clone(),
                     line: query.line,
                 };
-                
+
                 if let Some(executor) = COMMAND_REGISTRY.get(cmd.name.as_str()) {
                     executor(self, &cmd)?;
                 } else {
                     self.enable_result_log = true;
                 }
-                
+
                 // Clear any pending error expectations as they don't apply to log control commands
                 if !self.expected_errors.is_empty() {
                     warn!("--error directive before --enable_result_log is ignored");
                     self.expected_errors.clear();
                 }
-            },
-            
+            }
+
             // Set one-shot modifiers for the next query
             QueryType::SortedResult => {
                 let cmd = Command {
@@ -498,40 +512,40 @@ impl Tester {
                     args: query.query.clone(),
                     line: query.line,
                 };
-                
+
                 if let Some(executor) = COMMAND_REGISTRY.get(cmd.name.as_str()) {
                     executor(self, &cmd)?;
                 } else {
                     self.pending_sorted_result = true;
                 }
-            },
+            }
             QueryType::ReplaceRegex => {
                 let cmd = Command {
                     name: "replace_regex".to_string(),
                     args: query.query.clone(),
                     line: query.line,
                 };
-                
+
                 if let Some(executor) = COMMAND_REGISTRY.get(cmd.name.as_str()) {
                     executor(self, &cmd)?;
                 } else {
                     self.parse_replace_regex(&query.query)?;
                 }
-            },
+            }
             QueryType::Error => {
                 let cmd = Command {
                     name: "error".to_string(),
                     args: query.query.clone(),
                     line: query.line,
                 };
-                
+
                 if let Some(executor) = COMMAND_REGISTRY.get(cmd.name.as_str()) {
                     executor(self, &cmd)?;
                 } else {
                     self.parse_expected_errors(&query.query)?;
                 }
-            },
-            
+            }
+
             // Connection management commands - these are NOT affected by --error
             QueryType::Connect => {
                 let cmd = Command {
@@ -539,76 +553,76 @@ impl Tester {
                     args: query.query.clone(),
                     line: query.line,
                 };
-                
+
                 if let Some(executor) = COMMAND_REGISTRY.get(cmd.name.as_str()) {
                     executor(self, &cmd)?;
                 } else {
                     self.handle_connect(&query.query)?;
                 }
-                
+
                 // Clear any pending error expectations as they don't apply to connect commands
                 if !self.expected_errors.is_empty() {
                     warn!("--error directive before --connect is ignored");
                     self.expected_errors.clear();
                 }
-            },
+            }
             QueryType::Connection => {
                 let cmd = Command {
                     name: "connection".to_string(),
                     args: query.query.clone(),
                     line: query.line,
                 };
-                
+
                 if let Some(executor) = COMMAND_REGISTRY.get(cmd.name.as_str()) {
                     executor(self, &cmd)?;
                 } else {
                     self.handle_connection_switch(&query.query)?;
                 }
-                
+
                 // Clear any pending error expectations as they don't apply to connection commands
                 if !self.expected_errors.is_empty() {
                     warn!("--error directive before --connection is ignored");
                     self.expected_errors.clear();
                 }
-            },
+            }
             QueryType::Disconnect => {
                 let cmd = Command {
                     name: "disconnect".to_string(),
                     args: query.query.clone(),
                     line: query.line,
                 };
-                
+
                 if let Some(executor) = COMMAND_REGISTRY.get(cmd.name.as_str()) {
                     executor(self, &cmd)?;
                 } else {
                     self.handle_disconnect(&query.query)?;
                 }
-                
+
                 // Clear any pending error expectations as they don't apply to disconnect commands
                 if !self.expected_errors.is_empty() {
                     warn!("--error directive before --disconnect is ignored");
                     self.expected_errors.clear();
                 }
-            },
+            }
             QueryType::Let => {
                 let cmd = Command {
                     name: "let".to_string(),
                     args: query.query.clone(),
                     line: query.line,
                 };
-                
+
                 if let Some(executor) = COMMAND_REGISTRY.get(cmd.name.as_str()) {
                     executor(self, &cmd)?;
                 } else {
                     return Err(anyhow!("'let' command handler not found in registry"));
                 }
-                
+
                 // Clear any pending error expectations as they don't apply to let commands
                 if !self.expected_errors.is_empty() {
                     warn!("--error directive before --let is ignored");
                     self.expected_errors.clear();
                 }
-            },
+            }
             _ => {
                 warn!("Unhandled query type: {:?}", query.query_type);
             }
@@ -621,10 +635,10 @@ impl Tester {
     fn execute_sql_query(&mut self, sql: &str, line_number: usize) -> Result<()> {
         // Set current query info for failure tracking
         self.set_current_query(sql.to_string(), line_number);
-        
+
         // Expand variables in the SQL query
         let expanded_sql = self.variable_context.expand(sql)?;
-        
+
         if self.enable_query_log {
             let query_output = format!("{}\n", expanded_sql);
             if self.args.record {
@@ -638,23 +652,30 @@ impl Tester {
             }
         }
 
-        let execution_result = self.connection_manager.current_database()?.query(&expanded_sql);
+        let execution_result = self
+            .connection_manager
+            .current_database()?
+            .query(&expanded_sql);
 
         match execution_result {
             Ok(rows) => {
                 if !self.expected_errors.is_empty() {
-                    let err_msg = format!("Expected error(s) {:?}, but query succeeded", self.expected_errors);
-                    if self.args.check_err { 
+                    let err_msg = format!(
+                        "Expected error(s) {:?}, but query succeeded",
+                        self.expected_errors
+                    );
+                    if self.args.check_err {
                         self.clear_current_query();
-                        return Err(anyhow!(err_msg)); 
-                    } 
-                    else { warn!("{}", err_msg); }
+                        return Err(anyhow!(err_msg));
+                    } else {
+                        warn!("{}", err_msg);
+                    }
                 }
 
                 if self.enable_result_log {
                     let mut formatted_result = self.format_query_result_to_string(&rows)?;
                     self.apply_regex_replacements(&mut formatted_result);
-                    
+
                     if self.args.record {
                         write!(self.output_buffer, "{}", formatted_result)?;
                     } else {
@@ -665,7 +686,7 @@ impl Tester {
                         }
                     }
                 }
-                
+
                 // Clear current query info on success
                 self.clear_current_query();
             }
@@ -685,11 +706,13 @@ impl Tester {
 
     /// Format query results to a string
     fn format_query_result_to_string(&self, rows: &[Vec<String>]) -> Result<String> {
-        if rows.is_empty() { return Ok(String::new()); }
+        if rows.is_empty() {
+            return Ok(String::new());
+        }
 
         let mut result = String::new();
         let mut sorted_rows = rows.to_vec();
-        
+
         if self.pending_sorted_result {
             sorted_rows.sort();
         }
@@ -707,27 +730,29 @@ impl Tester {
             // Try to extract MySQL error from anyhow error
             let is_match = if let Some(mysql_error) = error.downcast_ref::<mysql::Error>() {
                 // Use the error handler for precise MySQL error matching
-                self.error_handler.check_expected_error(mysql_error, &self.expected_errors)
+                self.error_handler
+                    .check_expected_error(mysql_error, &self.expected_errors)
             } else {
                 // Fallback to string matching for non-MySQL errors
                 let error_message = error.to_string();
-                self.expected_errors.iter().any(|expected| 
-                    expected == "0" || error_message.contains(expected)
-                )
+                self.expected_errors
+                    .iter()
+                    .any(|expected| expected == "0" || error_message.contains(expected))
             };
 
             if is_match {
                 if self.enable_result_log {
-                    let mut error_output = if self.expected_errors.len() == 1 && self.expected_errors[0] != "0" {
-                        // For MySQL errors, use formatted error message
-                        if let Some(mysql_error) = error.downcast_ref::<mysql::Error>() {
-                            format!("{}\n", self.error_handler.format_error(mysql_error))
+                    let mut error_output =
+                        if self.expected_errors.len() == 1 && self.expected_errors[0] != "0" {
+                            // For MySQL errors, use formatted error message
+                            if let Some(mysql_error) = error.downcast_ref::<mysql::Error>() {
+                                format!("{}\n", self.error_handler.format_error(mysql_error))
+                            } else {
+                                format!("{}\n", error.to_string())
+                            }
                         } else {
-                            format!("{}\n", error.to_string())
-                        }
-                    } else {
-                        "Got one of the listed errors\n".to_string()
-                    };
+                            "Got one of the listed errors\n".to_string()
+                        };
                     self.apply_regex_replacements(&mut error_output);
 
                     if self.args.record {
@@ -744,12 +769,19 @@ impl Tester {
             } else {
                 error.to_string()
             };
-            
-            let err_msg = format!("Expected error(s) {:?}, but got: {}", self.expected_errors, error_message);
-            if self.args.check_err { return Err(anyhow!(err_msg)); } 
-            else { warn!("{}", err_msg); return Ok(true); /* Treat as handled */ }
+
+            let err_msg = format!(
+                "Expected error(s) {:?}, but got: {}",
+                self.expected_errors, error_message
+            );
+            if self.args.check_err {
+                return Err(anyhow!(err_msg));
+            } else {
+                warn!("{}", err_msg);
+                return Ok(true); /* Treat as handled */
+            }
         }
-        
+
         Ok(false) // Not an expected error.
     }
 
@@ -769,7 +801,10 @@ impl Tester {
 
     /// Parses a --error command
     fn parse_expected_errors(&mut self, error_spec: &str) -> Result<()> {
-        self.expected_errors = error_spec.split(',').map(|s| s.trim().to_string()).collect();
+        self.expected_errors = error_spec
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .collect();
         debug!("Expected errors set to: {:?}", self.expected_errors);
         Ok(())
     }
@@ -787,7 +822,8 @@ impl Tester {
     fn handle_connection_switch(&mut self, conn_name: &str) -> Result<()> {
         // Expand variables in connection name
         let expanded_conn_name = self.variable_context.expand(conn_name)?;
-        self.connection_manager.switch_connection(expanded_conn_name.trim())?;
+        self.connection_manager
+            .switch_connection(expanded_conn_name.trim())?;
         info!("Switched to connection: {}", expanded_conn_name.trim());
         Ok(())
     }
@@ -796,7 +832,8 @@ impl Tester {
     fn handle_disconnect(&mut self, conn_name: &str) -> Result<()> {
         // Expand variables in connection name
         let expanded_conn_name = self.variable_context.expand(conn_name)?;
-        self.connection_manager.disconnect(expanded_conn_name.trim())?;
+        self.connection_manager
+            .disconnect(expanded_conn_name.trim())?;
         info!("Disconnected connection: {}", expanded_conn_name.trim());
         Ok(())
     }
@@ -804,14 +841,17 @@ impl Tester {
     /// Parses a --replace_regex command
     fn parse_replace_regex(&mut self, pattern: &str) -> Result<()> {
         if !pattern.starts_with('/') || !pattern.ends_with('/') || pattern.len() < 3 {
-            return Err(anyhow!("Invalid replace_regex: must be /regex/replacement/. Got: {}", pattern));
+            return Err(anyhow!(
+                "Invalid replace_regex: must be /regex/replacement/. Got: {}",
+                pattern
+            ));
         }
         let inner = &pattern[1..pattern.len() - 1];
-        
+
         let mut parts = Vec::with_capacity(2);
         let mut current_part = String::new();
         let mut in_escape = false;
-        
+
         for char in inner.chars() {
             if in_escape {
                 current_part.push(char);
@@ -833,7 +873,8 @@ impl Tester {
         }
 
         let regex = Regex::new(&parts[0])?;
-        self.pending_replace_regex.push((regex, parts[1].to_string()));
+        self.pending_replace_regex
+            .push((regex, parts[1].to_string()));
         Ok(())
     }
 
@@ -868,7 +909,7 @@ impl Tester {
     fn load_result_file(&mut self, test_name: &str) -> Result<()> {
         let result_dir = self.current_dir.join("r");
         let result_file = result_dir.join(format!("{}.{}", test_name, self.args.extension));
-        
+
         if result_file.exists() {
             self.result_file_content = Some(fs::read_to_string(result_file)?);
             debug!("Loaded result file for comparison: {}", test_name);
@@ -876,7 +917,7 @@ impl Tester {
             warn!("Result file not found for test: {}", test_name);
             self.result_file_content = None;
         }
-        
+
         Ok(())
     }
 
@@ -895,7 +936,10 @@ impl Tester {
                 let cursor = self.current_result_line - 1;
 
                 if cursor >= expected_lines.len() {
-                    let err_msg = format!("Output has more lines than expected. Extra line: '{}'", actual_line);
+                    let err_msg = format!(
+                        "Output has more lines than expected. Extra line: '{}'",
+                        actual_line
+                    );
                     return Err(anyhow!(err_msg));
                 }
 
@@ -906,7 +950,7 @@ impl Tester {
                     } else {
                         String::new()
                     };
-                    
+
                     let err_msg = format!(
                         "Output mismatch at result line {}{}:\n    Expected: {}\n    Actual: {}",
                         self.current_result_line, test_file_info, expected_line, actual_line
@@ -928,14 +972,14 @@ impl Tester {
     fn write_result_file(&self, test_name: &str) -> Result<()> {
         let result_dir = self.current_dir.join("r");
         fs::create_dir_all(&result_dir)?;
-        
+
         // 若 test_name 包含路径分隔符，需要提前创建子目录
         let result_file = result_dir.join(format!("{}.{}", test_name, self.args.extension));
         if let Some(parent) = result_file.parent() {
             fs::create_dir_all(parent)?;
         }
         fs::write(result_file, &self.output_buffer)?;
-        
+
         info!("Result file written for test: {}", test_name);
         Ok(())
     }
@@ -951,8 +995,7 @@ impl Tester {
                     .unwrap_or("");
                 return Err(anyhow!(format!(
                     "Output missing lines starting at expected line {}:\n    Expected: {}",
-                    self.current_result_line,
-                    remaining_line
+                    self.current_result_line, remaining_line
                 )));
             }
         }
@@ -977,11 +1020,15 @@ impl Tester {
             // Try to extract comparison details from the error message
             let error_msg = error.to_string();
             let (expected, actual) = self.extract_comparison_details(&error_msg);
-            
+
             // Try to extract more detailed line information from error message
             let (result_line, test_line) = self.extract_line_info_from_error(&error_msg);
-            let final_line_number = if test_line > 0 { test_line } else { current_line };
-            
+            let final_line_number = if test_line > 0 {
+                test_line
+            } else {
+                current_line
+            };
+
             let failure = QueryFailureDetail {
                 sql: sql.clone(),
                 expected,
@@ -989,7 +1036,7 @@ impl Tester {
                 line_number: final_line_number,
                 error_message: error_msg,
             };
-            
+
             result.add_query_failure(failure);
         }
     }
@@ -998,11 +1045,12 @@ impl Tester {
     fn extract_line_info_from_error(&self, error_msg: &str) -> (usize, usize) {
         let mut result_line = 0;
         let mut test_line = 0;
-        
+
         // Parse "Output mismatch at result line X (from test file line Y):"
-        if let Some(caps) = regex::Regex::new(r"result line (\d+)(?: \(from test file line (\d+)\))?")
-            .ok()
-            .and_then(|re| re.captures(error_msg)) 
+        if let Some(caps) =
+            regex::Regex::new(r"result line (\d+)(?: \(from test file line (\d+)\))?")
+                .ok()
+                .and_then(|re| re.captures(error_msg))
         {
             if let Some(result_match) = caps.get(1) {
                 result_line = result_match.as_str().parse().unwrap_or(0);
@@ -1011,7 +1059,7 @@ impl Tester {
                 test_line = test_match.as_str().parse().unwrap_or(0);
             }
         }
-        
+
         (result_line, test_line)
     }
 
@@ -1020,17 +1068,21 @@ impl Tester {
         // Try to parse "Expected: ... Actual: ..." from error message
         if let Some(expected_start) = error_msg.find("Expected: ") {
             if let Some(actual_start) = error_msg.find("Actual: ") {
-                let expected_end = error_msg[expected_start + 10..].find('\n').unwrap_or(error_msg.len() - expected_start - 10);
-                let expected = error_msg[expected_start + 10..expected_start + 10 + expected_end].trim().to_string();
-                
+                let expected_end = error_msg[expected_start + 10..]
+                    .find('\n')
+                    .unwrap_or(error_msg.len() - expected_start - 10);
+                let expected = error_msg[expected_start + 10..expected_start + 10 + expected_end]
+                    .trim()
+                    .to_string();
+
                 let actual_part = &error_msg[actual_start + 8..];
                 let actual_end = actual_part.find('\n').unwrap_or(actual_part.len());
                 let actual = actual_part[..actual_end].trim().to_string();
-                
+
                 return (expected, actual);
             }
         }
-        
+
         // Return empty strings if parsing fails
         (String::new(), String::new())
     }
@@ -1179,7 +1231,12 @@ impl Tester {
 
     /// Execute a query with control flow support
     /// Returns the next program counter value
-    fn execute_query_with_control_flow(&mut self, query: &Query, pc: usize, _queries: &[Query]) -> Result<usize> {
+    fn execute_query_with_control_flow(
+        &mut self,
+        query: &Query,
+        pc: usize,
+        _queries: &[Query],
+    ) -> Result<usize> {
         // Handle concurrent blocks first
         if query.query_type == QueryType::BeginConcurrent {
             self.in_concurrent_block = true;
@@ -1189,7 +1246,10 @@ impl Tester {
 
         if query.query_type == QueryType::EndConcurrent {
             if !self.in_concurrent_block {
-                return Err(anyhow!("--end_concurrent without --begin_concurrent at line {}", query.line));
+                return Err(anyhow!(
+                    "--end_concurrent without --begin_concurrent at line {}",
+                    query.line
+                ));
             }
             self.in_concurrent_block = false;
             self.execute_concurrent_queries()?;
@@ -1201,7 +1261,8 @@ impl Tester {
                 QueryType::Query => {
                     let mut concurrent_query = query.clone();
                     // Expand variables in the SQL query before storing
-                    concurrent_query.query = self.variable_context.expand(&concurrent_query.query)?;
+                    concurrent_query.query =
+                        self.variable_context.expand(&concurrent_query.query)?;
 
                     // 将一次性修饰符绑定到 QueryOptions
                     if !self.expected_errors.is_empty() {
@@ -1252,15 +1313,17 @@ impl Tester {
     fn handle_if_command(&mut self, condition: &str, pc: usize) -> Result<usize> {
         // Evaluate the condition
         if self.expression_evaluator.evaluate_condition(
-            condition, 
+            condition,
             &self.variable_context,
-            self.connection_manager.current_database()?
+            self.connection_manager.current_database()?,
         )? {
             // Condition is true, continue to the next statement
             Ok(pc + 1)
         } else {
             // Condition is false, jump to matching end
-            let end_index = *self.control_flow_map.get(&pc)
+            let end_index = *self
+                .control_flow_map
+                .get(&pc)
                 .ok_or_else(|| anyhow!("Mismatched 'end' for 'if' at line {}", pc))?;
             Ok(end_index + 1)
         }
@@ -1268,13 +1331,15 @@ impl Tester {
 
     /// Handle while command
     fn handle_while_command(&mut self, condition: &str, pc: usize) -> Result<usize> {
-        let end_index = *self.control_flow_map.get(&pc)
+        let end_index = *self
+            .control_flow_map
+            .get(&pc)
             .ok_or_else(|| anyhow!("Mismatched 'end' for 'while' at line {}", pc))?;
 
         if self.expression_evaluator.evaluate_condition(
             condition,
             &self.variable_context,
-            self.connection_manager.current_database()?
+            self.connection_manager.current_database()?,
         )? {
             // Condition is true, push to stack and continue
             self.while_stack.push(WhileFrame {
@@ -1283,7 +1348,7 @@ impl Tester {
                 condition: condition.to_string(),
                 iteration_count: 0,
             });
-            
+
             Ok(pc + 1) // Continue to first statement in loop
         } else {
             // Condition is false, skip the loop
@@ -1298,13 +1363,16 @@ impl Tester {
                 // This 'end' matches an active while loop
                 frame.iteration_count += 1;
                 if frame.iteration_count >= MAX_LOOP_ITERATIONS {
-                    return Err(anyhow!("Infinite loop detected at line {}", frame.start_index + 1));
+                    return Err(anyhow!(
+                        "Infinite loop detected at line {}",
+                        frame.start_index + 1
+                    ));
                 }
 
                 if self.expression_evaluator.evaluate_condition(
                     &frame.condition,
                     &self.variable_context,
-                    self.connection_manager.current_database()?
+                    self.connection_manager.current_database()?,
                 )? {
                     // Loop condition is still true, jump back to while
                     return Ok(frame.start_index);
@@ -1315,7 +1383,7 @@ impl Tester {
                 }
             }
         }
-        
+
         // This 'end' corresponds to an 'if' statement, just continue
         Ok(pc + 1)
     }
@@ -1325,8 +1393,17 @@ impl Tester {
             return Ok(());
         }
 
-        let indexed_queries: Vec<_> = self.concurrent_queries.iter().cloned().enumerate().collect();
-        let results = Arc::new(Mutex::new(Vec::<(usize, Result<String, mysql::Error>, Vec<String>)>::new()));
+        let indexed_queries: Vec<_> = self
+            .concurrent_queries
+            .iter()
+            .cloned()
+            .enumerate()
+            .collect();
+        let results = Arc::new(Mutex::new(Vec::<(
+            usize,
+            Result<String, mysql::Error>,
+            Vec<String>,
+        )>::new()));
 
         indexed_queries.par_iter().for_each(|(index, query)| {
             // 尝试获取连接，若失败则将错误入结果集合并，不直接 panic
@@ -1335,7 +1412,9 @@ impl Tester {
             let query_result: Result<String, mysql::Error> = match conn_result {
                 Err(_e) => {
                     // 将连接错误转为 DriverError::CouldNotConnect(None)
-                    Err(mysql::Error::DriverError(mysql::DriverError::CouldNotConnect(None)))
+                    Err(mysql::Error::DriverError(
+                        mysql::DriverError::CouldNotConnect(None),
+                    ))
                 }
                 Ok(mut conn) => {
                     // 并发路径下，查询字符串已不包含错误前缀
@@ -1343,20 +1422,27 @@ impl Tester {
 
                     // 执行查询
                     conn.query_iter(&actual_query).and_then(|result| {
-                        let rows: Vec<String> = result.map(|row_result| {
-                            let row = row_result?;
-                            let row_values: Vec<String> = (0..row.len()).map(|i| {
-                                let value = row.get::<Option<String>, _>(i)
-                                    .unwrap_or_else(|| Some("NULL".to_string()))
-                                    .unwrap_or_else(|| "NULL".to_string());
-                                value
-                            }).collect();
-                            Ok(row_values.join("\t"))
-                        }).collect::<Result<Vec<String>, mysql::Error>>()?;
+                        let rows: Vec<String> = result
+                            .map(|row_result| {
+                                let row = row_result?;
+                                let row_values: Vec<String> = (0..row.len())
+                                    .map(|i| {
+                                        let value = row
+                                            .get::<Option<String>, _>(i)
+                                            .unwrap_or_else(|| Some("NULL".to_string()))
+                                            .unwrap_or_else(|| "NULL".to_string());
+                                        value
+                                    })
+                                    .collect();
+                                Ok(row_values.join("\t"))
+                            })
+                            .collect::<Result<Vec<String>, mysql::Error>>()?;
                         let mut output = rows.join("\n");
                         // 应用一次性替换规则（仅对该 Query 生效）
                         for (regex, replacement) in &query.options.replace_regex {
-                            output = regex.replace_all(&output, replacement.as_str()).into_owned();
+                            output = regex
+                                .replace_all(&output, replacement.as_str())
+                                .into_owned();
                         }
                         if query.options.sorted_result {
                             // 若要求排序，按照行排序
@@ -1397,7 +1483,10 @@ impl Tester {
                 Ok(output) => {
                     if !expected_errors.is_empty() {
                         // Expected error but query succeeded
-                        let err_msg = format!("Expected error(s) {:?}, but query succeeded", expected_errors);
+                        let err_msg = format!(
+                            "Expected error(s) {:?}, but query succeeded",
+                            expected_errors
+                        );
                         output_parts.push(format!("UNEXPECTED_SUCCESS: {}", err_msg));
                     } else {
                         // Apply one-time regex replacements if any
@@ -1407,7 +1496,9 @@ impl Tester {
                     }
                 }
                 Err(e) => {
-                    if !expected_errors.is_empty() && self.error_handler.check_expected_error(e, expected_errors) {
+                    if !expected_errors.is_empty()
+                        && self.error_handler.check_expected_error(e, expected_errors)
+                    {
                         let error_str = self.error_handler.format_error(e);
                         output_parts.push(error_str);
                     } else if expected_errors.is_empty() {
@@ -1417,12 +1508,15 @@ impl Tester {
                     } else {
                         // Expected different error
                         let error_str = self.error_handler.format_error(e);
-                        output_parts.push(format!("WRONG_ERROR: Expected {:?}, got {}", expected_errors, error_str));
+                        output_parts.push(format!(
+                            "WRONG_ERROR: Expected {:?}, got {}",
+                            expected_errors, error_str
+                        ));
                     }
                 }
             }
         }
-        
+
         // 将并发查询的输出合并，并确保与串行路径保持相同的换行语义（结尾带 \n）
         let mut combined_output = output_parts.join("\n");
         if !combined_output.is_empty() && !combined_output.ends_with('\n') {
@@ -1449,10 +1543,10 @@ impl Tester {
 mod tests {
     use super::*;
     use crate::cli::Args;
+    use log::warn;
     use std::fs::{self, File};
     use std::io::Write;
     use std::path::Path;
-    use log::warn;
 
     #[test]
     fn test_tester_creation() {
@@ -1658,7 +1752,7 @@ mod tests {
         // This test doesn't actually create a tester since it would require MySQL
         // Instead, we test the logic that expected errors should be cleared for non-SQL commands
         // This is more of a design verification test
-        
+
         // We can test the Args structure creation at least
         assert_eq!(args.host, "127.0.0.1");
         assert_eq!(args.port, "3306");
@@ -1729,6 +1823,3 @@ mod tests {
         fs::remove_file(result_file_path).unwrap();
     }
 }
-
-
-

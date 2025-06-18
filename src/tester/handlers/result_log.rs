@@ -15,4 +15,4 @@ pub fn enable_result_log(tester: &mut Tester, _cmd: &Command) -> Result<()> {
     tester.enable_result_log = true;
     debug!("Result log enabled");
     Ok(())
-} 
+}

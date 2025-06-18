@@ -9,4 +9,4 @@ pub fn execute(tester: &mut Tester, _cmd: &Command) -> Result<()> {
     tester.pending_sorted_result = true;
     debug!("Sorted result enabled for next query");
     Ok(())
-} 
+}

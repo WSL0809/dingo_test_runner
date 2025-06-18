@@ -1,5 +1,5 @@
 //! Error handling for MySQL test runner
-//! 
+//!
 //! This module provides error mapping from MySQL error codes to standardized
 //! error representations, making it easier to handle expected errors in test cases.
 
@@ -16,7 +16,7 @@ impl MySQLErrorHandler {
     /// Create a new MySQL error handler with standard error mappings
     pub fn new() -> Self {
         let mut error_name_map = HashMap::new();
-        
+
         // Common MySQL error codes
         error_name_map.insert("ER_DUP_KEY".to_string(), 1022);
         error_name_map.insert("ER_DUP_ENTRY".to_string(), 1062);
@@ -50,7 +50,7 @@ impl MySQLErrorHandler {
         error_name_map.insert("ER_NONUNIQ_TABLE".to_string(), 1066);
         error_name_map.insert("ER_INVALID_DEFAULT".to_string(), 1067);
         error_name_map.insert("ER_MULTIPLE_PRI_KEY".to_string(), 1068);
-        
+
         Self { error_name_map }
     }
 
@@ -69,7 +69,7 @@ impl MySQLErrorHandler {
 
         for expected in expected_errors {
             let expected = expected.trim();
-            
+
             // Special case: "0" means accept any error
             if expected == "0" {
                 return true;
@@ -109,7 +109,10 @@ impl MySQLErrorHandler {
     pub fn format_error(&self, error: &mysql::Error) -> String {
         match error {
             mysql::Error::MySqlError(mysql_err) => {
-                format!("ERROR {} ({}): {}", mysql_err.code, mysql_err.state, mysql_err.message)
+                format!(
+                    "ERROR {} ({}): {}",
+                    mysql_err.code, mysql_err.state, mysql_err.message
+                )
             }
             mysql::Error::DriverError(driver_err) => {
                 format!("ERROR (Driver): {}", driver_err)
@@ -133,7 +136,10 @@ pub enum ErrorCheckResult {
     /// Error expected and matched
     ExpectedError(String),
     /// Error expected but didn't match
-    UnexpectedError { expected: Vec<String>, actual: String },
+    UnexpectedError {
+        expected: Vec<String>,
+        actual: String,
+    },
     /// No error expected but error occurred
     UnexpectedErrorOccurred(String),
 }
@@ -141,16 +147,20 @@ pub enum ErrorCheckResult {
 impl ErrorCheckResult {
     /// Check if the result represents success
     pub fn is_success(&self) -> bool {
-        matches!(self, ErrorCheckResult::NoError | ErrorCheckResult::ExpectedError(_))
+        matches!(
+            self,
+            ErrorCheckResult::NoError | ErrorCheckResult::ExpectedError(_)
+        )
     }
 
     /// Get error message if this represents a failure
     pub fn error_message(&self) -> Option<String> {
         match self {
             ErrorCheckResult::NoError | ErrorCheckResult::ExpectedError(_) => None,
-            ErrorCheckResult::UnexpectedError { expected, actual } => {
-                Some(format!("Expected error(s) {:?}, but got: {}", expected, actual))
-            }
+            ErrorCheckResult::UnexpectedError { expected, actual } => Some(format!(
+                "Expected error(s) {:?}, but got: {}",
+                expected, actual
+            )),
             ErrorCheckResult::UnexpectedErrorOccurred(msg) => {
                 Some(format!("Unexpected error: {}", msg))
             }
@@ -179,4 +189,4 @@ mod tests {
         assert!(!result.is_success());
         assert!(result.error_message().is_some());
     }
-} 
+}

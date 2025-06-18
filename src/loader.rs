@@ -92,10 +92,21 @@ mod tests {
         println!("Found tests in mock directory: {:?}", tests);
 
         // Strict assertions - should only find exactly the files we created
-        assert_eq!(tests.len(), 2, "Expected exactly 2 test files, found: {:?}", tests);
+        assert_eq!(
+            tests.len(),
+            2,
+            "Expected exactly 2 test files, found: {:?}",
+            tests
+        );
         assert!(tests.contains(&"test1".to_string()), "Should contain test1");
-        assert!(tests.contains(&"sub/test2".to_string()), "Should contain sub/test2");
-        assert!(!tests.contains(&"not_a_test".to_string()), "Should not contain non-.test files");
+        assert!(
+            tests.contains(&"sub/test2".to_string()),
+            "Should contain sub/test2"
+        );
+        assert!(
+            !tests.contains(&"not_a_test".to_string()),
+            "Should not contain non-.test files"
+        );
     }
 
     #[test]
@@ -107,7 +118,10 @@ mod tests {
         // Only run assertions if the `t` directory actually exists
         if project_root.join("t").exists() {
             let tests = load_all_tests().expect("Failed to load tests");
-            assert!(!tests.is_empty(), "Should find test files in the project's t/ directory");
+            assert!(
+                !tests.is_empty(),
+                "Should find test files in the project's t/ directory"
+            );
         }
 
         std::env::set_current_dir(original_dir).unwrap();
@@ -127,6 +141,9 @@ mod tests {
         std::env::set_current_dir(original_dir).unwrap();
 
         // Should be empty
-        assert!(tests.is_empty(), "Should return empty list when t/ directory doesn't exist");
+        assert!(
+            tests.is_empty(),
+            "Should return empty list when t/ directory doesn't exist"
+        );
     }
-} 
+}

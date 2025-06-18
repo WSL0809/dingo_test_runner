@@ -1,14 +1,14 @@
 //! 集成测试 - 端到端功能测试
-//! 
+//!
 //! 这些测试验证整个 mysql-tester-rs 程序的功能，包括：
 //! - CLI 参数解析
 //! - .test 文件执行
 //! - .result 文件生成和比对
 //! - 各种命令标签的行为
 
-use std::process::Command;
-use std::path::Path;
 use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn get_binary_path() -> String {
     // 在 CI 环境中，二进制文件可能在不同的位置
@@ -22,11 +22,14 @@ fn get_binary_path() -> String {
             .args(&["build", "--bin", "dingo_test_runner"])
             .output()
             .expect("Failed to build binary");
-        
+
         if !build_output.status.success() {
-            panic!("Failed to build binary: {}", String::from_utf8_lossy(&build_output.stderr));
+            panic!(
+                "Failed to build binary: {}",
+                String::from_utf8_lossy(&build_output.stderr)
+            );
         }
-        
+
         "target/debug/dingo_test_runner".to_string()
     }
 }
@@ -35,7 +38,7 @@ fn get_binary_path() -> String {
 #[ignore] // Requires MySQL server
 fn test_simple_execution() {
     let binary = get_binary_path();
-    
+
     // 运行 simple_test，需要MySQL服务器
     let output = Command::new(&binary)
         .arg("simple_test")
@@ -46,7 +49,7 @@ fn test_simple_execution() {
     // 检查程序至少启动了
     println!("STDOUT: {}", String::from_utf8_lossy(&output.stdout));
     println!("STDERR: {}", String::from_utf8_lossy(&output.stderr));
-    
+
     // 在没有MySQL服务器的情况下，程序应该会失败但不会崩溃
     // 我们主要验证程序能正常启动和处理错误
 }
@@ -54,7 +57,7 @@ fn test_simple_execution() {
 #[test]
 fn test_help_output() {
     let binary = get_binary_path();
-    
+
     // 测试 --help 参数
     let output = Command::new(&binary)
         .arg("--help")
@@ -72,7 +75,7 @@ fn test_help_output() {
 #[test]
 fn test_version_output() {
     let binary = get_binary_path();
-    
+
     // 测试 --version 参数
     let output = Command::new(&binary)
         .arg("--version")
@@ -88,7 +91,7 @@ fn test_version_output() {
 #[ignore] // Requires MySQL server
 fn test_regex_replacement() {
     let binary = get_binary_path();
-    
+
     // 运行 regex_test，需要MySQL服务器
     let output = Command::new(&binary)
         .arg("regex_test")
@@ -97,15 +100,21 @@ fn test_regex_replacement() {
         .expect("Failed to execute binary");
 
     // 检查程序至少启动了
-    println!("Regex test STDOUT: {}", String::from_utf8_lossy(&output.stdout));
-    println!("Regex test STDERR: {}", String::from_utf8_lossy(&output.stderr));
+    println!(
+        "Regex test STDOUT: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    println!(
+        "Regex test STDERR: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
 #[ignore] // Requires MySQL server
 fn test_advanced_features() {
     let binary = get_binary_path();
-    
+
     // 运行 advanced_test，需要MySQL服务器
     let output = Command::new(&binary)
         .arg("advanced_test")
@@ -114,15 +123,21 @@ fn test_advanced_features() {
         .expect("Failed to execute binary");
 
     // 检查程序至少启动了
-    println!("Advanced test STDOUT: {}", String::from_utf8_lossy(&output.stdout));
-    println!("Advanced test STDERR: {}", String::from_utf8_lossy(&output.stderr));
+    println!(
+        "Advanced test STDOUT: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    println!(
+        "Advanced test STDERR: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
 #[ignore] // Requires MySQL server
 fn test_error_handling() {
     let binary = get_binary_path();
-    
+
     // 运行 error_test，需要MySQL服务器
     let _output = Command::new(&binary)
         .arg("error_test")
@@ -132,11 +147,11 @@ fn test_error_handling() {
 
     // 这个测试可能因为错误而失败，但应该能正确处理预期的错误
     let result_file = Path::new("r/error_test.result");
-    
+
     // 如果生成了结果文件，检查其内容
     if result_file.exists() {
-        let content = fs::read_to_string(result_file)
-            .expect("Failed to read error test result file");
+        let content =
+            fs::read_to_string(result_file).expect("Failed to read error test result file");
         // 错误测试的具体验证会依赖于错误处理的实现
         println!("Error test result: {}", content);
     }
@@ -146,7 +161,7 @@ fn test_error_handling() {
 #[ignore] // Requires MySQL server
 fn test_all_tests_execution() {
     let binary = get_binary_path();
-    
+
     // 运行 --all 参数，需要MySQL服务器
     let _output = Command::new(&binary)
         .arg("--all")
@@ -155,9 +170,15 @@ fn test_all_tests_execution() {
         .expect("Failed to execute binary with --all");
 
     // 检查程序至少启动了
-    println!("All tests STDOUT: {}", String::from_utf8_lossy(&_output.stdout));
-    println!("All tests STDERR: {}", String::from_utf8_lossy(&_output.stderr));
-    
+    println!(
+        "All tests STDOUT: {}",
+        String::from_utf8_lossy(&_output.stdout)
+    );
+    println!(
+        "All tests STDERR: {}",
+        String::from_utf8_lossy(&_output.stderr)
+    );
+
     // 即使有些测试失败，--all 命令也应该尝试运行所有测试
     // 我们主要验证程序不会崩溃
 }
@@ -165,7 +186,7 @@ fn test_all_tests_execution() {
 #[test]
 fn test_invalid_arguments() {
     let binary = get_binary_path();
-    
+
     // 测试无效的参数
     let output = Command::new(&binary)
         .arg("--invalid-arg")
@@ -174,7 +195,7 @@ fn test_invalid_arguments() {
 
     // 应该返回错误状态码
     assert!(!output.status.success());
-    
+
     let stderr = String::from_utf8_lossy(&output.stderr);
     // 应该包含错误信息
     assert!(!stderr.is_empty());
@@ -183,7 +204,7 @@ fn test_invalid_arguments() {
 #[test]
 fn test_missing_test_files() {
     let binary = get_binary_path();
-    
+
     // 运行不存在的文件，应该返回错误
     let output = Command::new(&binary)
         .arg("non_existent_test")
@@ -192,7 +213,13 @@ fn test_missing_test_files() {
 
     // 应该返回错误状态码
     assert!(!output.status.success());
-    
-    println!("Missing file STDOUT: {}", String::from_utf8_lossy(&output.stdout));
-    println!("Missing file STDERR: {}", String::from_utf8_lossy(&output.stderr));
-} 
+
+    println!(
+        "Missing file STDOUT: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    println!(
+        "Missing file STDERR: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}

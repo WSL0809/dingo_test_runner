@@ -13,4 +13,4 @@ pub fn execute(_tester: &mut Tester, cmd: &Command) -> Result<()> {
     std::thread::sleep(std::time::Duration::from_secs_f64(duration));
     debug!("Slept for {} seconds", duration);
     Ok(())
-} 
+}

@@ -1,13 +1,13 @@
 //! Parser for .test files
-//! 
+//!
 //! This module handles parsing of MySQL test files, including various commands and queries.
 
-use super::query::{Query, QueryType, QueryOptions};
+use super::query::{Query, QueryOptions, QueryType};
 use anyhow::{anyhow, Result};
 use phf::phf_map;
 
 /// Trait for parsing .test files into Query vectors
-/// 
+///
 /// This abstraction allows for different parser implementations (handwritten, pest, etc.)
 /// while maintaining a consistent interface for the rest of the system.
 pub trait QueryParser: Send + Sync {
@@ -137,9 +137,10 @@ impl HandwrittenParser {
 
             // Handle commands (lines starting with --)
             if line.starts_with("--") {
-                let (query_type, query_content, lines_consumed) = self.parse_command(line, &lines, line_num - 1)?;
+                let (query_type, query_content, lines_consumed) =
+                    self.parse_command(line, &lines, line_num - 1)?;
                 line_num += lines_consumed;
-                
+
                 queries.push(Query {
                     query_type,
                     query: query_content,
@@ -152,9 +153,10 @@ impl HandwrittenParser {
             // Handle control flow statements (if, while)
             let trimmed_line = line.trim();
             if self.is_control_flow_statement(trimmed_line) {
-                let (query_type, query_content, lines_consumed) = self.parse_control_flow(trimmed_line, &lines, line_num - 1)?;
+                let (query_type, query_content, lines_consumed) =
+                    self.parse_control_flow(trimmed_line, &lines, line_num - 1)?;
                 line_num += lines_consumed;
-                
+
                 queries.push(Query {
                     query_type,
                     query: query_content,
@@ -214,10 +216,15 @@ impl HandwrittenParser {
     }
 
     /// Parse a command line starting with --
-    fn parse_command(&mut self, line: &str, _lines: &[&str], _start_line: usize) -> Result<(QueryType, String, usize)> {
+    fn parse_command(
+        &mut self,
+        line: &str,
+        _lines: &[&str],
+        _start_line: usize,
+    ) -> Result<(QueryType, String, usize)> {
         // Remove the -- prefix
         let command_line = line.trim_start_matches("--").trim();
-        
+
         // Split command and arguments
         let parts: Vec<&str> = command_line.split_whitespace().collect();
         if parts.is_empty() {
@@ -240,8 +247,11 @@ impl HandwrittenParser {
         }
 
         // Look up command in the map
-        let query_type = COMMAND_MAP.get(&command).copied().unwrap_or(QueryType::Unknown);
-        
+        let query_type = COMMAND_MAP
+            .get(&command)
+            .copied()
+            .unwrap_or(QueryType::Unknown);
+
         Ok((query_type, args, 0))
     }
 
@@ -249,28 +259,27 @@ impl HandwrittenParser {
     fn parse_query(&self, lines: &[&str], start_line: usize) -> Result<(String, usize)> {
         let mut query_parts = Vec::new();
         let mut line_idx = start_line;
-        
+
         while line_idx < lines.len() {
             let line = lines[line_idx];
-            
+
             // Check if this line ends with the delimiter
             if line.trim_end().ends_with(&self.delimiter) {
                 // Remove the delimiter from the end
-                let line_without_delimiter = line.trim_end()
-                    .trim_end_matches(&self.delimiter)
-                    .trim_end();
-                
+                let line_without_delimiter =
+                    line.trim_end().trim_end_matches(&self.delimiter).trim_end();
+
                 if !line_without_delimiter.is_empty() {
                     query_parts.push(line_without_delimiter);
                 }
-                
+
                 // Calculate lines consumed
                 let lines_consumed = line_idx - start_line;
                 let full_query = query_parts.join("\n").trim().to_string();
-                
+
                 return Ok((full_query, lines_consumed));
             }
-            
+
             // Add the whole line if it doesn't end with delimiter
             query_parts.push(line);
             line_idx += 1;
@@ -280,29 +289,33 @@ impl HandwrittenParser {
         // This could be the last query in the file
         let full_query = query_parts.join("\n").trim().to_string();
         let lines_consumed = line_idx - start_line;
-        
+
         if full_query.is_empty() {
             return Err(anyhow!("Empty query at line {}", start_line + 1));
         }
-        
+
         Ok((full_query, lines_consumed))
     }
 
     /// Check if a line is a control flow statement
     fn is_control_flow_statement(&self, line: &str) -> bool {
         let line = line.trim();
-        
+
         // Check for if/while followed by whitespace or opening parenthesis
         if line.starts_with("if") {
             let rest = &line[2..];
-            return rest.is_empty() || rest.starts_with(char::is_whitespace) || rest.starts_with('(');
+            return rest.is_empty()
+                || rest.starts_with(char::is_whitespace)
+                || rest.starts_with('(');
         }
-        
+
         if line.starts_with("while") {
             let rest = &line[5..];
-            return rest.is_empty() || rest.starts_with(char::is_whitespace) || rest.starts_with('(');
+            return rest.is_empty()
+                || rest.starts_with(char::is_whitespace)
+                || rest.starts_with('(');
         }
-        
+
         false
     }
 
@@ -313,27 +326,27 @@ impl HandwrittenParser {
     /// - "let   $var   =   value" (extra spaces)
     fn is_let_statement(line: &str) -> bool {
         let line = line.trim();
-        
+
         // Must start with "let" (case insensitive)
         if !line.to_lowercase().starts_with("let") {
             return false;
         }
-        
+
         let rest = &line[3..];
-        
+
         // After "let", there must be either:
         // 1. Whitespace followed by variable assignment
         // 2. Direct variable assignment (like "let$var=")
         if rest.is_empty() {
             return false;
         }
-        
+
         // Check if the rest starts with whitespace or directly with $ or variable name
         let rest_trimmed = rest.trim_start();
         if rest_trimmed.is_empty() {
             return false;
         }
-        
+
         // Must contain an assignment (=)
         rest_trimmed.contains('=')
     }
@@ -342,14 +355,14 @@ impl HandwrittenParser {
     /// Handles various spacing formats
     fn extract_let_args(line: &str) -> String {
         let line = line.trim();
-        
+
         // Remove "let" prefix (case insensitive)
         let rest = if line.to_lowercase().starts_with("let") {
             &line[3..]
         } else {
             line
         };
-        
+
         rest.trim().to_string()
     }
 
@@ -360,9 +373,14 @@ impl HandwrittenParser {
     /// - if(condition) { ... }  (no space before parenthesis)
     /// - while (condition) { ... }
     /// - while(condition) { ... }
-    fn parse_control_flow(&mut self, line: &str, _lines: &[&str], _start_line: usize) -> Result<(QueryType, String, usize)> {
+    fn parse_control_flow(
+        &mut self,
+        line: &str,
+        _lines: &[&str],
+        _start_line: usize,
+    ) -> Result<(QueryType, String, usize)> {
         let line = line.trim();
-        
+
         // Determine if it's if or while and extract the rest
         let (keyword, rest) = if line.starts_with("if") {
             ("if", line[2..].trim_start())
@@ -373,10 +391,13 @@ impl HandwrittenParser {
         };
 
         let rest = rest.trim();
-        
+
         // Parse condition in parentheses
         if !rest.starts_with('(') {
-            return Err(anyhow!("Control flow condition must be in parentheses: {}", line));
+            return Err(anyhow!(
+                "Control flow condition must be in parentheses: {}",
+                line
+            ));
         }
 
         // Find the matching closing parenthesis
@@ -397,15 +418,18 @@ impl HandwrittenParser {
         }
 
         if paren_count != 0 {
-            return Err(anyhow!("Unmatched parentheses in control flow condition: {}", line));
+            return Err(anyhow!(
+                "Unmatched parentheses in control flow condition: {}",
+                line
+            ));
         }
 
         // Extract condition (without the outer parentheses)
         let condition = rest[1..condition_end].trim().to_string();
-        
+
         // Check what follows the condition
         let after_condition = rest[condition_end + 1..].trim();
-        
+
         if after_condition.starts_with('{') {
             // Block syntax: if (condition) { ... }
             // The condition is what we need to store
@@ -424,7 +448,10 @@ impl HandwrittenParser {
             };
             Ok((query_type, condition, 0))
         } else {
-            return Err(anyhow!("Invalid syntax after control flow condition: {}", line));
+            return Err(anyhow!(
+                "Invalid syntax after control flow condition: {}",
+                line
+            ));
         }
     }
 }
@@ -447,7 +474,7 @@ mod tests {
         let mut parser = default_parser();
         let content = "SELECT 1;";
         let queries = parser.parse(content).expect("Failed to parse simple query");
-        
+
         assert_eq!(queries.len(), 1);
         assert_eq!(queries[0].query_type, QueryType::Query);
         assert_eq!(queries[0].query, "SELECT 1");
@@ -458,7 +485,7 @@ mod tests {
         let mut parser = default_parser();
         let content = "--echo hello world";
         let queries = parser.parse(content).expect("Failed to parse command");
-        
+
         assert_eq!(queries.len(), 1);
         assert_eq!(queries[0].query_type, QueryType::Echo);
         assert_eq!(queries[0].query, "hello world");
@@ -469,7 +496,7 @@ mod tests {
         let mut parser = default_parser();
         let content = "# This is a comment";
         let queries = parser.parse(content).expect("Failed to parse comment");
-        
+
         assert_eq!(queries.len(), 1);
         assert_eq!(queries[0].query_type, QueryType::Comment);
     }
@@ -478,8 +505,10 @@ mod tests {
     fn test_parse_multiline_query() {
         let mut parser = default_parser();
         let content = "SELECT 1\nFROM dual;";
-        let queries = parser.parse(content).expect("Failed to parse multiline query");
-        
+        let queries = parser
+            .parse(content)
+            .expect("Failed to parse multiline query");
+
         assert_eq!(queries.len(), 1);
         assert_eq!(queries[0].query_type, QueryType::Query);
         assert_eq!(queries[0].query, "SELECT 1\nFROM dual");
@@ -489,8 +518,10 @@ mod tests {
     fn test_delimiter_change() {
         let mut parser = default_parser();
         let content = "--delimiter //\nSELECT 1//\n--delimiter ;\nSELECT 2;";
-        let queries = parser.parse(content).expect("Failed to parse delimiter change");
-        
+        let queries = parser
+            .parse(content)
+            .expect("Failed to parse delimiter change");
+
         assert_eq!(queries.len(), 4);
         assert_eq!(queries[0].query_type, QueryType::Delimiter);
         assert_eq!(queries[0].query, "//");

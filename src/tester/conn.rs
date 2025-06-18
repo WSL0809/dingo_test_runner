@@ -1,12 +1,12 @@
 //! Database connection management
-//! 
+//!
 //! This module handles MySQL database connections, including connection pooling,
 //! retry logic, and connection initialization.
 
 use anyhow::{anyhow, Result};
 use log::{debug, info, warn};
-use mysql::{OptsBuilder, Pool, PooledConn};
 use mysql::prelude::Queryable;
+use mysql::{OptsBuilder, Pool, PooledConn};
 use std::time::Duration;
 
 /// Database connection wrapper
@@ -27,7 +27,14 @@ pub struct Conn {
 
 impl Conn {
     /// Create a new database connection
-    pub fn new(host: &str, port: u16, user: &str, password: &str, database: &str, params: &str) -> Result<Self> {
+    pub fn new(
+        host: &str,
+        port: u16,
+        user: &str,
+        password: &str,
+        database: &str,
+        params: &str,
+    ) -> Result<Self> {
         let mut opts = OptsBuilder::new()
             .ip_or_hostname(Some(host))
             .tcp_port(port)
@@ -56,7 +63,7 @@ impl Conn {
 
         // Create connection pool
         let pool = Pool::new(opts)?;
-        
+
         Ok(Conn {
             conn: None,
             pool,
@@ -86,12 +93,15 @@ impl Conn {
                 conn.query_drop(format!("USE `{}`", self.database))?;
                 debug!("Switched to database: {}", self.database);
             }
-            
+
             // Set additional connection settings
             conn.query_drop("SET sql_mode = 'TRADITIONAL'")?;
             conn.query_drop("SET autocommit = 1")?;
-            
-            info!("Connection initialized for {}@{}:{}", self.user, self.host, self.port);
+
+            info!(
+                "Connection initialized for {}@{}:{}",
+                self.user, self.host, self.port
+            );
         }
         Ok(())
     }
@@ -119,7 +129,10 @@ impl Conn {
 
     /// Get connection info as string
     pub fn info(&self) -> String {
-        format!("{}@{}:{}/{}", self.user, self.host, self.port, self.database)
+        format!(
+            "{}@{}:{}/{}",
+            self.user, self.host, self.port, self.database
+        )
     }
 
     /// Close the connection
@@ -152,7 +165,7 @@ pub fn open_db_with_retry(
 
     loop {
         attempt += 1;
-        
+
         match Conn::new(host, port, user, password, database, params) {
             Ok(mut conn) => {
                 // Test the connection
@@ -164,7 +177,11 @@ pub fn open_db_with_retry(
                     Err(e) => {
                         warn!("Connection test failed on attempt {}: {}", attempt, e);
                         if attempt >= max_retries {
-                            return Err(anyhow!("Failed to connect after {} attempts: {}", max_retries, e));
+                            return Err(anyhow!(
+                                "Failed to connect after {} attempts: {}",
+                                max_retries,
+                                e
+                            ));
                         }
                     }
                 }
@@ -172,7 +189,11 @@ pub fn open_db_with_retry(
             Err(e) => {
                 warn!("Connection creation failed on attempt {}: {}", attempt, e);
                 if attempt >= max_retries {
-                    return Err(anyhow!("Failed to create connection after {} attempts: {}", max_retries, e));
+                    return Err(anyhow!(
+                        "Failed to create connection after {} attempts: {}",
+                        max_retries,
+                        e
+                    ));
                 }
             }
         }

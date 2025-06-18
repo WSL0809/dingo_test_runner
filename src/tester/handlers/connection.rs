@@ -12,4 +12,4 @@ pub fn execute(tester: &mut Tester, cmd: &Command) -> Result<()> {
     tester.connection_manager.switch_connection(conn_name)?;
     info!("Switched to connection: {}", conn_name);
     Ok(())
-} 
+}

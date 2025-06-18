@@ -15,8 +15,8 @@
         }
 
         .container {
-            max-width: 600px;
             width: 100%;
+            max-width: 100%;
             margin: 0 auto;
             background-color: #ffffff;
             border-radius: 8px;
@@ -161,6 +161,16 @@
                 padding: 15px 10px;
             }
         }
+
+        /* 中等屏：平板 & 小型桌面 */
+        @media (min-width: 600px) {
+            .container { max-width: 720px; }
+        }
+
+        /* 大屏桌面 */
+        @media (min-width: 992px) {
+            .container { max-width: 840px; }
+        }
     </style>
 </head>
 <body>
@@ -232,7 +242,7 @@
         </div>
 
         <div class="footer">
-            <p>由 <strong>MySQL Test Runner (Rust)</strong> 自动生成</p>
+            <p>由 <strong>Dingo Test Runner (Rust)</strong> 自动生成</p>
         </div>
     </div>
 </body>

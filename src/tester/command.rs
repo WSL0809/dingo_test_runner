@@ -6,4 +6,4 @@ pub struct Command {
     pub name: String,
     pub args: String,
     pub line: usize,
-} 
+}
