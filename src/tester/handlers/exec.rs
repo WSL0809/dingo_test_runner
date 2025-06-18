@@ -149,6 +149,8 @@ mod tests {
             all: false,
             reserve_schema: false,
             xunit_file: "".to_string(),
+            report_format: "terminal".to_string(),
+            allure_dir: "".to_string(),
             retry_conn_count: 1, // Reduce retry count for tests
             check_err: false,
             collation_disable: false,

@@ -23,6 +23,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use rayon::prelude::*;
 use mysql::prelude::*;
+use chrono;
 
 /// Maximum number of loop iterations to prevent infinite loops
 const MAX_LOOP_ITERATIONS: usize = 10_000;
@@ -90,6 +91,10 @@ pub struct Tester {
     pc: usize,
     #[allow(dead_code)]
     loop_stack: Vec<usize>,
+    /// Current executing query for failure tracking
+    current_query: Option<String>,
+    /// Current query line number for failure tracking  
+    current_query_line: usize,
 }
 
 impl Tester {
@@ -137,6 +142,8 @@ impl Tester {
             test_errors: Vec::new(),
             pc: 0,
             loop_stack: Vec::new(),
+            current_query: None,
+            current_query_line: 0,
         })
     }
 
@@ -261,7 +268,12 @@ impl Tester {
                 }
                 Err(e) => {
                     result.failed_queries += 1;
-                    result.add_error(format!("Query {} failed: {}", pc + 1, e));
+                    let error_msg = format!("Query {} failed: {}", pc + 1, e);
+                    result.add_error(error_msg);
+                    
+                    // Record detailed failure information for Allure
+                    self.record_query_failure(&mut result, &e);
+                    
                     if self.args.fail_fast {
                         break;
                     }
@@ -298,10 +310,13 @@ impl Tester {
         // Set duration
         result.set_duration(start_time.elapsed().as_millis() as u64);
 
+        // Set end time
+        result.set_end_time(chrono::Utc::now().to_rfc3339());
+
         Ok(result)
     }
 
-    /// Execute a single query or command
+    /// Execute a single query and handle its result
     fn execute_query(&mut self, query: &Query, query_num: usize) -> Result<()> {
         debug!("Executing query {:?} (line {}): {:?}", query_num, query.line, query.query_type);
 
@@ -318,7 +333,7 @@ impl Tester {
 
         match query.query_type {
             QueryType::Query => {
-                self.execute_sql_query(&query.query, query_num)?;
+                self.execute_sql_query(&query.query, query.line)?;
                 // Modifiers are one-shot, clear them after the SQL query runs.
                 self.expected_errors.clear();
                 self.pending_sorted_result = false;
@@ -603,7 +618,10 @@ impl Tester {
     }
 
     /// Execute SQL query and handle results/errors
-    fn execute_sql_query(&mut self, sql: &str, _query_num: usize) -> Result<()> {
+    fn execute_sql_query(&mut self, sql: &str, line_number: usize) -> Result<()> {
+        // Set current query info for failure tracking
+        self.set_current_query(sql.to_string(), line_number);
+        
         // Expand variables in the SQL query
         let expanded_sql = self.variable_context.expand(sql)?;
         
@@ -612,7 +630,11 @@ impl Tester {
             if self.args.record {
                 write!(self.output_buffer, "{}", query_output)?;
             } else {
-                self.compare_with_result(&query_output)?;
+                if let Err(e) = self.compare_with_result(&query_output) {
+                    // Clear current query info on success
+                    self.clear_current_query();
+                    return Err(e);
+                }
             }
         }
 
@@ -622,7 +644,10 @@ impl Tester {
             Ok(rows) => {
                 if !self.expected_errors.is_empty() {
                     let err_msg = format!("Expected error(s) {:?}, but query succeeded", self.expected_errors);
-                    if self.args.check_err { return Err(anyhow!(err_msg)); } 
+                    if self.args.check_err { 
+                        self.clear_current_query();
+                        return Err(anyhow!(err_msg)); 
+                    } 
                     else { warn!("{}", err_msg); }
                 }
 
@@ -633,15 +658,26 @@ impl Tester {
                     if self.args.record {
                         write!(self.output_buffer, "{}", formatted_result)?;
                     } else {
-                        self.compare_with_result(&formatted_result)?;
+                        if let Err(e) = self.compare_with_result(&formatted_result) {
+                            // Clear current query info on error
+                            self.clear_current_query();
+                            return Err(e);
+                        }
                     }
                 }
+                
+                // Clear current query info on success
+                self.clear_current_query();
             }
             Err(e) => {
                 let error_handled = self.handle_query_error(&e)?;
                 if !error_handled {
+                    // Clear current query info on error
+                    self.clear_current_query();
                     return Err(e);
                 }
+                // Clear current query info after handling error
+                self.clear_current_query();
             }
         }
         Ok(())
@@ -865,9 +901,15 @@ impl Tester {
 
                 let expected_line = expected_lines[cursor];
                 if actual_line != expected_line {
+                    let test_file_info = if self.current_query_line > 0 {
+                        format!(" (from test file line {})", self.current_query_line)
+                    } else {
+                        String::new()
+                    };
+                    
                     let err_msg = format!(
-                        "Output mismatch at line {}:\n    Expected: {}\n    Actual: {}",
-                        self.current_result_line, expected_line, actual_line
+                        "Output mismatch at result line {}{}:\n    Expected: {}\n    Actual: {}",
+                        self.current_result_line, test_file_info, expected_line, actual_line
                     );
                     return Err(anyhow!(err_msg));
                 }
@@ -916,6 +958,82 @@ impl Tester {
         }
         Ok(())
     }
+
+    /// Set current executing query info for failure tracking
+    pub fn set_current_query(&mut self, sql: String, line_number: usize) {
+        self.current_query = Some(sql);
+        self.current_query_line = line_number;
+    }
+
+    /// Clear current query info
+    pub fn clear_current_query(&mut self) {
+        self.current_query = None;
+        self.current_query_line = 0;
+    }
+
+    /// Record query failure details for Allure reporting
+    pub fn record_query_failure(&mut self, result: &mut TestResult, error: &anyhow::Error) {
+        if let (Some(sql), current_line) = (&self.current_query, self.current_query_line) {
+            // Try to extract comparison details from the error message
+            let error_msg = error.to_string();
+            let (expected, actual) = self.extract_comparison_details(&error_msg);
+            
+            // Try to extract more detailed line information from error message
+            let (result_line, test_line) = self.extract_line_info_from_error(&error_msg);
+            let final_line_number = if test_line > 0 { test_line } else { current_line };
+            
+            let failure = QueryFailureDetail {
+                sql: sql.clone(),
+                expected,
+                actual,
+                line_number: final_line_number,
+                error_message: error_msg,
+            };
+            
+            result.add_query_failure(failure);
+        }
+    }
+
+    /// Extract line number information from error message
+    fn extract_line_info_from_error(&self, error_msg: &str) -> (usize, usize) {
+        let mut result_line = 0;
+        let mut test_line = 0;
+        
+        // Parse "Output mismatch at result line X (from test file line Y):"
+        if let Some(caps) = regex::Regex::new(r"result line (\d+)(?: \(from test file line (\d+)\))?")
+            .ok()
+            .and_then(|re| re.captures(error_msg)) 
+        {
+            if let Some(result_match) = caps.get(1) {
+                result_line = result_match.as_str().parse().unwrap_or(0);
+            }
+            if let Some(test_match) = caps.get(2) {
+                test_line = test_match.as_str().parse().unwrap_or(0);
+            }
+        }
+        
+        (result_line, test_line)
+    }
+
+    /// Extract expected vs actual comparison from error message
+    fn extract_comparison_details(&self, error_msg: &str) -> (String, String) {
+        // Try to parse "Expected: ... Actual: ..." from error message
+        if let Some(expected_start) = error_msg.find("Expected: ") {
+            if let Some(actual_start) = error_msg.find("Actual: ") {
+                let expected_end = error_msg[expected_start + 10..].find('\n').unwrap_or(error_msg.len() - expected_start - 10);
+                let expected = error_msg[expected_start + 10..expected_start + 10 + expected_end].trim().to_string();
+                
+                let actual_part = &error_msg[actual_start + 8..];
+                let actual_end = actual_part.find('\n').unwrap_or(actual_part.len());
+                let actual = actual_part[..actual_end].trim().to_string();
+                
+                return (expected, actual);
+            }
+        }
+        
+        // Return empty strings if parsing fails
+        (String::new(), String::new())
+    }
 }
 
 /// Test execution result
@@ -936,6 +1054,27 @@ pub struct TestResult {
     pub stderr: String,
     /// Test class name (typically the file path)
     pub classname: String,
+    /// Detailed query failure information for Allure reporting
+    pub query_failures: Vec<QueryFailureDetail>,
+    /// Test start timestamp in ISO 8601 format
+    pub start_time: String,
+    /// Test end timestamp in ISO 8601 format  
+    pub end_time: String,
+}
+
+/// Detailed information about a query failure
+#[derive(Debug, Clone)]
+pub struct QueryFailureDetail {
+    /// The SQL query that failed
+    pub sql: String,
+    /// Expected result output
+    pub expected: String,
+    /// Actual result output
+    pub actual: String,
+    /// Line number where the failure occurred
+    pub line_number: usize,
+    /// Error message from database or comparison
+    pub error_message: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -958,6 +1097,9 @@ impl TestResult {
             stdout: String::new(),
             stderr: String::new(),
             classname: format!("mysql-test.{}", test_name),
+            query_failures: Vec::new(),
+            start_time: String::new(),
+            end_time: String::new(),
         }
     }
 
@@ -986,6 +1128,21 @@ impl TestResult {
     /// Set stderr output  
     pub fn set_stderr(&mut self, stderr: String) {
         self.stderr = stderr;
+    }
+
+    /// Set test start time
+    pub fn set_start_time(&mut self, start_time: String) {
+        self.start_time = start_time;
+    }
+
+    /// Set test end time
+    pub fn set_end_time(&mut self, end_time: String) {
+        self.end_time = end_time;
+    }
+
+    /// Add query failure detail for Allure reporting
+    pub fn add_query_failure(&mut self, failure: QueryFailureDetail) {
+        self.query_failures.push(failure);
     }
 }
 
@@ -1082,7 +1239,7 @@ impl Tester {
             QueryType::While => self.handle_while_command(&query.query, pc)?,
             QueryType::End => self.handle_end_command(pc)?,
             _ => {
-                // Not a control flow command, execute it normally
+                // Execute the query normally
                 self.execute_query(query, pc)?;
                 pc + 1
             }
@@ -1324,6 +1481,8 @@ mod tests {
             email_enable_tls: false,
             fail_fast: false,
             test_files: vec![],
+            report_format: "terminal".to_string(),
+            allure_dir: "".to_string(),
         };
 
         // Note: This test would require a running MySQL server to actually work
@@ -1375,6 +1534,8 @@ mod tests {
             email_enable_tls: false,
             fail_fast: false,
             test_files: vec![],
+            report_format: "terminal".to_string(),
+            allure_dir: "".to_string(),
         };
 
         let mut tester = match Tester::new(args) {
@@ -1438,6 +1599,8 @@ mod tests {
             email_enable_tls: false,
             fail_fast: false,
             test_files: vec![],
+            report_format: "terminal".to_string(),
+            allure_dir: "".to_string(),
         };
 
         let mut tester = match Tester::new(args) {
@@ -1488,6 +1651,8 @@ mod tests {
             email_enable_tls: false,
             fail_fast: false,
             test_files: vec![],
+            report_format: "terminal".to_string(),
+            allure_dir: "".to_string(),
         };
 
         // This test doesn't actually create a tester since it would require MySQL
@@ -1544,6 +1709,8 @@ mod tests {
             email_enable_tls: false,
             fail_fast: false,
             test_files: vec![],
+            report_format: "terminal".to_string(),
+            allure_dir: "".to_string(),
         };
 
         let mut tester = match Tester::new(args) {

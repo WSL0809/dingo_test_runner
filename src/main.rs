@@ -7,7 +7,7 @@ pub mod loader;
 
 use cli::Args;
 use tester::tester::Tester;
-use report::{TestSuiteResult, summary, xunit, html};
+use report::{TestSuiteResult, summary, xunit, html, ReportRenderer, create_renderer_with_allure_dir};
 use stub::email::MailSender;
 use anyhow::Result;
 use log::{error, info, warn};
@@ -117,11 +117,69 @@ fn main() -> Result<()> {
         drop(tester);
     }
     
-    // Print final summary
-    summary::print_summary(&suite);
+    // Generate and output report using the new renderer architecture
+    // Determine if Allure output should be used
+    let allure_dir = if !args.allure_dir.is_empty() {
+        Some(args.allure_dir.as_str())
+    } else {
+        None
+    };
     
-    // Write JUnit XML report if requested
-    if !args.xunit_file.is_empty() {
+    let report_format = if allure_dir.is_some() {
+        "allure"
+    } else {
+        &args.report_format
+    };
+    
+    match create_renderer_with_allure_dir(report_format, allure_dir) {
+        Ok(renderer) => {
+            match renderer.render(&suite) {
+                Ok(report_content) => {
+                    match report_format {
+                        "terminal" | "console" => {
+                            // For terminal, use the existing colored output
+                            summary::print_summary(&suite);
+                        }
+                        "html" => {
+                            // Write HTML to file or stdout
+                            if !args.xunit_file.is_empty() {
+                                let html_file = args.xunit_file.replace(".xml", ".html");
+                                if let Err(e) = std::fs::write(&html_file, &report_content) {
+                                    error!("Failed to write HTML report: {}", e);
+                                } else {
+                                    info!("HTML report written to: {}", html_file);
+                                }
+                            } else {
+                                println!("{}", report_content);
+                            }
+                        }
+                        "allure" => {
+                            // Allure output is written to directory, just print summary
+                            info!("{}", report_content);
+                            summary::print_summary(&suite);
+                        }
+                        _ => {
+                            // For other formats, print to stdout
+                            println!("{}", report_content);
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to render report: {}", e);
+                    // Fallback to terminal output
+                    summary::print_summary(&suite);
+                }
+            }
+        }
+        Err(e) => {
+            error!("Failed to create report renderer: {}", e);
+            // Fallback to terminal output
+            summary::print_summary(&suite);
+        }
+    }
+    
+    // Write JUnit XML report if requested (backwards compatibility)
+    if !args.xunit_file.is_empty() && args.report_format != "xunit" && allure_dir.is_none() {
         if let Err(e) = xunit::write_xunit_report(&suite, &args.xunit_file) {
             error!("Failed to write JUnit XML report: {}", e);
         } else {
