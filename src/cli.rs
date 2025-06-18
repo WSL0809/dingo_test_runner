@@ -53,6 +53,14 @@ pub struct Args {
     #[arg(long, default_value = "")]
     pub xunit_file: String,
 
+    /// Report output format: terminal, html, plain, xunit, allure
+    #[arg(long, default_value = "terminal")]
+    pub report_format: String,
+
+    /// Path to write Allure JSON results (enables Allure format)
+    #[arg(long, default_value = "")]
+    pub allure_dir: String,
+
     /// Maximum number of connection retry attempts
     #[arg(long, default_value = "3")]
     pub retry_conn_count: i32,
@@ -451,6 +459,7 @@ mod tests {
             all: false,
             reserve_schema: false,
             xunit_file: "".to_string(),
+            report_format: "terminal".to_string(),
             retry_conn_count: 3,
             check_err: false,
             collation_disable: false,
@@ -465,6 +474,7 @@ mod tests {
             email_enable_tls: false,
             test_files,
             fail_fast: true,
+            allure_dir: "".to_string(),
         }
     }
 

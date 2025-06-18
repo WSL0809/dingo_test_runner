@@ -108,7 +108,7 @@ fn write_test_case(file: &mut File, case: &crate::tester::tester::TestResult) ->
 }
 
 /// Escape XML special characters
-fn escape_xml(text: &str) -> String {
+pub fn escape_xml(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")

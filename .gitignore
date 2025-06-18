@@ -2,3 +2,4 @@
 release/
 Cargo.lock
 .DS_Store
+allure-demo-test/

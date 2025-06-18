@@ -517,95 +517,160 @@
 | **如何生成 JUnit XML 报告？** | 使用 `--xunit-file report.xml` 参数，测试完成后会生成标准的 JUnit XML 格式报告，可被 CI/CD 平台解析。 |
 | **彩色输出如何控制？** | 默认启用彩色输出，可通过设置 `NO_COLOR` 环境变量禁用。支持智能检测终端能力。 |
 | **报告包含哪些信息？** | XML 报告包含测试统计、执行时间、环境信息（OS、Git提交等）、详细的失败信息。终端输出提供实时进度和彩色摘要。 |
+| **如何生成 Allure 报告？** | 使用 `--allure-dir allure-results` 参数生成 Allure 2.0 格式报告，然后用 `allure serve allure-results` 查看。提供企业级测试报告体验。 ⭐**新增** |
+| **Allure 报告有什么优势？** | 相比传统报告，Allure 提供更丰富的可视化、历史趋势分析、详细的失败信息附件、测试步骤跟踪等企业级功能。 ⭐**新增** |
+| **Allure 附件包含什么信息？** | 包含测试文件内容、带行号的预期结果文件、详细失败分析报告、调试提示等，帮助快速定位和解决问题。 ⭐**新增** |
 | **如何配置邮件通知？** | 使用 8 个邮件相关参数（`--email-*`）配置 SMTP 服务器、认证信息和收件人。支持 Gmail、Outlook、QQ 邮箱等主流服务商。详见 `EMAIL_USAGE.md`。 |
 | **邮件报告是什么样的？** | 发送美观的 HTML 邮件，包含统计概览、详细测试结果表格、响应式设计。同时提供纯文本版本和可选的 JUnit XML 附件。 |
 | **邮件功能如何启用？** | 使用 `cargo build --features email` 编译启用邮件功能。邮件发送失败不会影响测试执行和退出码。 |
 
 ---
 
-**最后更新**: 2025年01月17日  
-**当前版本**: v0.3.0-dev  
+**最后更新**: 2025-01-17  
+**当前版本**: v0.4.0-dev  
 **开发者**: [项目团队]
 
-### 📋 最新进展总结 (2025-01-17)
+### 📋 最新进展总结 (2025-06-18)
 
-本次更新主要完成了 **邮件通知系统的完整实现**：
+本次更新主要完成了 **报告系统架构重构**：
 
-- 📧 **企业级邮件通知**：基于 `lettre` + `askama` 的完整邮件发送系统
-- 🎨 **美观的 HTML 报告**：响应式设计的测试报告邮件，专业视觉效果
-- 🔒 **安全可靠**：TLS 加密传输，支持主流邮箱服务商和企业邮件系统
-- 🎯 **多格式支持**：HTML + 纯文本 + JUnit XML 附件的多样化报告
-- 🚀 **零侵入设计**：通过 feature flag 控制，完全向后兼容现有功能
-- 📚 **完整文档**：详细的使用指南和配置示例，支持快速上手
+- 🏗️ **统一渲染器架构**：基于 `ReportRenderer` trait 的可扩展报告系统
+- 📊 **数据与展示解耦**：彻底分离数据生产与展示逻辑，便于独立升级
+- 🎨 **多格式报告支持**：Terminal、HTML、Plain Text、XUnit XML 四种格式
+- 🚀 **简陋但有效的设计**：重点保证数据丰富性和准确性，HTML 样式简洁实用
+- ⚙️ **灵活的配置选项**：新增 `--report-format` 参数，支持动态格式选择
+- 🔮 **扩展友好架构**：为后续添加更多渲染器（JSON、Markdown等）奠定基础
 
 ## 🎉 最新功能亮点
 
-### 📧 邮件通知系统完成 (v0.3.0) 
+### 📊 报告系统架构重构完成 (v0.4.0) 
 
-我们成功实现了企业级的邮件通知系统，为测试报告提供专业的邮件分发能力：
+我们成功重构了报告系统架构，实现数据生产与展示的彻底解耦：
 
 #### ✨ 核心功能
 
-1. **美观的 HTML 邮件报告**
-   - 响应式设计，支持桌面和移动端查看
-   - 统计概览卡片：通过/失败/总数/执行时间
-   - 详细测试结果表格，带状态颜色编码
-   - 专业的视觉设计和现代化界面
+1. **统一渲染器接口**
+   - 引入 `ReportRenderer` trait 作为抽象层
+   - 支持动态创建不同格式的渲染器
+   - 数据生产与展示逻辑完全分离
+   - 易于扩展新的报告格式
 
 2. **多格式报告支持**
-   - HTML 格式：主要的可视化报告
-   - 纯文本格式：作为 HTML 的备用版本
-   - JUnit XML 附件：可选的机器可读格式
+   - Terminal 格式：彩色终端输出（默认）
+   - HTML 格式：简洁实用的网页报告
+   - Plain Text 格式：纯文本输出
+   - XUnit XML 格式：标准 CI/CD 兼容格式
+   - **Allure 格式：企业级测试报告平台 ⭐新增**
 
-3. **企业级邮件发送**
-   - 基于 `lettre` crate 的 SMTP 支持
-   - TLS/STARTTLS 加密传输
-   - 支持主流邮箱服务商（Gmail、Outlook、QQ 邮箱等）
-   - 多收件人支持（逗号分隔）
+3. **丰富的数据采集**
+   - 详细的测试统计信息和执行时间
+   - 完整的错误信息和环境上下文
+   - 查询级别的成功/失败统计
+   - 环境信息自动收集（OS、Git、版本等）
 
 #### 🎯 使用方式
 
 ```bash
-# 启用邮件功能编译
-cargo build --features email
+# 默认终端彩色输出
+cargo run -- simple_test
 
-# 发送测试报告邮件
-cargo run --features email -- simple_test \
-  --email-smtp-server smtp.gmail.com \
-  --email-smtp-port 587 \
-  --email-username your-email@gmail.com \
-  --email-password your-app-password \
-  --email-from your-email@gmail.com \
-  --email-to team@company.com,manager@company.com \
-  --email-subject "[测试报告] MySQL Test Runner Results" \
-  --email-attach-xml
+# 生成 HTML 报告到 stdout
+cargo run -- simple_test --report-format html
 
-# 结合 XML 报告和邮件通知
-cargo run --features email -- --all \
-  --xunit-file report.xml \
-  --email-smtp-server smtp.company.com \
-  --email-smtp-port 587 \
-  --email-username testbot@company.com \
-  --email-password app-password \
-  --email-from testbot@company.com \
-  --email-to dev-team@company.com \
-  --email-subject "Daily Test Report" \
-  --email-attach-xml
+# 生成 HTML 报告到文件
+cargo run -- simple_test --report-format html --xunit-file report.xml
+
+# 生成纯文本报告
+cargo run -- simple_test --report-format plain
+
+# 生成 XUnit XML 报告
+cargo run -- simple_test --report-format xunit
+
+# 生成 Allure 报告（需要指定输出目录）
+cargo run -- simple_test --allure-dir allure-results
+
+# 运行所有测试并生成 HTML 报告
+cargo run -- --all --report-format html --xunit-file report.xml
 ```
 
 #### 🚀 技术亮点
 
-- **安全可靠**：TLS 加密传输，支持应用密码认证
-- **向后兼容**：通过 feature flag 控制，不影响现有功能
-- **错误隔离**：邮件发送失败不影响测试执行结果
-- **模板化设计**：基于 `askama` 的可维护模板系统
-- **完整文档**：详细的配置指南和故障排除文档
+- **架构解耦**：数据生产与展示完全分离，便于独立升级
+- **简陋有效**：重点保证数据丰富性，HTML 样式简洁实用
+- **扩展友好**：基于 trait 的设计，易于添加新的报告格式
+- **向后兼容**：保留原有 `--xunit-file` 功能，无破坏性变更
+- **配置灵活**：通过 `--report-format` 参数动态选择输出格式
+- **Allure 集成**：支持 Allure 2.0 原生 JSON 格式，提供企业级测试报告体验 ⭐新增
 
 # 开发进度报告
 
 本文档记录了 `mysql-tester-rs` 项目的当前开发状态、已完成的功能以及后续的开发计划。
 
-**最后更新时间:** 2025-01-17
+**最后更新时间:** 2025-01-17 (添加 Allure 报告支持)
+
+---
+
+## 🎯 Allure 报告系统 ⭐**新增功能**
+
+我们成功集成了 **Allure 2.0** 企业级测试报告平台，提供更丰富的测试结果可视化和分析能力：
+
+### ✨ 主要特性
+
+1. **企业级报告平台**
+   - 基于 Allure 2.0 原生 JSON 格式
+   - 美观的网页界面和丰富的图表展示
+   - 支持历史趋势分析和测试报告对比
+   - 完整的测试执行详情和附件管理
+
+2. **详细的失败信息**
+   - 测试文件内容展示（保持原始格式，便于阅读）
+   - 预期结果文件（添加行号，便于定位问题）
+   - 详细的失败分析报告（包含调试提示）
+   - 错误行号映射和上下文信息
+
+3. **丰富的元数据**
+   - 测试执行步骤和时间统计
+   - 环境信息（OS、Git提交、Rust版本等）
+   - CLI参数记录和执行上下文
+   - 自动生成的测试UUID和时间戳
+
+### 🚀 使用方式
+
+```bash
+# 生成 Allure 报告到指定目录
+cargo run -- simple_test --allure-dir allure-results
+
+# 批量运行所有测试并生成 Allure 报告
+cargo run -- --all --allure-dir allure-results
+
+# 运行特定模式的测试
+cargo run -- --allure-dir allure-results -g "demo_tests/*"
+
+# 查看 Allure 报告（需要安装 Allure CLI）
+allure serve allure-results
+```
+
+### 📊 报告内容
+
+**生成的文件**：
+- `{test-uuid}-result.json`：Allure 测试结果 JSON
+- `{test-uuid}-test-file.test`：测试文件内容（无行号）
+- `{test-uuid}-expected-result-with-lines.result`：预期结果（带行号）
+- `{test-uuid}-failure-details.txt`：失败分析报告
+- `environment.properties`：环境信息
+
+**失败分析包含**：
+- 🎯 查询失败详情：SQL语句、执行行号、错误消息
+- 📝 结果对比：预期 vs 实际输出的详细差异
+- 🔧 调试提示：定位问题的具体建议
+- 📂 文件引用：相关附件的链接和说明
+
+### 💡 最佳实践
+
+1. **CI/CD 集成**：在持续集成流水线中使用 `--allure-dir` 参数
+2. **问题诊断**：通过附件查看测试文件和预期结果的行号对应关系
+3. **团队协作**：利用 Allure 的历史对比功能跟踪测试质量趋势
+4. **错误定位**：重点关注失败详情附件中的调试提示
 
 ---
 
@@ -740,15 +805,40 @@ cargo run --features email -- --all \
 src/
 ├── main.rs          # CLI 入口和测试调度
 ├── cli.rs           # 命令行参数定义
-└── tester/          # 核心测试逻辑
-    ├── tester.rs    # 测试执行器 (Tester)
-    ├── parser.rs    # .test 文件解析器
-    ├── query.rs     # Query 和 QueryType 定义
-    ├── database.rs  # 数据库连接与操作抽象
-    ├── error_handler.rs # 错误码处理与映射
-    ├── expression.rs # 表达式求值器
-    ├── variables.rs # 变量系统
-    └── connection_manager.rs # 连接管理器
+├── loader.rs        # 测试文件加载器
+├── lib.rs           # 库入口模块
+├── report/          # 报告生成模块 ⭐**新增**
+│  ├── mod.rs        # 报告架构核心，ReportRenderer trait
+│  ├── html.rs       # HTML 报告渲染器
+│  ├── summary.rs    # 终端彩色输出
+│  └── xunit.rs      # JUnit/XUnit XML 报告
+├── tester/          # 核心测试逻辑
+│  ├── tester.rs     # 测试执行器 (Tester)
+│  ├── parser.rs     # .test 文件解析器
+│  ├── pest_parser.rs# Pest 语法解析器
+│  ├── query.rs      # Query 和 QueryType 定义
+│  ├── database.rs   # 数据库连接与操作抽象
+│  ├── error_handler.rs # 错误码处理与映射
+│  ├── expression.rs # 表达式求值器
+│  ├── variables.rs  # 变量系统
+│  ├── connection_manager.rs # 连接管理器
+│  ├── command.rs    # 命令定义结构
+│  ├── registry.rs   # 命令注册表
+│  └── handlers/     # 命令处理器模块
+│     ├── mod.rs
+│     ├── connect.rs    # 连接管理处理器
+│     ├── echo.rs       # Echo 命令处理器
+│     ├── exec.rs       # Exec 命令处理器
+│     ├── let_handler.rs# Let 变量处理器
+│     ├── sleep.rs      # Sleep 命令处理器
+│     └── ...
+├── util/            # 工具模块
+│  ├── mod.rs
+│  ├── error_utils.rs# 错误处理工具
+│  └── regex.rs      # 正则表达式工具
+└── stub/            # 桩代码模块
+   ├── mod.rs
+   └── email.rs      # 邮件通知桩
 ```
 
 ---
@@ -764,9 +854,29 @@ src/
   - 在并发块内的查询将被分发到多个线程中并行执行。
   - 需要确保数据库连接在线程间是安全的（每个线程使用独立的连接）。
 
-### Phase 6 – JUnit/XUnit 报告
-- **目标:** 支持 `-xunitfile` 参数，生成标准格式的 XML 测试报告。
-- **方案:** 使用 `quick-xml` 或类似库将测试结果序列化为 JUnit/XUnit 格式。
+### Phase 6 – JUnit/XUnit 报告 & 彩色终端输出 (100%) ✅ **已完成**
+- ✅ **JUnit/XUnit XML 报告生成**
+  - 完整的 JUnit XML 格式支持，兼容 CI/CD 平台
+  - 测试套件统计信息（总数、通过、失败、跳过、执行时间）
+  - 环境信息记录（OS、Rust版本、Git提交、CLI参数）
+  - 详细的失败信息（错误消息、CDATA格式的详细错误）
+  - 测试用例时间记录（毫秒精度）
+  - 通过 `--xunit-file` 参数指定输出文件
+- ✅ **彩色终端输出系统**
+  - 运行中指示器：`▶ running test_name ...`
+  - 成功测试：绿色 `✓` + 测试名 + 执行时间
+  - 失败测试：红色 `✗` + 测试名 + 失败统计 + 首个错误信息
+  - 最终汇总：分隔线 + 统计信息 + 通过率 + 失败详情
+  - 智能颜色支持（支持 `NO_COLOR` 环境变量）
+- ✅ **增强的数据结构**
+  - `TestResult`：包含执行时间、状态、输出等完整信息
+  - `TestSuiteResult`：聚合多个测试结果的套件级别统计
+  - `EnvironmentInfo`：自动收集环境和执行上下文信息
+- ✅ **报告系统架构重构** ⭐**新增**
+  - 引入 `ReportRenderer` trait 统一渲染接口
+  - 支持多种输出格式：Terminal、HTML、Plain Text、XUnit XML
+  - 数据生产与展示完全解耦，便于独立升级
+  - 新增 `--report-format` 参数控制输出格式
 
 ### Phase 7 – 功能补齐（100%）
 - **目标:** 实现剩余的常用命令。
@@ -821,6 +931,84 @@ src/
 - **功能对等性**：✅ 与手写解析器基本一致  
 - **稳定性**：✅ 主要测试用例通过
 - **格式细节**：⚠️ 部分缩进差异需要进一步完善
+
+## 📊 报告系统重构完成 (2025-06-18) ⭐**新增**
+
+我们成功完成了报告系统的架构重构，实现数据生产与展示的彻底解耦：
+
+### ✅ 核心架构改进
+
+1. **🏗️ 统一渲染器接口**
+   - 引入 `ReportRenderer` trait 作为统一抽象层
+   - 支持动态创建不同格式的渲染器：`create_renderer(format)`
+   - 数据生产（`TestSuiteResult`）与展示逻辑完全分离
+
+2. **📊 丰富的数据采集**
+   - 测试统计信息：总数、通过、失败、跳过、通过率
+   - 执行时间：毫秒级精度，支持总用时和单个测试用时
+   - 详细错误信息：包含多个错误消息，便于问题诊断
+   - 查询级别统计：通过/失败查询数量统计
+   - 环境上下文：OS、Git提交、Rust版本、CLI参数等
+
+3. **🎨 多种报告格式支持**
+   - **Terminal**：彩色终端输出（默认格式）
+   - **HTML**：简陋但实用的网页报告，清晰明了
+   - **Plain Text**：纯文本格式，适合日志和脚本处理
+   - **XUnit/JUnit XML**：标准格式，CI/CD平台兼容
+   - **Allure 格式：企业级测试报告平台 ⭐新增**
+
+### 🚀 新增 CLI 功能
+
+- **`--report-format`** 参数：支持 `terminal`、`html`、`plain`、`xunit` 格式
+- **智能输出**：HTML 格式支持文件输出（配合 `--xunit-file`）或 stdout
+- **向后兼容**：保留原有 `--xunit-file` 功能
+
+### 🎯 设计亮点
+
+1. **数据优先**：重点放在数据采集的完整性和准确性上
+2. **简陋但有效**：HTML 样式简单，但信息展示清晰
+3. **易于扩展**：后续可以轻松添加新的渲染器（JSON、Markdown等）
+4. **架构解耦**：完全分离数据与展示，便于独立升级
+
+### 📈 报告信息丰富度
+
+现在的报告包含：
+- **统计概览**：一目了然的测试结果摘要
+- **详细列表**：每个测试的状态、耗时、查询统计
+- **错误详情**：失败测试的具体错误信息
+- **环境信息**：便于问题复现和环境追踪
+- **时间戳**：报告生成时间记录
+
+### 💡 使用示例
+
+```bash
+# 生成 HTML 报告到 stdout
+cargo run -- simple_test --report-format html
+
+# 生成 HTML 报告到文件
+cargo run -- simple_test --report-format html --xunit-file report.xml
+
+# 生成纯文本报告
+cargo run -- simple_test --report-format plain
+
+# 生成 XUnit XML 报告
+cargo run -- simple_test --report-format xunit
+
+# 生成 Allure 报告（需要指定输出目录）
+cargo run -- simple_test --allure-dir allure-results
+
+# 运行所有测试并生成 HTML 报告
+cargo run -- --all --report-format html --xunit-file report.xml
+```
+
+### 🔮 未来扩展空间
+
+基于这个架构，后续可以轻松实现：
+- 更美观的 HTML 模板（使用 Askama 或其他模板引擎）
+- JSON 格式输出（便于 API 集成）
+- Markdown 格式（便于文档集成）
+- 图表可视化（通过 Chart.js 等）
+- 自定义样式主题
 
 ---
 

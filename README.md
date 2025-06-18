@@ -1,132 +1,200 @@
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/WSL0809/dingo_test_runner)
 # MySQL Test Runner (Rust)
 
-一个用 Rust 重写的 MySQL 测试运行器，专注于 MySQL 数据库测试。
+一个兼容 MySQL 官方测试格式的测试运行器，用 Rust 重写自 Go 版本，保持功能等价性。
 
-## 🎯 项目特色
+## 项目状态
 
-- 🚀 **高性能**: 使用 Rust 编写，提供出色的性能和内存安全
-- 🔧 **专业化**: 专注于 MySQL 测试，提供完整的 MySQL 功能支持
-- 🔄 **完全兼容**: CLI 参数与原 Go 版本完全兼容
-- 📊 **结果记录**: 支持测试结果文件生成和比对
-- 🏗️ **模块化设计**: 清晰的代码架构，易于维护和扩展
+当前版本支持 MySQL 测试文件的解析、执行和结果比对，已实现 48 种查询类型和主要功能模块。
 
-## 🏗️ 技术架构
+## 核心功能
 
-整体采用 **分层 + 插件式** 设计，核心组件如下：
+- **测试执行**: 支持单个和批量测试文件执行
+- **结果比对**: Record 模式生成基准结果，Comparison 模式进行逐行比对  
+- **并发支持**: 实现 `--BEGIN_CONCURRENT` / `--END_CONCURRENT` 并发块
+- **多数据库**: 支持 MySQL 和 SQLite（用于本地调试）
+- **连接管理**: 支持多连接池和连接切换
+- **变量系统**: 支持 `--let` 变量定义和展开
+- **控制流**: 支持 `if` / `while` 条件和循环语句
+- **报告输出**: 支持 Terminal、HTML、XUnit XML、Allure 多种格式
+- **邮件通知**: 支持 SMTP 邮件发送测试报告
 
-1. **CLI 层** (`src/cli.rs`)
-   • 基于 `clap` 生成命令行界面，负责参数解析、校验与帮助信息。
+## 安装构建
 
-2. **测试执行引擎** (`src/tester/`)
-   • `tester.rs` 负责调度 `.test` 文件的执行及结果比对。
-   • `parser.rs` 将文件解析为 `Query` 列表，支持 40+ 指令/标签。
-   • `query.rs` 定义 `QueryType` 枚举。
-   • `connection_manager.rs` 运行时维护多数据库连接池，实现 `--connect/--connection/--disconnect`。
-   • `database/` 抽象底层数据库，目前实现 MySQL 后端，设计支持未来扩展到 PostgreSQL 等。
-   • `handlers/` 目录下每个文件对应一个标签命令，通过 `registry.rs` 注入，真正做到 **添加新指令零侵入**。
+**环境要求**:
+- Rust ≥ 1.78
+- 可选：MySQL 8.0
 
-3. **工具层** (`src/util/`)  
-   • 正则工具、时间测量等通用辅助函数。
-
-4. **报告层** (`src/report/`)  
-   • 目前输出纯文本及 `.result` 文件，后续将支持 JUnit XML 与 HTML 报告。
-
-该架构带来的收益：
-* **可扩展** — 新增指令只需"创建 handler + 注册一行"。
-* **可测试** — 解析、执行、比对三层完全解耦，单元/集成测试覆盖率高。
-* **可并发** — 设计之初即考虑并发场景，每个线程拥有独立连接。
-* **可移植** — 数据库后端通过 `Database` trait 抽象，可拓展到 PostgreSQL 等。
-
-## 🛠️ 安装和构建
-
-### 前置要求
-
-- Rust 1.70 或更高版本
-- Cargo (通常随 Rust 一起安装)
-- MySQL 服务器 (用于运行测试)
-
-### 构建
-
+**构建**:
 ```bash
 git clone <repository-url>
 cd dingo_test_runner
 cargo build --release
 ```
 
-### 运行
+## 基本使用
+
+### 运行单个测试
 
 ```bash
-# 开发模式
-cargo run -- [参数]
+# 按测试名运行
+cargo run -- basic
 
-# 或使用构建的二进制文件
-./target/release/dingo_test_runner [参数]
+# 运行 .test 文件
+cargo run -- basic.test
+
+# 指定数据库连接
+cargo run -- --host 127.0.0.1 --port 3306 --user root --passwd password basic
 ```
 
-## 📚 使用指南
-
-### 基本命令格式
+### 批量运行
 
 ```bash
-dingo_test_runner [选项] <测试文件>
+# 运行所有测试
+cargo run -- --all
+
+# 运行目录下所有测试
+cargo run -- t/demo_tests
+
+# 混合格式
+cargo run -- basic advanced.test t/regression
 ```
 
-### MySQL 连接
+### 生成结果文件
 
 ```bash
-# 连接本地 MySQL
-cargo run -- --host localhost --port 3306 --user root --passwd secret test.sql
+# Record 模式：生成 .result 文件
+cargo run -- --record basic
 
-# 连接远程 MySQL
-cargo run -- --host 192.168.1.100 --user testuser --passwd secret test.sql
+# Comparison 模式：与已有 .result 文件比对（默认）
+cargo run -- basic
 ```
 
-### 主要命令行参数
+## 数据库连接
 
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `--host` | `127.0.0.1` | MySQL 服务器地址 |
-| `--port` | `3306` | MySQL 服务器端口 |
-| `--user` | `root` | 数据库用户名 |
-| `--passwd` | `""` | 数据库密码 |
-| `--log-level` | `error` | 日志级别：`error`, `warn`, `info`, `debug`, `trace` |
-| `--record` | `false` | 是否记录测试输出到结果文件 |
-| `--extension` | `result` | 结果文件扩展名 |
-| `--retry-connection-count` | `120` | 数据库连接重试次数 |
+**MySQL 连接**:
+```bash
+cargo run -- --host 127.0.0.1 --port 3306 --user root --passwd password basic
+```
 
-## 📝 测试文件格式
+**SQLite 回落**（无需配置 MySQL）:
+```bash
+cargo run -- basic
+```
 
-### 支持的语法
+## 报告生成
 
-#### 1. SQL 查询
+### JUnit XML 报告
+
+```bash
+# 生成 JUnit XML（用于 CI/CD）
+cargo run -- --all --xunit-file test_report.xml
+```
+
+### 多格式报告
+
+```bash
+# 彩色终端输出（默认）
+cargo run -- basic
+
+# HTML 报告
+cargo run -- basic --report-format html --xunit-file report.xml
+
+# 纯文本报告
+cargo run -- basic --report-format plain
+
+# Allure 报告
+cargo run -- basic --allure-dir allure-results
+```
+
+### 邮件通知
+
+```bash
+# 启用邮件功能需要 feature flag
+cargo build --features email
+
+# 发送测试报告邮件
+cargo run --features email -- --all \
+  --email-smtp-server smtp.gmail.com \
+  --email-smtp-port 587 \
+  --email-username user@gmail.com \
+  --email-password app-password \
+  --email-from user@gmail.com \
+  --email-to team@company.com \
+  --email-subject "Test Report"
+```
+
+## 测试文件格式
+
+### 基本语法
+
 ```sql
--- 基本查询
+# 注释
+--echo 输出文本
+
+# SQL 查询
 SELECT 1;
 
--- 多行查询
+# 多行查询  
 SELECT * 
 FROM users 
 WHERE id = 1;
+
+# 更改分隔符
+--delimiter //
+CREATE PROCEDURE test() BEGIN SELECT 1; END //
+--delimiter ;
 ```
 
-#### 2. 测试指令
+### 支持的指令
 
-| 指令 | 语法 | 说明 |
-|------|------|------|
-| 注释 | `# 注释内容` | 文件注释，不会执行 |
-| 回显 | `--echo 文本内容` | 输出指定文本 |
-| 睡眠 | `--sleep 2.5` | 暂停指定秒数 |
-| 分隔符 | `--delimiter //` | 更改 SQL 分隔符 |
-| 查询日志 | `--disable_query_log` <br> `--enable_query_log` | 控制查询语句输出 |
-| 结果日志 | `--disable_result_log` <br> `--enable_result_log` | 控制查询结果输出 |
-| 排序结果 | `--sorted_result` | 对查询结果进行排序 |
+| 指令 | 说明 |
+|------|------|
+| `--echo <text>` | 输出文本 |
+| `--sleep <seconds>` | 暂停执行 |
+| `--error <code>` | 预期错误码 |
+| `--sorted_result` | 结果排序 |
+| `--replace_regex /<regex>/<replacement>/` | 正则替换 |
+| `--let $var = value` | 变量定义 |
+| `--exec <command>` | 执行系统命令 |
+| `--connect (name,host,user,password,db)` | 连接管理 |
+| `--disable_query_log` / `--enable_query_log` | 查询日志控制 |
+| `--disable_result_log` / `--enable_result_log` | 结果日志控制 |
 
-#### 3. 示例测试文件
+### 控制流语句
 
 ```sql
-# 用户管理测试
---echo 开始用户管理测试
+# if 语句（支持 end 或花括号结尾）
+let $count = 5
+if ($count > 0)
+  SELECT 'positive';
+end
+
+# while 循环
+let $i = 0  
+while ($i < 3)
+  SELECT $i;
+  let $i = $i + 1
+end
+```
+
+### 并发执行
+
+```sql
+--BEGIN_CONCURRENT
+SELECT 1;
+SELECT 2; 
+SELECT 3;
+--END_CONCURRENT
+```
+
+## 完整使用示例
+
+### 示例 1：基础 MySQL 测试
+
+```sql
+# basic_test.test
+--echo 开始基础测试
 
 # 创建测试表
 CREATE TABLE users (
@@ -139,170 +207,622 @@ CREATE TABLE users (
 INSERT INTO users (name, email) VALUES ('Alice', 'alice@example.com');
 INSERT INTO users (name, email) VALUES ('Bob', 'bob@example.com');
 
-# 查询所有用户
+# 查询测试
 --echo 查询所有用户：
 SELECT * FROM users;
 
-# 查询特定用户
---echo 查询特定用户：
-SELECT name FROM users WHERE id = 1;
+--echo 查询用户数量：
+SELECT COUNT(*) FROM users;
 
---echo 测试完成
+# 清理
+DROP TABLE users;
+--echo 基础测试完成
 ```
 
-## 🔄 支持的查询类型
-
-当前版本支持以下查询类型：
-
-### ✅ 完全支持
-- `Query` - 标准 SQL 查询
-- `Exec` - SQL 执行语句
-- `Comment` - 注释
-- `Echo` - 文本输出
-- `Sleep` - 延时执行
-- `Delimiter` - 分隔符设置
-- `DisableQueryLog` / `EnableQueryLog` - 查询日志控制
-- `DisableResultLog` / `EnableResultLog` - 结果日志控制
-- `SortedResult` - 结果排序
-- `ReplaceRegex` - 正则替换
-- `Error` - 错误处理
-- `Connect` / `Connection` / `Disconnect` - 连接管理
-
-### 🔄 部分支持
-- `Admin` - 管理命令（基础支持）
-
-### 📋 计划支持
-- `ReplaceColumn` - 列替换
-- `BeginConcurrent` / `EndConcurrent` - 并发执行
-- `Source` - 文件包含
-- 其他高级特性
-
-## 🚀 使用示例
-
-### 示例 1：基本 MySQL 测试
-
+**运行命令**：
 ```bash
-# 创建测试文件 demo.test
-cat > demo.test << 'EOF'
---echo MySQL 演示开始
+# Record 模式生成期望结果
+cargo run -- --record basic_test
 
-CREATE TABLE products (
-    id INTEGER PRIMARY KEY AUTO_INCREMENT,
-    name VARCHAR(100) NOT NULL,
-    price DECIMAL(10,2)
+# 比对模式验证结果
+cargo run -- basic_test
+```
+
+### 示例 2：变量和表达式测试
+
+```sql
+# variable_test.test
+--echo 测试变量系统
+
+# 定义变量（注意 let 可以省略 --）
+let $user_count = 5
+let $table_name = test_users  
+let $greeting = hello world with spaces
+
+# 使用变量
+--echo 用户数量: $user_count
+--echo 表名: $table_name
+--echo 问候语: $greeting
+
+# 表达式计算
+let $result = $user_count * 2
+let $sum = $user_count + 10
+let $condition = $user_count > 3
+--echo 计算结果: $result
+--echo 总和: $sum
+--echo 条件判断: $condition
+
+# SQL反引号查询
+let $row_count = `SELECT COUNT(*) FROM information_schema.tables`
+--echo 系统表数量: $row_count
+
+# 在SQL中使用变量
+CREATE TABLE $table_name (id INT, name VARCHAR(50));
+INSERT INTO $table_name VALUES (1, 'User1'), (2, 'User2');
+SELECT * FROM $table_name ORDER BY id;
+DROP TABLE $table_name;
+```
+
+**运行命令**：
+```bash
+cargo run -- --record variable_test
+```
+
+### 示例 3：控制流测试
+
+```sql
+# control_flow_test.test
+--echo 测试控制流
+
+# 准备测试数据
+CREATE TABLE test_items (id INT, value INT);
+INSERT INTO test_items VALUES (1, 10), (2, 5), (3, 15);
+
+# if 语句测试
+let $count = 10
+if ($count > 5)
+  --echo 数量大于5
+  SELECT 'Large count' as result;
+end
+
+if ($count < 5)
+  --echo 数量小于5
+end
+
+if ($count >= 5)
+  --echo 数量不小于5
+end
+
+# while 循环测试
+let $i = 1
+--echo 开始循环处理
+while ($i <= 3)
+  let $current_value = `SELECT value FROM test_items WHERE id = $i`
+  --echo 处理项目 $i, 值: $current_value
+  
+  if ($current_value > 8)
+    --echo "  值较大，进行特殊处理"
+    UPDATE test_items SET value = value + 5 WHERE id = $i;
+  end
+  
+  let $i = $i + 1
+end
+--echo 循环结束
+
+# 查看处理结果
+SELECT * FROM test_items ORDER BY id;
+
+# 清理
+DROP TABLE test_items;
+```
+
+**运行命令**：
+```bash
+cargo run -- --record control_flow_test
+```
+
+### 示例 4：并发执行测试
+
+```sql
+# concurrent_test.test
+--echo 并发执行测试
+
+# 准备测试数据
+CREATE TABLE concurrent_test (id INT, value VARCHAR(50));
+
+--echo 开始并发执行
+--BEGIN_CONCURRENT
+INSERT INTO concurrent_test VALUES (1, 'Thread1');
+INSERT INTO concurrent_test VALUES (2, 'Thread2');
+INSERT INTO concurrent_test VALUES (3, 'Thread3');
+SELECT COUNT(*) FROM concurrent_test;
+SELECT * FROM concurrent_test ORDER BY id;
+--END_CONCURRENT
+--echo 并发执行完成
+
+# 验证结果
+--sorted_result
+SELECT * FROM concurrent_test;
+
+# 清理
+DROP TABLE concurrent_test;
+```
+
+**运行命令**：
+```bash
+cargo run -- --record concurrent_test
+```
+
+### 示例 5：错误处理和正则替换
+
+```sql
+# error_handling_test.test
+--echo 错误处理和正则替换测试
+
+# 预期错误测试 - 使用错误码名称
+CREATE TABLE dup_test (id INT PRIMARY KEY, val INT);
+INSERT INTO dup_test VALUES (1, 100);
+
+--echo 下面将插入重复主键，期待 ER_DUP_ENTRY 错误
+--error ER_DUP_ENTRY
+INSERT INTO dup_test VALUES (1, 200);
+
+# 正则替换测试 - 替换时间戳
+--echo 生成带时间戳的输出，然后用正则替换
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/<TIMESTAMP>/
+--exec date '+%F %T'
+
+# 排序结果测试
+CREATE TABLE sort_test (id INT, name VARCHAR(50));
+INSERT INTO sort_test VALUES (3, 'Charlie'), (1, 'Alice'), (2, 'Bob');
+
+--echo 无序查询结果：
+SELECT * FROM sort_test;
+
+--echo 排序后的结果：
+--sorted_result
+SELECT * FROM sort_test;
+
+# 清理
+DROP TABLE dup_test;
+DROP TABLE sort_test;
+```
+
+**运行命令**：
+```bash
+cargo run -- --record error_handling_test
+```
+
+### 示例 6：连接管理测试
+
+```sql
+# connection_test.test
+--echo 连接管理测试
+
+# 准备测试数据库
+let $db1 = conn_test_db1
+let $db2 = conn_test_db2
+DROP DATABASE IF EXISTS $db1;
+DROP DATABASE IF EXISTS $db2;
+CREATE DATABASE $db1;
+CREATE DATABASE $db2;
+
+# 创建新连接（语法：host,user,password,database）
+--connect (conn1,127.0.0.1,root,123456,$db1)
+--connect (conn2,127.0.0.1,root,123456,$db2)
+
+# 在连接1中操作
+--connection conn1
+CREATE TABLE t1 (id INT, name VARCHAR(50));
+INSERT INTO t1 VALUES (1, 'Connection1');
+
+# 在连接2中操作  
+--connection conn2
+CREATE TABLE t2 (id INT, name VARCHAR(50));
+INSERT INTO t2 VALUES (2, 'Connection2');
+
+# 验证连接隔离
+--echo 在连接1中查询：
+--connection conn1
+SELECT * FROM t1;
+
+--echo 在连接2中查询：
+--connection conn2
+SELECT * FROM t2;
+
+# 断开连接
+--disconnect conn1
+--disconnect conn2
+--connection default
+
+# 清理
+DROP DATABASE $db1;
+DROP DATABASE $db2;
+```
+
+**运行命令**：
+```bash
+cargo run -- --record connection_test
+```
+
+### 示例 7：系统命令执行
+
+```sql
+# exec_test.test
+--echo 系统命令执行测试
+
+# 执行系统命令
+--exec echo "Hello from system command"
+--exec date
+--exec ls -la | head -5
+
+# 在SQL中使用命令结果
+CREATE TABLE exec_test (id INT, info VARCHAR(100));
+INSERT INTO exec_test VALUES (1, 'System info');
+SELECT * FROM exec_test;
+DROP TABLE exec_test;
+```
+
+**运行命令**：
+```bash
+cargo run -- --record exec_test
+```
+
+### 示例 8：综合测试
+
+```sql
+# comprehensive_test.test
+--echo 综合功能测试
+
+# 变量定义
+let $db_name = comprehensive_test_db
+let $table_prefix = tbl_
+let $user_count = 3
+
+--echo 使用数据库: $db_name
+--echo 表前缀: $table_prefix  
+--echo 用户数量: $user_count
+
+# 准备测试环境
+DROP DATABASE IF EXISTS $db_name;
+CREATE DATABASE $db_name;
+USE $db_name;
+
+# 创建测试表
+CREATE TABLE ${table_prefix}users (
+    id INT PRIMARY KEY,
+    name VARCHAR(50),
+    status VARCHAR(20) DEFAULT 'active'
 );
 
-INSERT INTO products (name, price) VALUES ('苹果', 3.50);
-INSERT INTO products (name, price) VALUES ('香蕉', 2.80);
+# 循环插入数据
+let $i = 1
+while ($i <= $user_count)
+  INSERT INTO ${table_prefix}users (id, name) VALUES ($i, CONCAT('User', $i));
+  let $i = $i + 1
+end
 
-SELECT * FROM products;
+# 条件查询
+let $actual_count = `SELECT COUNT(*) FROM ${table_prefix}users`
+if ($actual_count > 2)
+  --echo 用户数量超过2，显示所有用户
+  --sorted_result
+  SELECT id, name FROM ${table_prefix}users;
+end
 
---echo 演示结束
-EOF
+if ($actual_count <= 2)
+  --echo 用户数量较少
+  SELECT COUNT(*) as user_count FROM ${table_prefix}users;
+end
 
-# 运行测试
-cargo run -- --host 127.0.0.1 --user root --port 3307 --passwd 123123 --log-level info --record ddlbr
-cargo run -- --host 127.0.0.1 --user root --port 3306 --passwd 123456 --log-level info --record ddlbr
+# 并发操作测试
+--echo 并发更新测试
+--BEGIN_CONCURRENT
+UPDATE ${table_prefix}users SET status = 'updated' WHERE id = 1;
+UPDATE ${table_prefix}users SET status = 'updated' WHERE id = 2;
+UPDATE ${table_prefix}users SET status = 'updated' WHERE id = 3;
+--END_CONCURRENT
+
+# 验证更新结果（使用正则替换隐藏具体时间）
+--replace_regex /updated/[PROCESSED]/
+SELECT id, name, status FROM ${table_prefix}users ORDER BY id;
+
+# 清理
+DROP DATABASE $db_name;
+--echo 综合测试完成
 ```
 
-### 示例 2：远程 MySQL 测试
-
+**运行命令**：
 ```bash
-# 连接到远程 MySQL 服务器
-cargo run -- \
-  --host mysql.example.com \
-  --port 3306 \
-  --user testuser \
-  --passwd testpass \
-  --log-level info \
-  --record \
-  demo.test
+# 记录模式
+cargo run -- --record comprehensive_test
+
+# 生成HTML报告
+cargo run -- comprehensive_test --report-format html --xunit-file report.xml
+
+# 生成Allure报告
+cargo run -- comprehensive_test --allure-dir allure-results
+
+# 发送邮件报告
+cargo run --features email -- comprehensive_test \
+  --email-smtp-server smtp.gmail.com \
+  --email-smtp-port 587 \
+  --email-username test@example.com \
+  --email-password app-password \
+  --email-from test@example.com \
+  --email-to team@example.com \
+  --email-subject "Comprehensive Test Report"
 ```
 
-### 示例 3：批量测试
+## 命令行参数
+
+### 数据库连接
+- `--host <host>`: 数据库主机 (默认: 127.0.0.1)
+- `--port <port>`: 数据库端口 (默认: 3306)  
+- `--user <user>`: 用户名 (默认: root)
+- `--passwd <password>`: 密码 (默认: "")
+
+### 测试选项
+- `--record`: 启用 Record 模式
+- `--all`: 运行所有测试
+- `--extension <ext>`: 结果文件扩展名 (默认: result)
+- `--log-level <level>`: 日志级别 (error/warn/info/debug/trace)
+
+### 报告输出
+- `--xunit-file <file>`: JUnit XML 报告文件
+- `--report-format <format>`: 报告格式 (terminal/html/plain/xunit)
+- `--allure-dir <dir>`: Allure 报告目录
+
+### 邮件配置
+- `--email-smtp-server <server>`: SMTP 服务器
+- `--email-smtp-port <port>`: SMTP 端口
+- `--email-username <user>`: 邮箱用户名
+- `--email-password <password>`: 邮箱密码
+- `--email-from <email>`: 发件人邮箱
+- `--email-to <emails>`: 收件人邮箱（逗号分隔）
+- `--email-subject <subject>`: 邮件主题
+- `--email-attach-xml`: 附带 XML 报告
+
+## 项目结构
+
+```
+src/
+├── main.rs              # 程序入口
+├── cli.rs               # 命令行参数解析
+├── loader.rs            # 测试文件加载器
+├── tester/              # 核心测试模块
+│   ├── tester.rs        # 测试执行器
+│   ├── parser.rs        # 手写解析器
+│   ├── pest_parser.rs   # Pest 解析器
+│   ├── query.rs         # 查询类型定义
+│   ├── database.rs      # 数据库抽象层
+│   ├── connection_manager.rs # 连接管理
+│   ├── variables.rs     # 变量系统
+│   ├── expression.rs    # 表达式求值
+│   └── handlers/        # 命令处理器
+├── report/              # 报告生成
+│   ├── mod.rs           # 报告架构
+│   ├── summary.rs       # 终端输出
+│   ├── html.rs          # HTML 报告
+│   ├── xunit.rs         # XML 报告
+│   └── allure.rs        # Allure 报告
+├── util/                # 工具模块
+└── stub/                # 桩代码
+    └── email.rs         # 邮件通知
+```
+
+## 开发状态
+
+- **解析层**: 完成 (支持双解析器架构)
+- **执行引擎**: 完成 (串行+并发)
+- **数据库支持**: 完成 (MySQL)
+- **报告系统**: 完成 (多格式输出)
+- **邮件通知**: 完成 (HTML + 纯文本)
+- **变量系统**: 完成 (let 语句 + 展开)
+- **控制流**: 完成 (if/while + 嵌套)
+- **连接管理**: 完成 (多连接池)
+
+当前版本支持大部分 MySQL 官方测试格式，与原 Go 版本功能基本等价。
+
+## 批量测试和CI/CD集成
+
+### 批量执行所有测试
 
 ```bash
+# 运行所有测试并生成完整报告
+cargo run -- --all --xunit-file full_report.xml --report-format html
+
+# 运行特定目录的测试
+cargo run -- t/demo_tests --allure-dir allure-results
+
 # 运行多个测试文件
-cargo run -- --record test1.sql test2.sql test3.sql
+cargo run -- basic_test variable_test control_flow_test
 ```
 
-## 📁 输出文件
+### CI/CD 集成示例
 
-### 结果文件
+**GitHub Actions 配置** (`.github/workflows/test.yml`):
+```yaml
+name: MySQL Tests
+on: [push, pull_request]
 
-当使用 `--record` 参数时，测试结果会保存到 `r/` 目录：
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: testpass
+          MYSQL_DATABASE: testdb
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
 
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+    
+    - name: Build
+      run: cargo build --release
+      
+    - name: Run Tests
+      run: |
+        cargo run -- --all \
+          --host 127.0.0.1 \
+          --port 3306 \
+          --user root \
+          --passwd testpass \
+          --xunit-file test_results.xml \
+          --allure-dir allure-results
+          
+    - name: Publish Test Results
+      uses: dorny/test-reporter@v1
+      if: success() || failure()
+      with:
+        name: MySQL Tests
+        path: test_results.xml
+        reporter: java-junit
+        
+    - name: Upload Allure Results
+      uses: actions/upload-artifact@v3
+      with:
+        name: allure-results
+        path: allure-results/
 ```
-r/
-├── demo.result      # 测试结果文件
-├── test1.result     # 其他测试结果
-└── test2.result
+
+**Jenkins Pipeline 示例**:
+```groovy
+pipeline {
+    agent any
+    
+    environment {
+        MYSQL_HOST = '127.0.0.1'
+        MYSQL_USER = 'root'
+        MYSQL_PASS = credentials('mysql-password')
+    }
+    
+    stages {
+        stage('Build') {
+            steps {
+                sh 'cargo build --release'
+            }
+        }
+        
+        stage('Test') {
+            steps {
+                sh '''
+                    cargo run -- --all \
+                        --host ${MYSQL_HOST} \
+                        --user ${MYSQL_USER} \
+                        --passwd ${MYSQL_PASS} \
+                        --xunit-file junit_results.xml \
+                        --allure-dir allure-results
+                '''
+            }
+            post {
+                always {
+                    junit 'junit_results.xml'
+                    allure includeProperties: false, 
+                           jdk: '', 
+                           results: [[path: 'allure-results']]
+                }
+            }
+        }
+        
+        stage('Email Report') {
+            when { 
+                anyOf { 
+                    branch 'main'
+                    expression { currentBuild.result == 'FAILURE' }
+                } 
+            }
+            steps {
+                sh '''
+                    cargo run --features email -- --all \
+                        --host ${MYSQL_HOST} \
+                        --user ${MYSQL_USER} \
+                        --passwd ${MYSQL_PASS} \
+                        --email-smtp-server smtp.company.com \
+                        --email-smtp-port 587 \
+                        --email-username ${EMAIL_USER} \
+                        --email-password ${EMAIL_PASS} \
+                        --email-from testbot@company.com \
+                        --email-to dev-team@company.com \
+                        --email-subject "MySQL Test Report - Build ${BUILD_NUMBER}" \
+                        --email-attach-xml
+                '''
+            }
+        }
+    }
+}
 ```
 
-### 结果文件格式
+### Docker 集成
 
+**Dockerfile**:
+```dockerfile
+FROM rust:1.78 as builder
+WORKDIR /app
+COPY . .
+RUN cargo build --release
+
+FROM ubuntu:22.04
+RUN apt-get update && apt-get install -y \
+    mysql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/target/release/dingo_test_runner /usr/local/bin/
+COPY t/ /app/t/
+COPY r/ /app/r/
+WORKDIR /app
+
+ENTRYPOINT ["dingo_test_runner"]
 ```
--- Query 1
-SELECT * FROM users
-1       Alice   alice@example.com
-2       Bob     bob@example.com
 
--- Query 2  
-SELECT COUNT(*) FROM users
-2
+**docker-compose.yml**:
+```yaml
+version: '3.8'
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: testpass
+      MYSQL_DATABASE: testdb
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  test-runner:
+    build: .
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - ./reports:/app/reports
+    command: >
+      --all
+      --host mysql
+      --port 3306
+      --user root
+      --passwd testpass
+      --xunit-file /app/reports/test_results.xml
+      --allure-dir /app/reports/allure-results
 ```
 
-## 🔧 高级配置
-
-### 环境变量
-
-可以通过环境变量控制日志级别：
-
+**运行命令**:
 ```bash
-export RUST_LOG=debug
-cargo run -- demo.test
+# 启动完整测试环境
+docker-compose up --build
+
+# 仅运行特定测试
+docker-compose run test-runner basic_test --record
 ```
 
-### 参数文件
-
-对于复杂的配置，建议使用脚本文件：
-
-```bash
-#!/bin/bash
-# run_tests.sh
-
-cargo run -- \
-  --host localhost \
-  --user root \
-  --passwd password \
-  --log-level info \
-  --record \
-  --extension result \
-  "$@"
-```
-
-## 🐛 故障排除
-
-### 常见问题
-
-1. **MySQL 连接失败**
-   ```bash
-   # 检查连接参数和网络
-   --retry-connection-count 5
-   ```
-
-2. **结果文件权限**
-   ```bash
-   # 确保有写入权限
-   mkdir -p r && chmod 755 r
-   ```
-
-### 调试模式
-
-```bash
-# 启用详细日志
-cargo run -- --log-level debug demo.test
-
-# 查看解析结果
-RUST_LOG=trace cargo run -- demo.test
-```
