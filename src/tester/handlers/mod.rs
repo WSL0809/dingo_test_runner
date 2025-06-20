@@ -3,6 +3,7 @@ pub mod connection;
 pub mod disconnect;
 pub mod echo;
 pub mod error;
+pub mod eval;
 pub mod exec;
 pub mod let_handler;
 pub mod query_log;

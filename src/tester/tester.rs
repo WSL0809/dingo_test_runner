@@ -5,7 +5,7 @@
 
 use super::database::ConnectionInfo;
 use super::expression::ExpressionEvaluator;
-use super::parser::{default_parser, QueryParser};
+use super::parser::{default_parser};
 use super::query::{Query, QueryType};
 use super::variables::VariableContext;
 use crate::cli::Args;
@@ -15,7 +15,7 @@ use crate::tester::error_handler::MySQLErrorHandler;
 use crate::tester::registry::COMMAND_REGISTRY;
 use anyhow::{anyhow, Result};
 use chrono;
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 use mysql::prelude::*;
 use rayon::prelude::*;
 use regex::Regex;
@@ -95,6 +95,8 @@ pub struct Tester {
     current_query: Option<String>,
     /// Current query line number for failure tracking  
     current_query_line: usize,
+    /// Source nesting depth to prevent infinite recursion
+    source_depth: u32,
 }
 
 impl Tester {
@@ -144,6 +146,7 @@ impl Tester {
             loop_stack: Vec::new(),
             current_query: None,
             current_query_line: 0,
+            source_depth: 0,
         })
     }
 
@@ -623,12 +626,45 @@ impl Tester {
                     self.expected_errors.clear();
                 }
             }
+            QueryType::Source => {
+                self.handle_source(&query.query, query.line)?;
+                
+                // Clear any pending error expectations as they don't apply to source commands
+                if !self.expected_errors.is_empty() {
+                    warn!("--error directive before --source is ignored");
+                    self.expected_errors.clear();
+                }
+            }
+            QueryType::Eval => {
+                let cmd = Command {
+                    name: "eval".to_string(),
+                    args: query.query.clone(),
+                    line: query.line,
+                };
+
+                if let Some(executor) = COMMAND_REGISTRY.get(cmd.name.as_str()) {
+                    executor(self, &cmd)?;
+                } else {
+                    return Err(anyhow!("'eval' command handler not found in registry"));
+                }
+
+                // Clear any pending error expectations as they don't apply to eval commands
+                if !self.expected_errors.is_empty() {
+                    warn!("--error directive before --eval is ignored");
+                    self.expected_errors.clear();
+                }
+            }
             _ => {
                 warn!("Unhandled query type: {:?}", query.query_type);
             }
         }
 
         Ok(())
+    }
+
+    /// Public method for executing SQL queries (used by eval command)
+    pub fn execute_sql_query_public(&mut self, sql: &str, line_number: usize) -> Result<()> {
+        self.execute_sql_query(sql, line_number)
     }
 
     /// Execute SQL query and handle results/errors
@@ -838,6 +874,144 @@ impl Tester {
         Ok(())
     }
 
+    /// Handle source command - load and execute another test file
+    fn handle_source(&mut self, file_path: &str, line_number: usize) -> Result<()> {
+        const MAX_SOURCE_DEPTH: u32 = 16;
+        
+        // Check recursion depth
+        if self.source_depth >= MAX_SOURCE_DEPTH {
+            let error = anyhow!(
+                "Maximum source nesting depth ({}) exceeded at line {}",
+                MAX_SOURCE_DEPTH,
+                line_number
+            );
+            
+            // Check if this error was expected
+            if !self.expected_errors.is_empty() {
+                // Error was expected, handle it
+                let handled = self.handle_query_error(&error)?;
+                if handled {
+                    return Ok(());
+                }
+            }
+            return Err(error);
+        }
+
+        // Expand variables in the file path
+        let expanded_path = self.variable_context.expand(file_path)?;
+        let file_path = expanded_path.trim();
+
+        // Resolve the file path relative to the current test file directory
+        let source_file_path = if Path::new(file_path).is_absolute() {
+            PathBuf::from(file_path)
+        } else {
+            // Get the directory of the current test file
+            let test_dir = self.current_dir.join("t");
+            test_dir.join(file_path)
+        };
+
+        // Check if the file exists
+        if !source_file_path.exists() {
+            let error = anyhow!(
+                "Source file not found: {} at line {}",
+                source_file_path.display(),
+                line_number
+            );
+            
+            // Check if this error was expected
+            if !self.expected_errors.is_empty() {
+                // Error was expected, handle it
+                let handled = self.handle_query_error(&error)?;
+                if handled {
+                    return Ok(());
+                }
+            }
+            return Err(error);
+        }
+
+        // Read the source file content
+        let source_content = match fs::read_to_string(&source_file_path) {
+            Ok(content) => content,
+            Err(e) => {
+                let error = anyhow!(
+                    "Failed to read source file {}: {} at line {}",
+                    source_file_path.display(),
+                    e,
+                    line_number
+                );
+                
+                // Check if this error was expected
+                if !self.expected_errors.is_empty() {
+                    // Error was expected, handle it
+                    let handled = self.handle_query_error(&error)?;
+                    if handled {
+                        return Ok(());
+                    }
+                }
+                return Err(error);
+            }
+        };
+
+        // Parse the source file
+        let mut parser = default_parser();
+        let source_queries = match parser.parse(&source_content) {
+            Ok(queries) => queries,
+            Err(e) => {
+                let error = anyhow!(
+                    "Failed to parse source file {}: {} at line {}",
+                    source_file_path.display(),
+                    e,
+                    line_number
+                );
+                
+                // Check if this error was expected
+                if !self.expected_errors.is_empty() {
+                    // Error was expected, handle it
+                    let handled = self.handle_query_error(&error)?;
+                    if handled {
+                        return Ok(());
+                    }
+                }
+                return Err(error);
+            }
+        };
+
+        // Check for unexpected success if errors were expected
+        if !self.expected_errors.is_empty() {
+            let err_msg = format!(
+                "Expected error(s) {:?} for source command, but it succeeded",
+                self.expected_errors
+            );
+            if self.args.check_err {
+                return Err(anyhow!(err_msg));
+            } else {
+                warn!("{}", err_msg);
+            }
+        }
+
+        // Increment source depth
+        self.source_depth += 1;
+
+        // Execute the source file queries
+        for (index, source_query) in source_queries.iter().enumerate() {
+            if let Err(e) = self.execute_query(source_query, index) {
+                // Decrement depth on error and propagate
+                self.source_depth -= 1;
+                return Err(anyhow!(
+                    "Error executing source file {} at query {}: {}",
+                    source_file_path.display(),
+                    index + 1,
+                    e
+                ));
+            }
+        }
+
+        // Decrement source depth
+        self.source_depth -= 1;
+
+        Ok(())
+    }
+
     /// Parses a --replace_regex command
     fn parse_replace_regex(&mut self, pattern: &str) -> Result<()> {
         if !pattern.starts_with('/') || !pattern.ends_with('/') || pattern.len() < 3 {
@@ -1022,7 +1196,7 @@ impl Tester {
             let (expected, actual) = self.extract_comparison_details(&error_msg);
 
             // Try to extract more detailed line information from error message
-            let (result_line, test_line) = self.extract_line_info_from_error(&error_msg);
+            let (_, test_line) = self.extract_line_info_from_error(&error_msg);
             let final_line_number = if test_line > 0 {
                 test_line
             } else {
@@ -1546,7 +1720,6 @@ mod tests {
     use log::warn;
     use std::fs::{self, File};
     use std::io::Write;
-    use std::path::Path;
 
     #[test]
     fn test_tester_creation() {
