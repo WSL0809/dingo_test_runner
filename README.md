@@ -587,37 +587,3 @@ cargo run --no-default-features -- basic
 # 使用 Pest 解析器 (默认)
 cargo run --features pest -- basic
 ```
-
-### 数据库回落
-
-```bash
-# 无 MySQL 时自动使用 SQLite
-cargo run -- basic
-```
-
-## 🤝 贡献指南
-
-1. **Fork 项目**并创建功能分支
-2. **编写测试**确保新功能正确工作
-3. **运行检查**：`cargo fmt && cargo clippy`
-4. **提交 PR**并描述变更内容
-
-## ❓ 常见问题
-
-| 问题 | 解答 |
-|------|------|
-| **如何查看解析结果？** | 使用 `RUST_LOG=debug` 查看详细解析过程 |
-| **支持哪些数据库？** | MySQL 8.0 (主要) + SQLite (调试) |
-| **如何生成 HTML 报告？** | `cargo run -- test --report-format html --xunit-file report.xml` |
-| **并发测试如何调试？** | 检查 `r/` 目录下的 `.result` 文件，确保结果顺序一致 |
-| **变量展开不工作？** | 确保变量名正确，使用 `$var` 格式，检查变量定义 |
-
-## 📄 许可证
-
-本项目采用 MIT 许可证，详见 LICENSE 文件。
-
----
-
-**当前版本**: v0.2.0  
-**最后更新**: 2025-01-17  
-**维护者**: [项目团队]
