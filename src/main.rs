@@ -9,7 +9,7 @@ use anyhow::Result;
 use cli::Args;
 use log::{error, info, warn};
 use report::{
-    create_renderer_with_allure_dir, html, summary, xunit, ReportRenderer, TestSuiteResult,
+    create_renderer_with_allure_dir, html, summary, xunit, TestSuiteResult,
 };
 use stub::email::MailSender;
 use tester::tester::Tester;
@@ -270,7 +270,18 @@ fn init_logging(log_level: &str) -> Result<()> {
 
     env_logger::Builder::new()
         .filter_level(level)
-        .format_timestamp_secs()
+        .format(|buf, record| {
+            use chrono::Local;
+            use std::io::Write;
+            
+            writeln!(
+                buf,
+                "{} [{}] {}",
+                Local::now().format("%Y-%m-%d %H:%M:%S"),
+                record.level(),
+                record.args()
+            )
+        })
         .init();
 
     Ok(())

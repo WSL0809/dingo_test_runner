@@ -1,0 +1,39 @@
+# --source 综合功能测试
+--echo 开始 source 综合功能测试
+
+--echo = 基本 source 功能测试 =
+--source include/setup.inc
+SELECT COUNT(*) as setup_rows FROM common_table;
+
+--echo = 变量共享测试 =
+let $my_table = comprehensive_test_table
+let $my_value = 'comprehensive_test'
+
+# 使用现有的 variable_test.inc 文件，但先设置我们需要的变量
+let $table_name = $my_table
+--source include/variable_test.inc
+SELECT * FROM $my_table;
+
+--echo = 嵌套 source 测试 =
+--source include/nested_setup.inc
+SELECT COUNT(*) as source_test_rows FROM source_test_table;
+
+--echo = 控制流与 source 结合测试 =
+let $use_source = 1
+if ($use_source > 0)
+    --echo 在 if 语句中使用 source
+    --source include/setup.inc
+end
+
+--echo = 最终验证 =
+SELECT 'common_table' as table_name, COUNT(*) as row_count FROM common_table
+UNION ALL
+SELECT 'source_test_table' as table_name, COUNT(*) as row_count FROM source_test_table
+UNION ALL
+SELECT '$my_table' as table_name, COUNT(*) as row_count FROM $my_table;
+
+--echo = 清理所有资源 =
+--source include/cleanup.inc
+DROP TABLE $my_table;
+
+--echo source 综合功能测试完成 

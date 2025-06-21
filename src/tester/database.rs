@@ -8,7 +8,7 @@ use log::{debug, info, trace, warn};
 use std::time::Duration;
 
 /// 默认读/写超时时长（秒）
-const QUERY_TIMEOUT_SECS: u64 = 10;
+const QUERY_TIMEOUT_SECS: u64 = 120;
 
 /// Database connection abstraction
 #[derive(Debug)]
@@ -283,67 +283,113 @@ impl MySQLDatabase {
     }
 
     pub fn init_for_test(&mut self, test_name: &str) -> Result<()> {
+        let start_time = std::time::Instant::now();
         let test_db = format!("test_{}", Self::sanitize_db_name(test_name));
+        trace!("Starting init_for_test for database '{}'", test_db);
+        
+        // Step 1: Drop existing database
+        trace!("Dropping existing database '{}' if exists", test_db);
+        let drop_start = std::time::Instant::now();
         self.execute(&format!("DROP DATABASE IF EXISTS `{}`", test_db))?;
+        trace!("Database drop completed in {:?} for '{}'", drop_start.elapsed(), test_db);
+        
+        // Step 2: Create new database
+        trace!("Creating new database '{}'", test_db);
+        let create_start = std::time::Instant::now();
         self.execute(&format!("CREATE DATABASE `{}`", test_db))?;
-        // 切换到新创建的数据库，通过重新建立连接池
+        trace!("Database creation completed in {:?} for '{}'", create_start.elapsed(), test_db);
+        
+        // Step 3: Switch to the new database
+        trace!("Switching to database '{}'", test_db);
+        let switch_start = std::time::Instant::now();
         self.switch_database(&test_db)?;
+        trace!("Database switch completed in {:?} for '{}'", switch_start.elapsed(), test_db);
+        
+        let total_time = start_time.elapsed();
         info!(
-            "MySQL test database '{}' created and connection switched.",
-            test_db
+            "MySQL test database '{}' created and connection switched in {:?}.",
+            test_db, total_time
         );
+        trace!("init_for_test completed in {:?} for '{}'", total_time, test_db);
         Ok(())
     }
 
     pub fn cleanup_after_test(&mut self, test_name: &str) -> Result<()> {
+        let start_time = std::time::Instant::now();
         let test_db = format!("test_{}", Self::sanitize_db_name(test_name));
+        trace!("Starting cleanup_after_test for database '{}'", test_db);
 
         // 1. 查询并删除所有表，避免遗留大型表阻塞 DROP DATABASE
+        trace!("Querying tables in database '{}'", test_db);
+        let query_start = std::time::Instant::now();
         let table_rows = self.query(&format!(
             "SELECT table_name AS tbl_name FROM information_schema.tables WHERE table_schema = '{}'",
             test_db
         ))?;
-        for row in table_rows {
+        trace!("Table query completed in {:?} for '{}', found {} tables", 
+               query_start.elapsed(), test_db, table_rows.len());
+        
+        let drop_tables_start = std::time::Instant::now();
+        for (i, row) in table_rows.iter().enumerate() {
             if let Some(tbl_name) = row.get(0) {
+                trace!("Dropping table {}/{}: {}.{}", i + 1, table_rows.len(), test_db, tbl_name);
+                let table_drop_start = std::time::Instant::now();
                 // 使用完全限定名避免 current database 影响
                 let drop_sql = format!("DROP TABLE IF EXISTS `{}`.`{}`", test_db, tbl_name);
                 // 忽略单表删除错误，继续后续清理
                 if let Err(e) = self.execute(&drop_sql) {
                     warn!("failed to drop table {}.{}: {}", test_db, tbl_name, e);
+                } else {
+                    trace!("Table {}.{} dropped in {:?}", test_db, tbl_name, table_drop_start.elapsed());
                 }
             }
         }
+        trace!("All tables dropped in {:?} for '{}'", drop_tables_start.elapsed(), test_db);
 
         // 2. 通过切换数据库连接来释放对当前测试库的占用
+        trace!("Switching to 'mysql' database during cleanup for '{}'", test_db);
+        let switch_start = std::time::Instant::now();
         if let Err(e) = self.switch_database("mysql") {
             warn!(
                 "Failed to switch to 'mysql' db during cleanup, proceeding with DROP: {}",
                 e
             );
+        } else {
+            trace!("Database switch to 'mysql' completed in {:?} during cleanup", switch_start.elapsed());
         }
 
         // 3. 最终删除数据库
+        trace!("Dropping database '{}'", test_db);
+        let db_drop_start = std::time::Instant::now();
         if let Err(e) = self.execute(&format!("DROP DATABASE IF EXISTS `{}`", test_db)) {
             warn!(
                 "Failed to drop database '{}': {}. This may happen if the connection was lost.",
                 test_db, e
             );
         } else {
+            trace!("Database '{}' dropped in {:?}", test_db, db_drop_start.elapsed());
             debug!("MySQL test database '{}' dropped", test_db);
         }
 
         // 注意：不需要切换回原始数据库，因为测试数据库已被删除
         // 连接池会在需要时自动重新连接到合适的数据库
 
+        let total_time = start_time.elapsed();
+        trace!("cleanup_after_test completed in {:?} for '{}'", total_time, test_db);
         Ok(())
     }
 
     /// 切换当前数据库连接到一个新的数据库
     pub fn switch_database(&mut self, new_db_name: &str) -> Result<()> {
+        let start_time = std::time::Instant::now();
+        trace!("Starting database switch to '{}'", new_db_name);
+        
         let mut new_info = self.info.clone();
         new_info.database = new_db_name.to_string();
 
         // 创建一个新的连接池
+        trace!("Building MySQL connection options for '{}'", new_db_name);
+        let opts_start = std::time::Instant::now();
         let mut opts = mysql::OptsBuilder::new()
             .ip_or_hostname(Some(&new_info.host))
             .tcp_port(new_info.port)
@@ -355,15 +401,22 @@ impl MySQLDatabase {
         if !new_info.database.is_empty() {
             opts = opts.db_name(Some(&new_info.database));
         }
+        trace!("MySQL options built in {:?} for '{}'", opts_start.elapsed(), new_db_name);
 
+        trace!("Creating new MySQL connection pool for '{}'", new_db_name);
+        let pool_start = std::time::Instant::now();
         let new_pool = mysql::Pool::new(opts)?;
+        trace!("MySQL pool created in {:?} for '{}'", pool_start.elapsed(), new_db_name);
 
         // 替换旧的连接池和信息
+        trace!("Replacing old connection pool and info for '{}'", new_db_name);
         self.pool = new_pool;
         self.info = new_info;
         self.conn = None;
 
-        debug!("Switched database connection to '{}'", new_db_name);
+        let total_time = start_time.elapsed();
+        debug!("Switched database connection to '{}' in {:?}", new_db_name, total_time);
+        trace!("Database switch completed in {:?} for '{}'", total_time, new_db_name);
         Ok(())
     }
 }

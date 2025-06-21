@@ -4,10 +4,9 @@
 //! Each test case generates a separate result JSON file and optional attachment files.
 
 use super::{ReportRenderer, TestSuiteResult};
-use crate::tester::tester::{QueryFailureDetail, TestResult, TestStatus};
+use crate::tester::tester::{TestResult, TestStatus};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use uuid::Uuid;

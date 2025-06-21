@@ -1,0 +1,22 @@
+# 基本 --source 功能测试
+--echo 开始 source 基本功能测试
+
+--echo 1. 使用 --source 加载 setup.inc
+--source include/setup.inc
+
+--echo 2. 验证 setup.inc 中创建的表和数据
+SELECT COUNT(*) as total_rows FROM common_table;
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/
+SELECT * FROM common_table ORDER BY id;
+
+--echo 3. 在主文件中添加更多数据
+INSERT INTO common_table (id, data) VALUES (4, 'Main Test Data');
+
+--echo 4. 再次查询验证
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/
+SELECT * FROM common_table ORDER BY id;
+
+--echo 5. 使用 --source 执行清理
+--source include/cleanup.inc
+
+--echo source 基本功能测试完成 

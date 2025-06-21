@@ -25,7 +25,7 @@ t_ddl_br_add_column	CREATE TABLE `t_ddl_br_add_column`(
 select * from t_ddl_br_add_column
 1	test	18	test@test.com	TIMESTAMP	NULL
 2	test2	20	test2@test.com	TIMESTAMP	NULL
-3	test3	22	test3@test.com	TIMESTAMP1	NULL
+3	test3	22	test3@test.com	TIMESTAMP	NULL
 show index from t_ddl_br_add_column
 t_ddl_br_add_column	0	PRIMARY	1	id	A	0	NULL	NULL	 	TXN_LSM	 	 	NO	NULL	YES	NO
 t_ddl_br_add_column	1	idx_email	1	email	A	0	NULL	NULL	NO	TXN_LSM	 	 	YES	NULL	YES	NO
@@ -111,3 +111,49 @@ select * from t_ddl_br_rebase_auto_increment
 120000	test4
 120001	test5
 120002	test6
+STATUS	RESOLVE_LOCK_SAFE_POINT	RESOLVE_LOCK_SAFE_TIME	GC_SAFE_POINT	GC_SAFE_POINT_TIME
+FINISH	45201004429312000	2025-06-18 16:42:27	45174744137859071	2025-06-17 12:52:52
+Number of command line arguments : 6
+args[0]=[./dingodb_br]
+args[1]=[--br_coor_url=172.30.14.172:22001]
+args[2]=[--br_type=backup]
+args[3]=[--br_backup_type=full]
+args[4]=[--backupts=2025-06-18 16:42:25 +08:00]
+args[5]=[--storage=local:///mnt/nfs_shared/a]
+Detail BR log in ./log
+Full Backup Parameter :
+coordinator url    : 172.30.14.172:22001,172.30.14.174:22001
+store       url    : 172.30.14.174:20001,172.30.14.173:20001,172.30.14.172:20001
+index       url    : 172.30.14.174:21001,172.30.14.173:21001,172.30.14.172:21001
+document    url    : 172.30.14.174:23001,172.30.14.173:23001,172.30.14.172:23001
+br type            : backup
+br backup type     : full
+backupts           : 2025-06-18 16:42:25 +08:00
+backuptso_internal : 45201003642880000
+storage            : local:///mnt/nfs_shared/a
+storage_internal   : /mnt/nfs_shared/a
+
+Full Backup
+version compare ok
+# max tenant safe points : 45174744137859071(2025-06-17 12:52:52) min tenant resolve lock safe points : 45201004429312000(2025-06-18 16:42:28) backuptso(internal) : 45201003642880000(2025-06-18 16:42:25)
+safe point ts check ok
+backup_task_id : 333af632-adab-0948-fc0c-2f0bf54c331e
+register backup To coordinator ok
+gc already stopped. ignore
+balance leader set stopped ok
+balance region set stopped ok
+region auto split set stopped ok
+region auto merge set stopped ok
+Backup task 333af632-adab-0948-fc0c-2f0bf54c331e is registered to coordinator Periodicity.
+Back Meta Init ok
+Back Data Init ok
+
+
+
+
+>
+balance leader set start ok
+balance region set start ok
+region auto split set start ok
+region auto merge set start ok
+[Full Backup success summary][backup-total-ranges=74] [backup-sql-meta-ranges=1][total-take=5.088s]

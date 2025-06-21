@@ -28,7 +28,7 @@ t_ddl_br_add_column	CREATE TABLE `t_ddl_br_add_column`(
 select * from t_ddl_br_add_column
 1	test	18	test@test.com	TIMESTAMP	NULL
 2	test2	20	test2@test.com	TIMESTAMP	NULL
-3	test3	22	test3@test.com	TIMESTAMP1	NULL
+3	test3	22	test3@test.com	TIMESTAMP	NULL
 show index from t_ddl_br_add_column
 t_ddl_br_add_column	0	PRIMARY	1	id	A	0	NULL	NULL	 	TXN_LSM	 	 	YES	NULL	YES	NO
 t_ddl_br_add_column	1	idx_email	1	email	A	0	NULL	NULL	NO	TXN_LSM	 	 	YES	NULL	YES	NO

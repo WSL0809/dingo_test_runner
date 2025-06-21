@@ -1,0 +1,16 @@
+# --source 语法格式测试
+--echo 开始 source 语法格式测试
+
+--echo 1. 测试完整 --source 语法
+--source include/setup.inc
+SELECT COUNT(*) FROM common_table;
+
+--echo 2. 测试带有变量的 source 路径
+let $include_dir = include
+--source $include_dir/setup.inc
+SELECT COUNT(*) FROM common_table WHERE id > 1;
+
+--echo 3. 最终清理
+--source include/cleanup.inc
+
+--echo source 语法格式测试完成 

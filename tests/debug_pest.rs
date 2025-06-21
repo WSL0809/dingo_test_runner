@@ -1,6 +1,6 @@
 #[cfg(feature = "pest")]
 mod debug_pest {
-    use dingo_test_runner::tester::parser::{create_parser, QueryParser};
+    use dingo_test_runner::tester::parser::{create_parser};
 
     #[test]
     fn debug_pest_parser() {

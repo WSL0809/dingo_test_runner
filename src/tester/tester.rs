@@ -15,7 +15,7 @@ use crate::tester::error_handler::MySQLErrorHandler;
 use crate::tester::registry::COMMAND_REGISTRY;
 use anyhow::{anyhow, Result};
 use chrono;
-use log::{debug, info, warn};
+use log::{debug, info, trace, warn};
 use mysql::prelude::*;
 use rayon::prelude::*;
 use regex::Regex;
@@ -187,13 +187,28 @@ impl Tester {
 
     /// Pre-process: save original database state and setup test environment
     fn pre_process(&mut self) -> Result<()> {
+        let start_time = std::time::Instant::now();
+        log::trace!("Starting pre_process for test '{}'", self.test_name);
+        
         // Always initialize database for the test. The `--reserve-schema` flag only affects
         // whether we **clean up** after the test. We still need a fresh schema at the beginning
         // of each test run so that the test environment is deterministic.
-        self.connection_manager
-            .current_database()? // 获取当前数据库实例
-            .init_for_test(&self.test_name)?; // 创建并切换到专用测试库
-        debug!("Test environment initialized for '{}'", self.test_name);
+        
+        log::trace!("Getting current database instance for test '{}'", self.test_name);
+        let db_get_start = std::time::Instant::now();
+        let current_db = self.connection_manager.current_database()?; // 获取当前数据库实例
+        log::trace!("Got current database instance in {:?} for test '{}'", 
+                   db_get_start.elapsed(), self.test_name);
+        
+        log::trace!("Initializing database for test '{}'", self.test_name);
+        let init_start = std::time::Instant::now();
+        current_db.init_for_test(&self.test_name)?; // 创建并切换到专用测试库
+        log::trace!("Database initialization completed in {:?} for test '{}'", 
+                   init_start.elapsed(), self.test_name);
+        
+        let total_time = start_time.elapsed();
+        debug!("Test environment initialized for '{}' in {:?}", self.test_name, total_time);
+        log::trace!("Pre_process completed in {:?} for test '{}'", total_time, self.test_name);
         Ok(())
     }
 

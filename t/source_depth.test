@@ -1,0 +1,13 @@
+# --source 嵌套深度测试
+--echo 开始 source 嵌套深度测试
+
+--echo 1. 测试 3 层嵌套 (应该正常工作)
+--source include/deep1.inc
+
+--echo 2. 验证深层嵌套执行的结果
+SELECT * FROM deep_test;
+
+--echo 3. 清理
+DROP TABLE deep_test;
+
+--echo source 嵌套深度测试完成 

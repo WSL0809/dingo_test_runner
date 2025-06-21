@@ -1,0 +1,16 @@
+开始 source 嵌套深度测试
+1. 测试 3 层嵌套 (应该正常工作)
+执行 deep1.inc (级别 1)
+执行 deep2.inc (级别 2)
+执行 deep3.inc (级别 3)
+CREATE TABLE IF NOT EXISTS deep_test (level INT)
+INSERT INTO deep_test VALUES (3)
+deep3.inc 完成
+deep2.inc 完成
+deep1.inc 完成
+2. 验证深层嵌套执行的结果
+SELECT * FROM deep_test
+3
+3. 清理
+DROP TABLE deep_test
+source 嵌套深度测试完成

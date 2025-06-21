@@ -1,0 +1,26 @@
+# --source 变量共享测试
+--echo 开始 source 变量共享测试
+
+--echo 1. 在主文件中定义变量
+let $table_name = variable_test_table
+let $main_var = 'from_main'
+
+--echo 2. source 一个使用变量的文件
+--source include/variable_test.inc
+
+--echo 3. 验证 source 文件中定义的变量在主文件中可用
+--echo 主文件中访问 source 文件定义的变量: $test_value, $test_name
+
+--echo 4. 查询表验证数据
+SELECT * FROM $table_name;
+
+--echo 5. 使用混合变量插入更多数据
+INSERT INTO $table_name VALUES (2, $main_var, $test_value + 50);
+
+--echo 6. 最终查询
+SELECT * FROM $table_name ORDER BY id;
+
+--echo 7. 清理
+DROP TABLE $table_name;
+
+--echo source 变量共享测试完成 
