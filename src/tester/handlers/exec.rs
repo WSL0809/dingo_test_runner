@@ -145,7 +145,6 @@ mod tests {
     use crate::cli::Args;
     use crate::tester::command::Command;
     use crate::tester::tester::Tester;
-    use std::io::Write;
 
     fn create_test_tester() -> Option<Tester> {
         let args = Args {

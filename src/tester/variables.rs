@@ -69,6 +69,19 @@ impl VariableContext {
         self.variables.keys()
     }
 
+    /// Check if a variable match is valid (not preceded by alphanumeric/underscore)
+    fn is_valid_variable_match(&self, text: &str, match_start: usize) -> bool {
+        if match_start == 0 {
+            return true;
+        }
+        
+        let prev_char = text.chars().nth(match_start - 1);
+        match prev_char {
+            Some(c) => !c.is_alphanumeric() && c != '_',
+            None => true,
+        }
+    }
+
     /// Expand variables in a text string
     ///
     /// Replaces all $variable_name occurrences with their values.
@@ -86,24 +99,33 @@ impl VariableContext {
             ));
         }
 
-        // Use regex replace_all to avoid overlapping replacement issues
-        let result = self.var_regex.replace_all(text, |caps: &regex::Captures| {
-            let var_name = &caps[1];
-            match self.variables.get(var_name) {
-                Some(value) => value.clone(),
-                None => {
-                    // We can't return an error from this closure, so we'll keep the original
-                    // and handle the error in a second pass
-                    caps[0].to_string()
+        // Collect valid matches first
+        let mut valid_matches = Vec::new();
+        for captures in self.var_regex.captures_iter(text) {
+            if let Some(full_match) = captures.get(0) {
+                let match_start = full_match.start();
+                if self.is_valid_variable_match(text, match_start) {
+                    valid_matches.push(captures);
                 }
             }
-        });
+        }
 
-        // Check if any variables were undefined
+        // Apply replacements from right to left to avoid position shifts
+        let mut result = text.to_string();
+        for captures in valid_matches.iter().rev() {
+            if let (Some(full_match), Some(var_name_match)) = (captures.get(0), captures.get(1)) {
+                let var_name = var_name_match.as_str();
+                if let Some(value) = self.variables.get(var_name) {
+                    result.replace_range(full_match.start()..full_match.end(), value);
+                }
+            }
+        }
+
+        // Check if any variables were undefined (only for valid matches)
         let mut undefined_vars = Vec::new();
-        for captures in self.var_regex.captures_iter(&result) {
-            if let Some(mat) = captures.get(1) {
-                let var_name = mat.as_str();
+        for captures in valid_matches {
+            if let Some(var_name_match) = captures.get(1) {
+                let var_name = var_name_match.as_str();
                 if !self.variables.contains_key(var_name) {
                     undefined_vars.push(var_name.to_string());
                 }
@@ -125,7 +147,7 @@ impl VariableContext {
         if result != text {
             self.expand_with_depth(&result, depth + 1)
         } else {
-            Ok(result.to_string())
+            Ok(result)
         }
     }
 
@@ -374,5 +396,27 @@ mod tests {
         let arithmetic = "$a + $b";
         let arith_result = ctx.expand(arithmetic).unwrap();
         println!("Arithmetic: {} -> {}", arithmetic, arith_result);
+    }
+
+    #[test]
+    fn test_sql_identifiers_with_dollar_sign() {
+        let ctx = VariableContext::new();
+
+        // Test that SQL identifiers containing $ are not treated as variables
+        let sql_with_dollar = "SELECT feature_index$distance FROM table";
+        let result = ctx.expand(sql_with_dollar).unwrap();
+        assert_eq!(result, "SELECT feature_index$distance FROM table");
+
+        // Test that actual variables are still expanded
+        let mut ctx_with_vars = VariableContext::new();
+        ctx_with_vars.set("table_name", "my_table");
+        let sql_with_var = "SELECT feature_index$distance FROM $table_name";
+        let result = ctx_with_vars.expand(sql_with_var).unwrap();
+        assert_eq!(result, "SELECT feature_index$distance FROM my_table");
+        
+        // Test more complex SQL with $ identifiers
+        let complex_sql = "SELECT id, feature_index$distance, text_index$rank FROM vector(table, col, array[1,2,3], 5)";
+        let result = ctx.expand(complex_sql).unwrap();
+        assert_eq!(result, "SELECT id, feature_index$distance, text_index$rank FROM vector(table, col, array[1,2,3], 5)");
     }
 }

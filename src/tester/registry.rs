@@ -36,6 +36,7 @@ pub static COMMAND_REGISTRY: Lazy<HashMap<&'static str, CommandExecutor>> = Lazy
 
     // Variable commands
     m.insert("let", handlers::let_handler::execute);
+    m.insert("eval", handlers::eval::execute);
 
     m
 });

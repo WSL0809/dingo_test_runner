@@ -1,0 +1,22 @@
+# 嵌套 --source 功能测试
+--echo 开始嵌套 source 功能测试
+
+--echo 1. 使用 --source 加载 nested_setup.inc (它会再次 source setup.inc)
+--source include/nested_setup.inc
+
+--echo 2. 验证两个表都被创建了
+SELECT COUNT(*) as common_table_rows FROM common_table;
+SELECT COUNT(*) as source_test_table_rows FROM source_test_table;
+
+--echo 3. 查看两个表的内容
+--echo common_table 内容:
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/
+SELECT * FROM common_table ORDER BY id;
+
+--echo source_test_table 内容:
+SELECT * FROM source_test_table ORDER BY id;
+
+--echo 4. 执行清理
+--source include/cleanup.inc
+
+--echo 嵌套 source 功能测试完成 

@@ -1,0 +1,14 @@
+DROP TABLE IF EXISTS t_ddl_br_add_column
+CREATE TABLE t_ddl_br_add_column (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(255) NOT NULL,
+age INT NOT NULL,
+email VARCHAR(255) NOT NULL,
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+INDEX idx_name (name),
+UNIQUE KEY idx_email (email)
+)
+INSERT INTO t_ddl_br_add_column (name, age, email) VALUES
+('test', 18, 'test@test.com'),
+('test2', 20, 'test2@test.com'),
+('test3', 22, 'test3@test.com')

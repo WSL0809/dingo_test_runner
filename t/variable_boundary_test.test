@@ -1,0 +1,28 @@
+# Test that variable expansion only happens where it should
+# This test addresses the issue where $distance in feature_index$distance was incorrectly treated as a variable
+
+--disable_query_log
+
+# Setup test
+CREATE TABLE test_table (feature_index_distance INT, other_col VARCHAR(50));
+
+# Test case 1: Regular SQL should NOT expand $distance in feature_index$distance
+INSERT INTO test_table VALUES (123, 'should_not_expand$distance');
+
+# Test case 2: Create a variable for comparison
+let $distance = 456
+
+# Test case 3: Use eval to explicitly expand variables where we want them
+--eval INSERT INTO test_table VALUES ($distance, 'explicit_expansion')
+
+# Test case 4: Regular SQL with column names containing $ should still work
+SELECT feature_index_distance FROM test_table;
+
+# Test case 5: Another boundary case - $distance at end of identifier
+INSERT INTO test_table VALUES (789, 'text$distance');
+
+# Verify results
+SELECT * FROM test_table ORDER BY feature_index_distance;
+
+# Clean up
+DROP TABLE test_table; 

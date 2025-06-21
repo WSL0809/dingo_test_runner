@@ -1,0 +1,67 @@
+--echo 1. 创建默认参数的序列，获取下一个值
+CREATE SEQUENCE seq_default;
+SELECT NEXTVAL('seq_default');
+SELECT NEXTVAL('seq_default');
+# SELECT LASTVAL('seq_default');
+
+--echo 2. 创建自定义参数的递增序列
+CREATE SEQUENCE seq_inc START WITH 5 INCREMENT 3 MINVALUE 2 MAXVALUE 20;
+SELECT NEXTVAL('seq_inc');
+SELECT NEXTVAL('seq_inc');
+
+--echo 3. 创建递减序列
+# CREATE SEQUENCE seq_dec START WITH 10 INCREMENT -2 MINVALUE 2 MAXVALUE 10;
+# SELECT NEXTVAL('seq_dec');
+# SELECT NEXTVAL('seq_dec');
+# SELECT NEXTVAL('seq_dec');
+
+--echo 4. 测试 SETVAL 设置当前值
+CREATE SEQUENCE seq_setval START WITH 1 INCREMENT 1;
+SELECT NEXTVAL('seq_setval');
+SELECT SETVAL('seq_setval', 100);
+SELECT NEXTVAL('seq_setval');
+
+--echo 5. 测试 CYCLE 循环序列
+CREATE SEQUENCE seq_cycle START WITH 1 INCREMENT 1 MINVALUE 1 MAXVALUE 3 CYCLE;
+SELECT NEXTVAL('seq_cycle');
+SELECT NEXTVAL('seq_cycle');
+SELECT NEXTVAL('seq_cycle');
+
+--echo 6. 测试 NOCYCLE 非循环序列到达最大值
+CREATE SEQUENCE seq_nocycle START WITH 1 INCREMENT 1 MINVALUE 1 MAXVALUE 2 NOCYCLE;
+SELECT NEXTVAL('seq_nocycle');  
+SELECT NEXTVAL('seq_nocycle');
+SELECT NEXTVAL('seq_nocycle');
+
+--echo 7. 测试 CACHE
+CREATE SEQUENCE seq_cache START WITH 1 INCREMENT 1 CACHE 2;
+SELECT NEXTVAL('seq_cache'); 
+SELECT NEXTVAL('seq_cache'); 
+SELECT NEXTVAL('seq_cache');
+
+--echo 8. 测试 LASTVAL 未调用 NEXTVAL 前
+CREATE SEQUENCE seq_lastval;
+SELECT LASTVAL('seq_lastval');
+
+--echo 9. 测试 SETVAL 后 NEXTVAL 递增规律
+CREATE SEQUENCE seq_setval2 START WITH 10 INCREMENT 5;
+SELECT SETVAL('seq_setval2', 20);
+SELECT NEXTVAL('seq_setval2');
+
+--echo 10. 测试递减循环序列
+CREATE SEQUENCE seq_dec_cycle START WITH 5 INCREMENT -2 MINVALUE 1 MAXVALUE 5 CYCLE;
+SELECT NEXTVAL('seq_dec_cycle');
+SELECT NEXTVAL('seq_dec_cycle');
+SELECT NEXTVAL('seq_dec_cycle');
+SELECT NEXTVAL('seq_dec_cycle');
+
+DROP SEQUENCE seq_default;
+DROP SEQUENCE seq_inc;
+DROP SEQUENCE seq_dec;
+DROP SEQUENCE seq_setval;
+DROP SEQUENCE seq_cycle;
+DROP SEQUENCE seq_nocycle;
+DROP SEQUENCE seq_cache;
+DROP SEQUENCE seq_lastval;
+DROP SEQUENCE seq_setval2;
+DROP SEQUENCE seq_dec_cycle;

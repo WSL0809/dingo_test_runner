@@ -374,6 +374,7 @@ impl PestParser {
         Ok(pair_str.trim().to_string())
     }
 
+    #[allow(dead_code)]
     fn remove_delimiter(&self, sql: &str) -> String {
         let trimmed = sql.trim();
         if trimmed.ends_with(&self.delimiter) {
@@ -407,7 +408,6 @@ impl QueryParser for PestParser {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::tester::parser::create_parser;
     use crate::tester::query::QueryType;
 

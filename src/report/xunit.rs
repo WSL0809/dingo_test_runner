@@ -159,7 +159,7 @@ pub fn escape_xml(text: &str) -> String {
 mod tests {
     use super::*;
     use crate::report::TestSuiteResult;
-    use crate::tester::tester::{TestResult, TestStatus};
+    use crate::tester::tester::TestResult;
     use tempfile::NamedTempFile;
 
     #[test]
