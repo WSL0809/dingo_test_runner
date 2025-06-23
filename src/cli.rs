@@ -14,11 +14,11 @@ use walkdir::WalkDir;
 #[command(version = "0.2.0")]
 pub struct Args {
     /// MySQL server host
-    #[arg(long, default_value = "127.0.0.1")]
+    #[arg(long, default_value = "172.30.14.172")]
     pub host: String,
 
     /// MySQL server port
-    #[arg(long, default_value = "3306")]
+    #[arg(long, default_value = "3307")]
     pub port: String,
 
     /// Database username
