@@ -63,7 +63,7 @@ graph TD
 ### 环境要求
 
 - **Rust** ≥ 1.78 (推荐使用 `rustup` 安装)
-- **MySQL** 8.0 (可选，无 MySQL 时自动回落到 SQLite)
+- **MySQL** 8.0
 
 ### 安装构建
 
