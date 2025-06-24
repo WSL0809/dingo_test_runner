@@ -15,7 +15,7 @@ use crate::tester::error_handler::MySQLErrorHandler;
 use crate::tester::registry::COMMAND_REGISTRY;
 use anyhow::{anyhow, Result};
 use chrono;
-use log::{debug, info, trace, warn};
+use log::{debug, info, warn};
 use mysql::prelude::*;
 use rayon::prelude::*;
 use regex::Regex;
@@ -395,7 +395,6 @@ impl Tester {
                 // Skip comments
             }
             QueryType::Echo => {
-                // Create a command object to use the new handler system
                 let cmd = Command {
                     name: "echo".to_string(),
                     args: query.query.clone(),
@@ -406,8 +405,7 @@ impl Tester {
                 if let Some(executor) = COMMAND_REGISTRY.get(cmd.name.as_str()) {
                     executor(self, &cmd)?;
                 } else {
-                    // Fallback to original implementation
-                    self.handle_echo(&query.query)?;
+                    return Err(anyhow!(" 'echo' command not found in registry"));
                 }
 
                 // Clear any pending error expectations as they don't apply to echo commands
@@ -837,18 +835,18 @@ impl Tester {
     }
 
     /// Handle the --echo command
-    fn handle_echo(&mut self, text: &str) -> Result<()> {
-        // Expand variables in the echo text
-        let expanded_text = self.variable_context.expand(text)?;
-        let echo_output = format!("{}\n", expanded_text);
-        // Per user feedback, echo is NOT affected by modifiers.
-        if self.args.record {
-            write!(self.output_buffer, "{}", echo_output)?;
-        } else {
-            self.compare_with_result(&echo_output)?;
-        }
-        Ok(())
-    }
+    // fn handle_echo(&mut self, text: &str) -> Result<()> {
+    //     // Expand variables in the echo text
+    //     let expanded_text = self.variable_context.expand(text)?;
+    //     let echo_output = format!("{}\n", expanded_text);
+    //     // Per user feedback, echo is NOT affected by modifiers.
+    //     if self.args.record {
+    //         write!(self.output_buffer, "{}", echo_output)?;
+    //     } else {
+    //         self.compare_with_result(&echo_output)?;
+    //     }
+    //     Ok(())
+    // }
 
     /// Parses a --error command
     fn parse_expected_errors(&mut self, error_spec: &str) -> Result<()> {

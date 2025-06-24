@@ -69,7 +69,7 @@ impl VariableContext {
         self.variables.keys()
     }
 
-    /// Check if a variable match is valid (not preceded by alphanumeric/underscore)
+    /// Check if a variable match is valid (not preceded by alphanumeric, but underscore is allowed)
     fn is_valid_variable_match(&self, text: &str, match_start: usize) -> bool {
         if match_start == 0 {
             return true;
@@ -77,7 +77,7 @@ impl VariableContext {
         
         let prev_char = text.chars().nth(match_start - 1);
         match prev_char {
-            Some(c) => !c.is_alphanumeric() && c != '_',
+            Some(c) => !c.is_alphanumeric(),
             None => true,
         }
     }
@@ -418,5 +418,20 @@ mod tests {
         let complex_sql = "SELECT id, feature_index$distance, text_index$rank FROM vector(table, col, array[1,2,3], 5)";
         let result = ctx.expand(complex_sql).unwrap();
         assert_eq!(result, "SELECT id, feature_index$distance, text_index$rank FROM vector(table, col, array[1,2,3], 5)");
+    }
+
+    #[test]
+    fn test_variable_after_underscore() {
+        let mut ctx = VariableContext::new();
+        ctx.set("counter", "1");
+        ctx.set("prefix", "test_table_");
+
+        // Test variable expansion after underscore (the bug we're fixing)
+        let result = ctx.expand("test_table_$counter").unwrap();
+        assert_eq!(result, "test_table_1");
+
+        // Test consecutive variables (like $prefix$counter)
+        let consecutive = ctx.expand("$prefix$counter").unwrap();
+        assert_eq!(consecutive, "test_table_1");
     }
 }

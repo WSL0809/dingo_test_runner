@@ -1,0 +1,12 @@
+"Starting to create tables"
+CREATE TABLE test_table_1 (
+id INT PRIMARY KEY AUTO_INCREMENT,
+name VARCHAR(100),
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+CREATE TABLE test_table_2 (
+id INT PRIMARY KEY AUTO_INCREMENT,
+name VARCHAR(100),
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"Tables created successfully"

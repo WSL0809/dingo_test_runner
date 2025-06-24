@@ -1,0 +1,24 @@
+# Drop tables using while loop
+--let $counter = 1
+--let $max_tables = 2
+
+--echo "Starting to drop tables"
+
+--while ($counter <= $max_tables)
+--let $prefix = test_table_
+--let $table_name = $prefix$counter
+DROP TABLE IF EXISTS $table_name;
+
+--let $counter = $counter + 1
+--end
+
+--echo "Tables dropped successfully"
+
+# 验证删除后的表数量
+--echo "Verifying remaining table count:"
+SELECT COUNT(*) as remaining_count 
+FROM information_schema.tables 
+WHERE table_schema = DATABASE() 
+AND table_name LIKE 'test_table_%';
+
+--echo "Table cleanup completed" 
