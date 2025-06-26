@@ -330,8 +330,9 @@ comment = { "#" ~ comment_text ~ NEWLINE? }
 command = { "--" ~ command_content ~ NEWLINE? }
 
 // 控制流：if/while/end
-if_stmt = { "if" ~ WHITESPACE* ~ "(" ~ condition ~ ")" ~ WHITESPACE* ~ block_start? ~ NEWLINE? }
-while_stmt = { "while" ~ WHITESPACE* ~ "(" ~ condition ~ ")" ~ WHITESPACE* ~ block_start? ~ NEWLINE? }
+if_stmt = { "if" ~ WHITESPACE* ~ "(" ~ condition ~ ")" ~ NEWLINE? }
+while_stmt = { "while" ~ WHITESPACE* ~ "(" ~ condition ~ ")" ~ NEWLINE? }
+end_stmt = { "end" ~ NEWLINE? }
 
 // Let 语句：大小写不敏感
 let_stmt = { ^"let" ~ WHITESPACE* ~ let_assignment ~ NEWLINE? }

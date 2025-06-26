@@ -1,0 +1,11 @@
+"=== Control Flow Demo ==="
+CREATE TABLE demo_users (id INT, name VARCHAR(50), role VARCHAR(20))
+INSERT INTO demo_users VALUES (1, 'Alice', 'admin'), (2, 'Bob', 'user')
+"Admin users found in database"
+"Processing users..."
+"Processing user 2"
+" This is user 2"
+" This is user 1"
+"Admin access granted"
+DROP TABLE demo_users
+"=== Demo Complete ==="

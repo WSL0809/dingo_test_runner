@@ -1,0 +1,22 @@
+# Simple variable functionality test (no database operations)
+
+# Test basic variable assignment and expansion
+--let $test_var = Hello World
+--echo $test_var
+
+# Test multiple variables
+--let $first = Hello
+--let $second = World
+--echo $first $second
+
+# Test nested variable expansion
+--let $greeting = Hello $second
+--echo $greeting
+
+# Test environment variable
+--let TEST_ENV_VAR = environment_value
+--exec echo $TEST_ENV_VAR
+
+# Test variable in exec command
+--let $echo_message = Variable in exec works
+--exec echo "$echo_message" 

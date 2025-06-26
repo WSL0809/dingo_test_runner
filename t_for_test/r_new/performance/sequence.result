@@ -1,0 +1,18 @@
+1. 创建默认参数的序列，获取下一个值
+CREATE SEQUENCE seq_default
+SELECT NEXTVAL('seq_default')
+7
+SELECT NEXTVAL('seq_default')
+8
+2. 创建自定义参数的递增序列
+CREATE SEQUENCE seq_inc START WITH 5 INCREMENT 3 MINVALUE 2 MAXVALUE 20
+SELECT NEXTVAL('seq_inc')
+11
+SELECT NEXTVAL('seq_inc')
+14
+3. 创建递减序列
+4. 测试 SETVAL 设置当前值
+CREATE SEQUENCE seq_setval START WITH 1 INCREMENT 1
+SELECT NEXTVAL('seq_setval')
+1
+SELECT SETVAL('seq_setval', 100)

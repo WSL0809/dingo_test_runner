@@ -35,15 +35,7 @@ delimiter_change = { "--" ~ "delimiter" ~ WHITESPACE+ ~ delimiter_value ~ NEWLIN
 delimiter_value = { (!NEWLINE ~ ANY)+ }
 
 // Control flow statements
-control_flow = _{ if_stmt | while_stmt | end_stmt | close_brace }
-
-if_stmt = { "if" ~ WHITESPACE* ~ "(" ~ condition ~ ")" ~ WHITESPACE* ~ block_start? ~ NEWLINE? }
-while_stmt = { "while" ~ WHITESPACE* ~ "(" ~ condition ~ ")" ~ WHITESPACE* ~ block_start? ~ NEWLINE? }
-end_stmt = { "end" ~ NEWLINE? }
-close_brace = { "}" ~ NEWLINE? }
-
-block_start = { "{" }
-condition = { (!")" ~ ANY)+ }
+control_flow = _{ if_stmt | while_stmt | end_stmt }
 
 // Let statements (can appear without -- prefix)
 // Case insensitive: let, Let, LET all work
@@ -52,9 +44,21 @@ let_assignment = { (!NEWLINE ~ ANY)+ }
 
 // SQL statements - anything that doesn't match above patterns
 // This should be the last rule to catch remaining content
-sql_statement = { (!end_stmt ~ !close_brace ~ !let_stmt_lookahead ~ sql_content) ~ NEWLINE? }
+sql_statement = { (!end_stmt ~ !let_stmt_lookahead ~ sql_content) ~ NEWLINE? }
 sql_content = { (!NEWLINE ~ ANY)+ }
 
 // Lookahead to prevent let statements from being parsed as SQL
 // Case insensitive lookahead
 let_stmt_lookahead = { ^"let" ~ (WHITESPACE | "$" | ASCII_ALPHA) }
+
+// 现在仅支持传统语法：if (cond) ... end
+if_stmt = { "if" ~ WHITESPACE* ~ "(" ~ condition ~ ")" ~ NEWLINE? }
+
+// 同理 while
+while_stmt = { "while" ~ WHITESPACE* ~ "(" ~ condition ~ ")" ~ NEWLINE? }
+
+// 结束标记
+end_stmt = { "end" ~ NEWLINE? }
+
+// 条件内部内容（直到右括号）
+condition = { (!")" ~ ANY)+ }

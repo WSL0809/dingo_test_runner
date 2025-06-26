@@ -1,0 +1,9 @@
+# Simple SQL variable test
+
+# Test basic SQL with variables
+--let $version_query = SELECT VERSION()
+$version_query;
+
+# Test variable in simple query
+--let $one = 1
+SELECT $one as test_number; 

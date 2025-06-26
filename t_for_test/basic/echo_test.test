@@ -1,0 +1,7 @@
+# Echo command test
+--echo Hello, World!
+--echo Testing echo command
+--echo Multi word test
+
+# SQL query after echo
+SELECT 1 as test_value; 

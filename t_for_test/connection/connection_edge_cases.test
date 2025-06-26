@@ -1,0 +1,78 @@
+# 连接管理边界情况测试
+# 测试异常情况和边界条件
+
+--echo 开始连接管理边界情况测试
+
+--echo 测试创建连接时的参数解析
+
+# 测试最小参数连接（只有连接名）
+--connect (minimal_conn)
+
+# 应该使用默认参数连接
+SELECT CONNECTION_ID() as minimal_conn_id;
+
+--echo 切换回默认连接
+--connection default
+
+# 测试完整参数连接
+--connect (full_conn,127.0.0.1,root,password,mysql,3306)
+
+SELECT CONNECTION_ID() as full_conn_id;
+SELECT DATABASE() as current_database;
+
+--echo 测试连接名冲突
+--error ER_CONNECTION_EXISTS
+--connect (full_conn,127.0.0.1,root,,test,3306)
+
+--echo 测试不存在的连接切换
+--error ER_NO_SUCH_CONNECTION
+--connection nonexistent_conn
+
+--echo 测试断开不存在的连接
+--error ER_NO_SUCH_CONNECTION
+--disconnect nonexistent_conn
+
+--echo 测试断开默认连接（应该被禁止）
+--error ER_CANNOT_DISCONNECT_DEFAULT
+--disconnect default
+
+--echo 测试重复断开连接
+--connection full_conn
+--disconnect minimal_conn
+--error ER_NO_SUCH_CONNECTION
+--disconnect minimal_conn
+
+--echo 测试连接到不同数据库
+--connect (db_test_conn,127.0.0.1,root,,mysql,3306)
+
+SELECT DATABASE() as mysql_database;
+
+# 创建测试表验证数据库隔离
+CREATE TABLE mysql_test_table (id INT);
+
+--connection default
+
+# 验证在默认连接中看不到 mysql 数据库的表
+--error ER_NO_SUCH_TABLE
+SELECT * FROM mysql_test_table;
+
+--connection db_test_conn
+
+# 清理
+DROP TABLE mysql_test_table;
+
+--echo 测试无效的连接参数
+--error ER_ACCESS_DENIED_ERROR
+--connect (bad_auth,127.0.0.1,invalid_user,invalid_pass,test,3306)
+
+--error ER_BAD_HOST_ERROR  
+--connect (bad_host,invalid_host,root,,test,3306)
+
+--error ER_CANT_CONNECT_TO_SERVER
+--connect (bad_port,127.0.0.1,root,,test,99999)
+
+--echo 清理连接
+--disconnect full_conn
+--disconnect db_test_conn
+
+--echo 连接管理边界情况测试完成 

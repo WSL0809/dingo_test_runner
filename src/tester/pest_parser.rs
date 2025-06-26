@@ -139,19 +139,6 @@ impl PestParser {
                         options: QueryOptions::default(),
                     });
                 }
-                Rule::close_brace => {
-                    // Finalize any pending SQL before processing close brace
-                    if !pending_sql_lines.is_empty() {
-                        self.finalize_pending_sql(&mut queries, &mut pending_sql_lines, line_num)?;
-                    }
-
-                    queries.push(Query {
-                        query_type: QueryType::CloseBrace,
-                        query: String::new(),
-                        line: line_num,
-                        options: QueryOptions::default(),
-                    });
-                }
                 Rule::sql_statement => {
                     let sql_content = self.extract_sql_statement(pair)?;
                     self.process_sql_line(
@@ -265,16 +252,18 @@ impl PestParser {
         }
 
         // Extract command name and args from content
-        let parts: Vec<&str> = command_content.splitn(2, char::is_whitespace).collect();
-        let command_name = if !parts.is_empty() {
-            parts[0].to_lowercase()
-        } else {
-            String::new()
-        };
-        let command_args = if parts.len() > 1 {
-            parts[1].trim().to_string()
-        } else {
-            String::new()
+        let (command_name, command_args) = {
+            // Find index of first whitespace or '('
+            let mut split_idx = command_content.len();
+            for (idx, ch) in command_content.char_indices() {
+                if ch.is_whitespace() || ch == '(' {
+                    split_idx = idx;
+                    break;
+                }
+            }
+            let cmd = command_content[..split_idx].to_lowercase();
+            let args = command_content[split_idx..].trim_start().to_string();
+            (cmd, args)
         };
 
         // Map command name to QueryType (reuse the logic from handwritten parser)

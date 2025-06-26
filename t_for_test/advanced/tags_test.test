@@ -1,0 +1,39 @@
+# Comprehensive test for tag commands
+--echo Starting tag commands test
+
+# Test query log control
+--echo Testing query log control
+--disable_query_log
+SELECT 'this query should not be logged' as test;
+--enable_query_log
+SELECT 'this query should be logged' as test;
+
+# Test result log control  
+--echo Testing result log control
+--disable_result_log
+SELECT 'this result should not be logged' as test;
+--enable_result_log
+SELECT 'this result should be logged' as test;
+
+# Test sorted result
+--echo Testing sorted result
+CREATE TABLE sort_test (val INT);
+INSERT INTO sort_test VALUES (3), (1), (2);
+--sorted_result
+SELECT val FROM sort_test;
+DROP TABLE sort_test;
+
+# Test replace regex
+--echo Testing replace regex
+CREATE TABLE regex_test (data VARCHAR(50));
+INSERT INTO regex_test VALUES ('test123'), ('foo456');
+--replace_regex /[0-9]+/XXX/
+SELECT data FROM regex_test;
+DROP TABLE regex_test;
+
+# Test error expectation
+--echo Testing error expectation
+--error 0
+SELECT * FROM non_existent_table;
+
+--echo All tag commands test completed! 

@@ -1,0 +1,39 @@
+# 验证 --error 指令只影响 SQL 语句
+# 确保 --error 不会影响其他命令
+
+--echo 开始 error 指令验证测试
+
+# 测试 --error 正确应用于 SQL 语句
+--error ER_NO_SUCH_TABLE
+SELECT * FROM nonexistent_table;
+
+--echo error 指令测试：SQL 语句
+
+# 测试 --error 不应影响 --echo 命令（应该有警告）
+--error ER_SOME_ERROR
+--echo 这个 echo 不应受 error 指令影响
+
+# 测试 --error 不应影响 --sleep 命令（应该有警告）
+--error ER_SOME_ERROR
+--sleep 0.1
+
+# 测试 --error 不应影响连接管理命令（应该有警告）
+--error ER_SOME_ERROR
+--connect (test_conn,127.0.0.1,root,123456,mysql,3306)
+
+--connection test_conn
+SELECT DATABASE() as connected_db;
+
+--disconnect test_conn
+
+# 测试 --error 不应影响日志控制命令（应该有警告）
+--error ER_SOME_ERROR
+--disable_query_log
+
+--error ER_SOME_ERROR
+--enable_query_log
+
+# 验证正常的 SQL 查询（不应有任何挂起的 error 期望）
+SELECT 1 as normal_query;
+
+--echo error 指令验证测试完成 

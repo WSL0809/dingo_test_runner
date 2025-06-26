@@ -1,0 +1,16 @@
+Starting advanced test
+Testing various MySQL test runner features
+CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, age INTEGER)
+INSERT INTO users (name, age) VALUES ('Alice', 25)
+INSERT INTO users (name, age) VALUES ('Bob', 30)
+INSERT INTO users (name, age) VALUES ('Charlie', 22)
+SELECT name, age FROM users WHERE age > 20
+Alice	25
+Bob	30
+Charlie	22
+CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)
+table users already exists in CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT) at offset 13
+SELECT COUNT(*) FROM users
+3
+Query completed successfully
+DROP TABLE users

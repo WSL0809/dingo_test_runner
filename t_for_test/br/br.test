@@ -1,0 +1,155 @@
+# ddl-添加列测试
+
+DROP TABLE IF EXISTS t_ddl_br_add_column;
+CREATE TABLE t_ddl_br_add_column (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    age INT NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_name (name),
+    UNIQUE KEY idx_email (email)
+);
+INSERT INTO t_ddl_br_add_column (name, age, email) VALUES 
+('test', 18, 'test@test.com'),
+('test2', 20, 'test2@test.com'),
+('test3', 22, 'test3@test.com');
+ALTER TABLE t_ddl_br_add_column ADD COLUMN new_column INT;
+
+show create table t_ddl_br_add_column;
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{1,3}/TIMESTAMP/
+select * from t_ddl_br_add_column;
+show index from t_ddl_br_add_column;
+
+# ddl-重命名索引测试
+DROP TABLE IF EXISTS t_ddl_br_rename_index;
+CREATE TABLE t_ddl_br_rename_index (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    new_column INT,
+    email VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_new_column2 ON t_ddl_br_rename_index (new_column);
+ALTER TABLE t_ddl_br_rename_index RENAME INDEX idx_new_column2 TO idx_new_column;
+
+show create table t_ddl_br_rename_index;
+show index from t_ddl_br_rename_index;
+
+# ddl-删除列测试
+DROP TABLE IF EXISTS t_ddl_br_drop_column;
+CREATE TABLE t_ddl_br_drop_column (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    age INT NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+ALTER TABLE t_ddl_br_drop_column DROP COLUMN age;
+
+show create table t_ddl_br_drop_column;
+show index from t_ddl_br_drop_column;
+
+# ddl-修改列定义测试
+DROP TABLE IF EXISTS t_ddl_br_modify_column;
+CREATE TABLE t_ddl_br_modify_column (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(255) NOT NULL
+);
+
+--echo 添加一系列DDL操作
+--BEGIN_CONCURRENT
+CREATE INDEX idx_email ON t_ddl_br_modify_column(email);
+ALTER TABLE t_ddl_br_modify_column MODIFY COLUMN id INT AFTER name;
+ALTER TABLE t_ddl_br_modify_column ADD COLUMN status TINYINT DEFAULT 1;
+ALTER TABLE t_ddl_br_modify_column ADD COLUMN description TEXT;
+ALTER TABLE t_ddl_br_modify_column RENAME COLUMN email TO email_address;
+ALTER TABLE t_ddl_br_modify_column ADD COLUMN gender CHAR(1) COMMENT 'M:男, F:女';
+ALTER TABLE t_ddl_br_modify_column MODIFY COLUMN name VARCHAR(150);
+
+--echo -- 原始ALTER TABLE语句
+ALTER TABLE t_ddl_br_modify_column MODIFY COLUMN name VARCHAR(255);
+--END_CONCURRENT
+show create table t_ddl_br_modify_column;
+
+# ddl-调整 auto_increment 测试
+DROP TABLE IF EXISTS t_ddl_br_auto_increment;
+CREATE TABLE t_ddl_br_auto_increment (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL
+);
+ALTER TABLE t_ddl_br_auto_increment AUTO_INCREMENT = 100;
+
+show create table t_ddl_br_auto_increment;
+
+# ddl-修改表注释测试
+DROP TABLE IF EXISTS t_ddl_br_comment;
+CREATE TABLE t_ddl_br_comment (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL
+);
+ALTER TABLE t_ddl_br_comment COMMENT = 'test1212';
+
+show create table t_ddl_br_comment;
+
+# ddl-索引可见性测试
+DROP TABLE IF EXISTS t_ddl_br_index_visibility;
+CREATE TABLE t_ddl_br_index_visibility (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255),
+    INDEX idx_name (name)
+);
+ALTER TABLE t_ddl_br_index_visibility ALTER INDEX idx_name INVISIBLE;
+
+show create table t_ddl_br_index_visibility;
+show index from t_ddl_br_index_visibility;
+
+# rename table
+DROP TABLE IF EXISTS t_ddl_br_rename_table;
+CREATE TABLE t_ddl_br_rename_table (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL
+);
+RENAME TABLE t_ddl_br_rename_table TO t_ddl_br_rename_table_new;
+
+
+show create table t_ddl_br_rename_table_new;
+select * from t_ddl_br_rename_table_new;
+
+# rebase auto_increment
+DROP TABLE IF EXISTS t_ddl_br_rebase_auto_increment;
+CREATE TABLE t_ddl_br_rebase_auto_increment (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL
+);
+
+INSERT INTO t_ddl_br_rebase_auto_increment (name) VALUES ('test');
+INSERT INTO t_ddl_br_rebase_auto_increment (name) VALUES ('test2');
+INSERT INTO t_ddl_br_rebase_auto_increment (name) VALUES ('test3');
+
+ALTER TABLE t_ddl_br_rebase_auto_increment AUTO_INCREMENT = 100000;
+INSERT INTO t_ddl_br_rebase_auto_increment (name) VALUES ('test4');
+INSERT INTO t_ddl_br_rebase_auto_increment (name) VALUES ('test5');
+INSERT INTO t_ddl_br_rebase_auto_increment (name) VALUES ('test6');
+
+SHOW create table t_ddl_br_rebase_auto_increment;
+select * from t_ddl_br_rebase_auto_increment;
+
+# seq
+--echo 1. 创建序列
+CREATE SEQUENCE test_seq START WITH 100 INCREMENT 5 MINVALUE 100 MAXVALUE 200;
+
+--echo 2. 获取下一个值(105)
+--disable_result_log
+SELECT NEXTVAL('test_seq');
+
+--echo 3. 再获取一次(110)
+SELECT NEXTVAL('test_seq');
+
+--echo 4. 再获取一次(115)
+SELECT NEXTVAL('test_seq');
+
+#    --exec date '+%F %T'
+#    --exec mysql -h 172.30.14.172 -P 3307 -u root -p123123 -e "admin back_up_time_point '$(date '+%Y-%m-%d %H:%M:%S')';"

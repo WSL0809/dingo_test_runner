@@ -1,0 +1,12 @@
+# Debug while loop test
+--let $counter = 2
+
+--echo "Initial counter: $counter"
+
+--while ($counter > 0)
+--echo "In loop, counter: $counter"
+--let $counter = 0
+--echo "Set counter to 0"
+--end
+
+--echo "Final counter: $counter" 

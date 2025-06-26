@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(./verify_migration.sh:*)",
+      "Bash(cargo:*)"
+    ],
+    "deny": []
+  }
+}

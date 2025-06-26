@@ -1,0 +1,13 @@
+--echo # Test basic concurrent execution
+--echo # All queries in this block should run in parallel.
+
+--BEGIN_CONCURRENT
+SELECT 1;
+SELECT 2;
+--error 1146
+SELECT * FROM non_existent_table;
+SELECT 3;
+--END_CONCURRENT
+
+--echo # This should execute after the concurrent block
+SELECT 'finished'; 

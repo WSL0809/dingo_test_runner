@@ -1,0 +1,37 @@
+# Test eval command functionality
+# This test verifies that eval command properly expands variables before executing SQL
+
+--disable_query_log
+
+# Setup test table
+CREATE TABLE eval_test (id INT, name VARCHAR(50));
+
+# Test basic eval functionality
+let $table_name = eval_test
+let $id_value = 1
+let $name_value = test_name
+
+# Using eval to dynamically construct SQL with variables
+--eval INSERT INTO $table_name VALUES ($id_value, '$name_value')
+
+# Test that regular SQL without eval still works (should NOT expand variables)
+# This should fail if variables are incorrectly expanded everywhere
+INSERT INTO eval_test VALUES (2, 'normal_insert$not_a_variable');
+
+# Use eval to construct a SELECT statement
+--eval SELECT * FROM $table_name WHERE id = $id_value
+
+# Test eval with more complex expressions
+let $condition = id > 0
+--eval SELECT COUNT(*) FROM $table_name WHERE $condition
+
+# Test eval with CREATE statement
+let $new_table = eval_test_2
+--eval CREATE TABLE $new_table AS SELECT * FROM $table_name
+
+# Verify the new table was created
+SHOW TABLES LIKE 'eval_test%';
+
+# Clean up
+DROP TABLE IF EXISTS eval_test;
+DROP TABLE IF EXISTS eval_test_2; 

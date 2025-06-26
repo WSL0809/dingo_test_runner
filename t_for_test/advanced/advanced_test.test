@@ -1,0 +1,32 @@
+# Advanced test with error handling, sorted results, and various commands
+
+-- echo Starting advanced test
+-- echo Testing various MySQL test runner features
+
+-- Test 1: Basic table operations
+CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, age INTEGER);
+
+-- Test 2: Insert data
+INSERT INTO users (name, age) VALUES ('Alice', 25);
+INSERT INTO users (name, age) VALUES ('Bob', 30);
+INSERT INTO users (name, age) VALUES ('Charlie', 22);
+
+-- Test 3: Query with sorted results
+-- sorted_result
+SELECT name, age FROM users WHERE age > 20;
+
+-- Test 4: Test expected error for duplicate table creation
+-- error already exists
+CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);
+
+-- Test 5: Valid operation after error
+SELECT COUNT(*) FROM users;
+
+-- Test 6: Sleep command
+-- sleep 0.1
+
+-- Test 7: Echo with variable-like text
+-- echo Query completed successfully
+
+-- Cleanup
+DROP TABLE users; 

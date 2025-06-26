@@ -8,7 +8,7 @@ use log::{debug, info, trace, warn};
 use std::time::Duration;
 
 /// 默认读/写超时时长（秒）
-const QUERY_TIMEOUT_SECS: u64 = 10;
+const QUERY_TIMEOUT_SECS: u64 = 30;
 
 /// Database connection abstraction
 #[derive(Debug)]

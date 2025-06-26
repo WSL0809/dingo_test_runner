@@ -1,0 +1,4 @@
+# Simple exec test
+--echo Testing exec command
+--exec echo "Hello World"
+--echo Exec test completed 

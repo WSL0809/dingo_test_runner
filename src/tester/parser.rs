@@ -166,17 +166,6 @@ impl HandwrittenParser {
                 continue;
             }
 
-            // Handle closing brace
-            if line.trim() == "}" {
-                queries.push(Query {
-                    query_type: QueryType::CloseBrace,
-                    query: String::new(),
-                    line: line_num,
-                    options: QueryOptions::default(),
-                });
-                continue;
-            }
-
             // Handle 'end' keyword
             if line.trim() == "end" {
                 queries.push(Query {
@@ -430,16 +419,7 @@ impl HandwrittenParser {
         // Check what follows the condition
         let after_condition = rest[condition_end + 1..].trim();
 
-        if after_condition.starts_with('{') {
-            // Block syntax: if (condition) { ... }
-            // The condition is what we need to store
-            let query_type = match keyword {
-                "if" => QueryType::If,
-                "while" => QueryType::While,
-                _ => unreachable!(),
-            };
-            Ok((query_type, condition, 0))
-        } else if after_condition.is_empty() {
+        if after_condition.is_empty() {
             // Traditional syntax: if (condition) ... end
             let query_type = match keyword {
                 "if" => QueryType::If,

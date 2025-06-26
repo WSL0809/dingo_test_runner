@@ -1,0 +1,28 @@
+开始 source 变量共享测试
+1. 在主文件中定义变量
+2. source 一个使用变量的文件
+执行 variable_test.inc 开始
+使用主文件中定义的变量: variable_test_table
+CREATE TABLE variable_test_table (
+id INT PRIMARY KEY,
+name VARCHAR(50),
+value INT
+)
+在 include 文件中定义新变量
+使用 include 文件中定义的变量插入数据
+INSERT INTO variable_test_table VALUES (1, 'sourced_data', 100)
+variable_test.inc 执行完成
+3. 验证 source 文件中定义的变量在主文件中可用
+主文件中访问 source 文件定义的变量: 100, 'sourced_data'
+4. 查询表验证数据
+SELECT * FROM variable_test_table
+1	sourced_data	100
+5. 使用混合变量插入更多数据
+INSERT INTO variable_test_table VALUES (2, 'from_main', 100 + 50)
+6. 最终查询
+SELECT * FROM variable_test_table ORDER BY id
+1	sourced_data	100
+2	from_main	150
+7. 清理
+DROP TABLE variable_test_table
+source 变量共享测试完成

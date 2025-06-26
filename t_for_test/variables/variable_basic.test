@@ -1,0 +1,36 @@
+# Basic variable functionality test
+
+# Test basic variable assignment and expansion
+--let $test_var = Hello World
+--echo $test_var
+
+# Create and select a database first
+CREATE DATABASE IF NOT EXISTS variable_test;
+USE variable_test;
+
+# Test variable in SQL query
+--let $table_name = test_table
+CREATE TABLE $table_name (id INT, name VARCHAR(50));
+
+# Test variable expansion in INSERT
+--let $test_id = 1
+--let $test_name = TestUser
+INSERT INTO $table_name VALUES ($test_id, '$test_name');
+
+# Test variable in SELECT
+SELECT * FROM $table_name WHERE id = $test_id;
+
+# Test nested variable expansion
+--let $greeting = Hello $test_name
+--echo $greeting
+
+# Test environment variable
+--let TEST_ENV_VAR = environment_value
+--exec echo $TEST_ENV_VAR
+
+# Test variable in exec command
+--let $echo_message = Variable in exec works
+--exec echo "$echo_message"
+
+# Cleanup
+DROP TABLE $table_name; 

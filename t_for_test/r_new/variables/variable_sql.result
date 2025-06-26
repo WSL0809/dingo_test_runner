@@ -1,0 +1,13 @@
+CREATE TABLE test_users (
+    id INT PRIMARY KEY,
+    name VARCHAR(50),
+    age INT
+)
+INSERT INTO test_users VALUES (1, 'Alice', 25)
+INSERT INTO test_users VALUES (2, 'Bob', 30)
+SELECT * FROM test_users WHERE age = 25
+1	Alice	25
+SELECT `name` FROM test_users ORDER BY id
+Alice
+Bob
+DROP TABLE test_users

@@ -1,0 +1,8 @@
+# 测试 --exec 与 --replace_regex 组合
+--echo ### exec_replace_regex.test 开始
+
+--echo # 生成一个包含时间戳的 shell 输出
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/<TIMESTAMP>/
+--exec date '+%F %T'
+
+--echo ### exec_replace_regex.test 结束 

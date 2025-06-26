@@ -1,0 +1,8 @@
+This test will check if regex replacement works on SQL queries.
+CREATE TABLE regex_test (id INT, data VARCHAR(255))
+INSERT INTO regex_test VALUES (1, 'Timestamp is 2025-01-02 03:04:05')
+SELECT * FROM regex_test
+1	Timestamp is TIMESTAMP
+This echo should not be replaced. The regex above only applies to the next SQL.
+id: 12345
+DROP TABLE regex_test

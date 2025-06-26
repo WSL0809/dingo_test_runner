@@ -1,0 +1,15 @@
+# 验证 --error 对预期错误的捕获
+--echo ### error_handling.test 开始
+
+CREATE DATABASE IF NOT EXISTS err_db;
+USE err_db;
+
+CREATE TABLE dup_test (id INT PRIMARY KEY, val INT);
+INSERT INTO dup_test VALUES (1,1);
+
+--echo # 下面插入重复主键，期待 ER_DUP_ENTRY
+--error ER_DUP_ENTRY
+INSERT INTO dup_test VALUES (1,2);
+
+DROP DATABASE err_db;
+--echo ### error_handling.test 结束 

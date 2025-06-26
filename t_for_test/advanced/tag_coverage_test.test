@@ -1,0 +1,53 @@
+# 综合标签覆盖测试
+# 测试各种 MySQL Test Runner 标签的行为
+
+--echo === 基本标签测试开始 ===
+
+# 测试 1: echo 命令基本功能
+--echo Test 1: Basic echo functionality
+--echo 这是一条中文消息
+--echo Special characters: !@#$%^&*()
+
+# 测试 2: 查询日志控制
+--echo Test 2: Query log control
+--disable_query_log
+CREATE TABLE log_test (id INT, message TEXT);
+INSERT INTO log_test VALUES (1, 'Hidden query');
+--enable_query_log
+--echo Query logging re-enabled
+SELECT * FROM log_test;
+
+# 测试 3: 结果日志控制
+--echo Test 3: Result log control
+--disable_result_log
+SELECT 'This result should be hidden' as hidden_message;
+--enable_result_log
+--echo Result logging re-enabled
+SELECT 'This result should be visible' as visible_message;
+
+# 测试 4: 排序结果
+--echo Test 4: Sorted results
+INSERT INTO log_test VALUES (3, 'Third'), (2, 'Second');
+--sorted_result
+SELECT id, message FROM log_test;
+
+# 测试 5: 正则表达式替换
+--echo Test 5: Regex replacement
+--replace_regex /id: [0-9]+/id: XXX/
+SELECT CONCAT('id: ', id) as id_info FROM log_test WHERE id = 1;
+
+# 测试 6: sleep 命令
+--echo Test 6: Sleep command
+--sleep 0.1
+--echo Sleep completed
+
+# 测试 7: 错误处理 (如果支持)
+--echo Test 7: Error handling
+# 注意：这里的错误码可能需要根据实际支持的语法调整
+--error 1146
+SELECT * FROM nonexistent_table_12345;
+
+--echo === 清理阶段 ===
+DROP TABLE log_test;
+
+--echo === 标签覆盖测试完成 === 

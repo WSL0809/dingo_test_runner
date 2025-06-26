@@ -1,0 +1,19 @@
+开始连接管理边界情况测试
+测试创建连接时的参数解析
+SELECT CONNECTION_ID() as minimal_conn_id
+切换回默认连接
+SELECT CONNECTION_ID() as full_conn_id
+SELECT DATABASE() as current_database
+测试连接名冲突
+测试不存在的连接切换
+测试断开不存在的连接
+测试断开默认连接（应该被禁止）
+测试重复断开连接
+测试连接到不同数据库
+SELECT DATABASE() as mysql_database
+CREATE TABLE mysql_test_table (id INT)
+SELECT * FROM mysql_test_table
+DROP TABLE mysql_test_table
+测试无效的连接参数
+清理连接
+连接管理边界情况测试完成
