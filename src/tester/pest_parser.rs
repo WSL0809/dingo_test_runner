@@ -2,29 +2,21 @@
 //!
 //! This module provides an alternative parser implementation using the Pest parsing library.
 
-#[cfg(feature = "pest")]
 use anyhow::{anyhow, Result};
-#[cfg(feature = "pest")]
 use pest::Parser as PestParserTrait;
-#[cfg(feature = "pest")]
 use pest_derive::Parser;
 
-#[cfg(feature = "pest")]
-use super::parser::QueryParser;
-#[cfg(feature = "pest")]
+use super::parser::{QueryParser, COMMAND_MAP};
 use super::query::{Query, QueryOptions, QueryType};
 
-#[cfg(feature = "pest")]
 #[derive(Parser)]
 #[grammar = "tester/mysql_test.pest"]
 pub struct PestMySQLParser;
 
-#[cfg(feature = "pest")]
 pub struct PestParser {
     delimiter: String,
 }
 
-#[cfg(feature = "pest")]
 impl Default for PestParser {
     fn default() -> Self {
         Self {
@@ -33,7 +25,6 @@ impl Default for PestParser {
     }
 }
 
-#[cfg(feature = "pest")]
 impl PestParser {
     pub fn new() -> Self {
         Self::default()
@@ -272,57 +263,7 @@ impl PestParser {
     }
 
     fn map_command_to_query_type(&self, command: &str) -> QueryType {
-        match command {
-            "query" => QueryType::Query,
-            "exec" => QueryType::Exec,
-            "admin" => QueryType::Admin,
-            "error" => QueryType::Error,
-            "fatal" => QueryType::Fatal,
-            "echo" => QueryType::Echo,
-            "sleep" => QueryType::Sleep,
-            "replace_regex" => QueryType::ReplaceRegex,
-            "replace_column" => QueryType::ReplaceColumn,
-            "replace_result" => QueryType::Replace,
-            "let" => QueryType::Let,
-            "eval" => QueryType::Eval,
-            "require" => QueryType::Require,
-            "source" => QueryType::Source,
-            "comment" => QueryType::Comment,
-            "connect" => QueryType::Connect,
-            "connection" => QueryType::Connection,
-            "disconnect" => QueryType::Disconnect,
-            "delimiter" => QueryType::Delimiter,
-            "disable_query_log" => QueryType::DisableQueryLog,
-            "enable_query_log" => QueryType::EnableQueryLog,
-            "disable_result_log" => QueryType::DisableResultLog,
-            "enable_result_log" => QueryType::EnableResultLog,
-            "sorted_result" => QueryType::SortedResult,
-            "enable_sort_result" => QueryType::EnableSortResult,
-            "disable_sort_result" => QueryType::DisableSortResult,
-            "change_user" => QueryType::ChangeUser,
-            "eof" => QueryType::EndOfFile,
-            "begin_concurrent" => QueryType::BeginConcurrent,
-            "end_concurrent" => QueryType::EndConcurrent,
-            "concurrent" => QueryType::Concurrent,
-            "vertical_results" => QueryType::VerticalResults,
-            "horizontal_results" => QueryType::HorizontalResults,
-            "send" => QueryType::Send,
-            "recv" => QueryType::Recv,
-            "wait" => QueryType::Wait,
-            "real_sleep" => QueryType::RealSleep,
-            "query_async" => QueryType::QueryAsync,
-            "block" => QueryType::Block,
-            "unblock" => QueryType::Unblock,
-            "checkpoint" => QueryType::Checkpoint,
-            "restart" => QueryType::Restart,
-            "ping" => QueryType::Ping,
-            "skip" => QueryType::Skip,
-            "exit" => QueryType::Exit,
-            "if" => QueryType::If,
-            "while" => QueryType::While,
-            "end" => QueryType::End,
-            _ => QueryType::Unknown,
-        }
+        COMMAND_MAP.get(command).copied().unwrap_or(QueryType::Unknown)
     }
 
     fn extract_delimiter_value(&self, pair: pest::iterators::Pair<Rule>) -> Result<String> {
@@ -385,7 +326,6 @@ impl PestParser {
     }
 }
 
-#[cfg(feature = "pest")]
 impl QueryParser for PestParser {
     fn parse(&mut self, content: &str) -> Result<Vec<Query>> {
         let pairs = PestMySQLParser::parse(Rule::test_file, content)

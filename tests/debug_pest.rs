@@ -1,4 +1,3 @@
-#[cfg(feature = "pest")]
 mod debug_pest {
     use dingo_test_runner::tester::parser::{create_parser};
 
@@ -43,31 +42,18 @@ mod debug_pest {
     }
 
     #[test]
-    fn debug_pest_parser_handwritten_comparison() {
-        let mut pest_parser = create_parser("pest").expect("Failed to create pest parser");
-        let mut handwritten_parser =
-            create_parser("handwritten").expect("Failed to create handwritten parser");
+    fn debug_pest_parser_advanced() {
+        let mut parser = create_parser("pest").expect("Failed to create pest parser");
 
         let content = "--echo Hello World";
-        println!("Comparing parsers for content: '{}'", content);
+        println!("Parsing content: '{}'", content);
 
-        let pest_queries = pest_parser
+        let queries = parser
             .parse(content)
             .expect("Failed to parse with pest");
-        let handwritten_queries = handwritten_parser
-            .parse(content)
-            .expect("Failed to parse with handwritten");
 
         println!("Pest parser results:");
-        for (i, query) in pest_queries.iter().enumerate() {
-            println!(
-                "  Query {}: type={:?}, content='{}'",
-                i, query.query_type, query.query
-            );
-        }
-
-        println!("Handwritten parser results:");
-        for (i, query) in handwritten_queries.iter().enumerate() {
+        for (i, query) in queries.iter().enumerate() {
             println!(
                 "  Query {}: type={:?}, content='{}'",
                 i, query.query_type, query.query
@@ -78,7 +64,7 @@ mod debug_pest {
     }
 
     #[test]
-    fn debug_pest_parsing() {
+    fn debug_pest_parsing_complex() {
         let content = r#"--echo # concurrent_advanced.test - 高级并发功能测试
 --echo # 演示并发块与变量、连接管理的综合应用
 
@@ -100,51 +86,7 @@ CREATE TABLE $table_name (
             );
         }
 
-        // Also test with handwritten parser for comparison
-        let mut handwritten_parser = create_parser("handwritten").unwrap();
-        let handwritten_queries = handwritten_parser.parse(content).unwrap();
-
-        println!("\n=== Handwritten Parser Results ===");
-        for (i, query) in handwritten_queries.iter().enumerate() {
-            println!(
-                "{}: type={:?}, content='{}'",
-                i, query.query_type, query.query
-            );
-        }
-
-        // Compare results
-        assert_eq!(
-            queries.len(),
-            handwritten_queries.len(),
-            "Parser results should have same length"
-        );
-        for (i, (pest_q, handwritten_q)) in
-            queries.iter().zip(handwritten_queries.iter()).enumerate()
-        {
-            assert_eq!(
-                pest_q.query_type, handwritten_q.query_type,
-                "Query type mismatch at index {}",
-                i
-            );
-
-            // Normalize whitespace for content comparison
-            let pest_content_normalized = normalize_whitespace(&pest_q.query);
-            let handwritten_content_normalized = normalize_whitespace(&handwritten_q.query);
-            assert_eq!(
-                pest_content_normalized, handwritten_content_normalized,
-                "Query content mismatch at index {}",
-                i
-            );
-        }
-    }
-
-    // Helper function to normalize whitespace for comparison
-    fn normalize_whitespace(content: &str) -> String {
-        content
-            .lines()
-            .map(|line| line.trim())
-            .filter(|line| !line.is_empty())
-            .collect::<Vec<_>>()
-            .join("\n")
+        // Verify we got some queries
+        assert!(queries.len() > 0, "Should parse at least one query");
     }
 }

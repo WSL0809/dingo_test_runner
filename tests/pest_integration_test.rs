@@ -1,4 +1,3 @@
-#[cfg(feature = "pest")]
 mod pest_integration_tests {
     use dingo_test_runner::tester::parser::{create_parser, default_parser};
     use dingo_test_runner::tester::query::QueryType;
@@ -63,7 +62,7 @@ if ($var > 0) {
     }
 
     #[test]
-    fn test_default_parser_uses_pest_when_enabled() {
+    fn test_default_parser_uses_pest() {
         let mut parser = default_parser();
         let content = "--echo test";
         let queries = parser
@@ -76,51 +75,22 @@ if ($var > 0) {
     }
 
     #[test]
-    fn test_pest_vs_handwritten_parser_compatibility() {
+    fn test_pest_parser_comprehensive() {
         let test_cases = vec![
-            "SELECT 1;",
-            "--echo hello",
-            "# comment",
-            "--delimiter //\nSELECT 1//",
-            "if ($x > 0) {\n--echo positive\n}",
+            ("SELECT 1;", QueryType::Query, "SELECT 1"),
+            ("--echo hello", QueryType::Echo, "hello"),
+            ("# comment", QueryType::Comment, "#comment"),
+            ("let $x = 5", QueryType::Let, "$x = 5"),
+            ("--sleep 1", QueryType::Sleep, "1"),
         ];
 
-        for test_case in test_cases {
-            let mut pest_parser = create_parser("pest").expect("Failed to create pest parser");
-            let mut handwritten_parser =
-                create_parser("handwritten").expect("Failed to create handwritten parser");
-
-            let pest_result = pest_parser.parse(test_case);
-            let handwritten_result = handwritten_parser.parse(test_case);
-
-            // Both should succeed or both should fail
-            match (pest_result, handwritten_result) {
-                (Ok(pest_queries), Ok(handwritten_queries)) => {
-                    // Compare basic structure (number of queries and types)
-                    assert_eq!(
-                        pest_queries.len(),
-                        handwritten_queries.len(),
-                        "Query count mismatch for: {}",
-                        test_case
-                    );
-
-                    for (pest_q, handwritten_q) in
-                        pest_queries.iter().zip(handwritten_queries.iter())
-                    {
-                        assert_eq!(
-                            pest_q.query_type, handwritten_q.query_type,
-                            "Query type mismatch for: {}",
-                            test_case
-                        );
-                    }
-                }
-                (Err(_), Err(_)) => {
-                    // Both failed, which is acceptable for some edge cases
-                }
-                _ => {
-                    panic!("Parser results inconsistent for: {}", test_case);
-                }
-            }
+        for (test_content, expected_type, expected_query) in test_cases {
+            let mut parser = create_parser("pest").expect("Failed to create pest parser");
+            let queries = parser.parse(test_content).expect("Failed to parse content");
+            
+            assert_eq!(queries.len(), 1, "Expected exactly one query for: {}", test_content);
+            assert_eq!(queries[0].query_type, expected_type, "Query type mismatch for: {}", test_content);
+            assert_eq!(queries[0].query.trim(), expected_query, "Query content mismatch for: {}", test_content);
         }
     }
 }

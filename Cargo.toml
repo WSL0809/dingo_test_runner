@@ -63,9 +63,9 @@ evalexpr = "12.0.2"
 # UUID 生成 (用于 Allure 报告)
 uuid = { version = "1.0", features = ["v4"] }
 
-# Pest parser (可选)
-pest = { version = "2.7", optional = true }
-pest_derive = { version = "2.7", optional = true }
+# Pest parser
+pest = "2.7"
+pest_derive = "2.7"
 
 [dev-dependencies]
 tempfile = "3.0"
@@ -73,7 +73,6 @@ mockall = "0.13"
 tokio-test = "0.4"
 
 [features]
-default = ["pest", "email"]
+default = ["email"]
 email = ["lettre", "askama"]
-pest = ["dep:pest", "dep:pest_derive"]
 

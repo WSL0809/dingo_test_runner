@@ -6,7 +6,6 @@ pub mod error_handler;
 pub mod expression;
 pub mod handlers;
 pub mod parser;
-#[cfg(feature = "pest")]
 pub mod pest_parser;
 pub mod query;
 pub mod registry;
