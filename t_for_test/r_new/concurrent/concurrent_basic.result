@@ -1,9 +1,0 @@
-# Test basic concurrent execution
-# All queries in this block should run in parallel.
-1
-2
-ERROR 1146 (42S02): Table 'test_concurrent_basic.non_existent_table' doesn't exist
-3
-# This should execute after the concurrent block
-SELECT 'finished'
-finished

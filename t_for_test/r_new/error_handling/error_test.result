@@ -1,9 +1,0 @@
-CREATE TABLE test_table (id INTEGER PRIMARY KEY, name TEXT)
-INSERT INTO test_table (name) VALUES ('Alice')
-INSERT INTO test_table (name) VALUES ('Bob')
-SELECT * FROM test_table ORDER BY name
-1	Alice
-2	Bob
-SELECT * FROM non_existent_table
-no such table: non_existent_table
-DROP TABLE test_table

@@ -11,103 +11,93 @@ BASE_DIR="/Users/wangshilong/Downloads/lazy-cat-sync/dingo_test_runner"
 OLD_T_DIR="$BASE_DIR/t"
 NEW_T_DIR="$BASE_DIR/t_for_test"
 
-# 确保结果文件也一起移动的函数
-move_test_with_result() {
+# 移动测试文件的函数（结果文件保持在r/目录）
+move_test_file() {
     local test_file="$1"
     local target_dir="$2"
     local filename=$(basename "$test_file")
-    local result_file="${OLD_T_DIR}/../r/${filename%.test}.result"
     
     echo "移动 $filename 到 $target_dir/"
     cp "$test_file" "$target_dir/"
     
-    # 如果对应的结果文件存在，也一起移动
-    if [ -f "$result_file" ]; then
-        local result_target_dir="${target_dir}/../r_new/$(basename $target_dir)"
-        mkdir -p "$result_target_dir"
-        cp "$result_file" "$result_target_dir/"
-        echo "  -> 同时移动结果文件到 $result_target_dir/"
-    fi
+    # 注意：结果文件继续保持在 r/ 目录，测试运行器会自动查找
 }
-
-# 创建结果文件目录结构
-mkdir -p "$BASE_DIR/r_new"
 
 # 1. 基础功能测试
 echo "=== 移动基础功能测试 ==="
-move_test_with_result "$OLD_T_DIR/simple_test.test" "$NEW_T_DIR/basic"
-move_test_with_result "$OLD_T_DIR/simple_connect.test" "$NEW_T_DIR/basic"
-move_test_with_result "$OLD_T_DIR/simple_exec.test" "$NEW_T_DIR/basic"
-move_test_with_result "$OLD_T_DIR/simple_nested.test" "$NEW_T_DIR/basic"
-move_test_with_result "$OLD_T_DIR/echo_test.test" "$NEW_T_DIR/basic"
-move_test_with_result "$OLD_T_DIR/mysql_connect.test" "$NEW_T_DIR/basic"
-move_test_with_result "$OLD_T_DIR/test1.test" "$NEW_T_DIR/basic"
+move_test_file "$OLD_T_DIR/simple_test.test" "$NEW_T_DIR/basic"
+move_test_file "$OLD_T_DIR/simple_connect.test" "$NEW_T_DIR/basic"
+move_test_file "$OLD_T_DIR/simple_exec.test" "$NEW_T_DIR/basic"
+move_test_file "$OLD_T_DIR/simple_nested.test" "$NEW_T_DIR/basic"
+move_test_file "$OLD_T_DIR/echo_test.test" "$NEW_T_DIR/basic"
+move_test_file "$OLD_T_DIR/mysql_connect.test" "$NEW_T_DIR/basic"
+move_test_file "$OLD_T_DIR/test1.test" "$NEW_T_DIR/basic"
 
 # 2. 变量和表达式测试
 echo "=== 移动变量和表达式测试 ==="
-move_test_with_result "$OLD_T_DIR/variable_basic.test" "$NEW_T_DIR/variables"
-move_test_with_result "$OLD_T_DIR/variable_simple.test" "$NEW_T_DIR/variables"
-move_test_with_result "$OLD_T_DIR/variable_sql.test" "$NEW_T_DIR/variables"
-move_test_with_result "$OLD_T_DIR/variable_sql_simple.test" "$NEW_T_DIR/variables"
-move_test_with_result "$OLD_T_DIR/variable_boundary_test.test" "$NEW_T_DIR/variables"
-move_test_with_result "$OLD_T_DIR/eval_test.test" "$NEW_T_DIR/variables"
+move_test_file "$OLD_T_DIR/variable_basic.test" "$NEW_T_DIR/variables"
+move_test_file "$OLD_T_DIR/variable_simple.test" "$NEW_T_DIR/variables"
+move_test_file "$OLD_T_DIR/variable_sql.test" "$NEW_T_DIR/variables"
+move_test_file "$OLD_T_DIR/variable_sql_simple.test" "$NEW_T_DIR/variables"
+move_test_file "$OLD_T_DIR/variable_boundary_test.test" "$NEW_T_DIR/variables"
+move_test_file "$OLD_T_DIR/eval_test.test" "$NEW_T_DIR/variables"
 
 # 3. 控制流测试
 echo "=== 移动控制流测试 ==="
-move_test_with_result "$OLD_T_DIR/if_simple.test" "$NEW_T_DIR/control_flow"
-move_test_with_result "$OLD_T_DIR/if_with_sql.test" "$NEW_T_DIR/control_flow"
-move_test_with_result "$OLD_T_DIR/if_brace_syntax.test" "$NEW_T_DIR/control_flow"
-move_test_with_result "$OLD_T_DIR/while_simple.test" "$NEW_T_DIR/control_flow"
-move_test_with_result "$OLD_T_DIR/while_brace_syntax.test" "$NEW_T_DIR/control_flow"
-move_test_with_result "$OLD_T_DIR/debug_while.test" "$NEW_T_DIR/control_flow"
-move_test_with_result "$OLD_T_DIR/nested_control_flow.test" "$NEW_T_DIR/control_flow"
-move_test_with_result "$OLD_T_DIR/control_flow_demo.test" "$NEW_T_DIR/control_flow"
-move_test_with_result "$OLD_T_DIR/flexible_syntax.test" "$NEW_T_DIR/control_flow"
+move_test_file "$OLD_T_DIR/if_simple.test" "$NEW_T_DIR/control_flow"
+move_test_file "$OLD_T_DIR/if_with_sql.test" "$NEW_T_DIR/control_flow"
+move_test_file "$OLD_T_DIR/if_brace_syntax.test" "$NEW_T_DIR/control_flow"
+move_test_file "$OLD_T_DIR/while_simple.test" "$NEW_T_DIR/control_flow"
+move_test_file "$OLD_T_DIR/while_brace_syntax.test" "$NEW_T_DIR/control_flow"
+move_test_file "$OLD_T_DIR/debug_while.test" "$NEW_T_DIR/control_flow"
+move_test_file "$OLD_T_DIR/nested_control_flow.test" "$NEW_T_DIR/control_flow"
+move_test_file "$OLD_T_DIR/control_flow_demo.test" "$NEW_T_DIR/control_flow"
+move_test_file "$OLD_T_DIR/flexible_syntax.test" "$NEW_T_DIR/control_flow"
 
 # 4. 并发执行测试
 echo "=== 移动并发执行测试 ==="
-move_test_with_result "$OLD_T_DIR/concurrent_basic.test" "$NEW_T_DIR/concurrent"
+move_test_file "$OLD_T_DIR/concurrent_basic.test" "$NEW_T_DIR/concurrent"
 
 # 5. 错误处理测试
 echo "=== 移动错误处理测试 ==="
-move_test_with_result "$OLD_T_DIR/error_test.test" "$NEW_T_DIR/error_handling"
-move_test_with_result "$OLD_T_DIR/expected_error_test.test" "$NEW_T_DIR/error_handling"
-move_test_with_result "$OLD_T_DIR/error_directive_validation.test" "$NEW_T_DIR/error_handling"
-move_test_with_result "$OLD_T_DIR/fail_fast_false_result_test.test" "$NEW_T_DIR/error_handling"
-move_test_with_result "$OLD_T_DIR/fail_fast_no_result_test.test" "$NEW_T_DIR/error_handling"
+move_test_file "$OLD_T_DIR/error_test.test" "$NEW_T_DIR/error_handling"
+move_test_file "$OLD_T_DIR/expected_error_test.test" "$NEW_T_DIR/error_handling"
+move_test_file "$OLD_T_DIR/error_directive_validation.test" "$NEW_T_DIR/error_handling"
+move_test_file "$OLD_T_DIR/fail_fast_false_result_test.test" "$NEW_T_DIR/error_handling"
+move_test_file "$OLD_T_DIR/fail_fast_no_result_test.test" "$NEW_T_DIR/error_handling"
 
 # 6. 高级功能测试
 echo "=== 移动高级功能测试 ==="
-move_test_with_result "$OLD_T_DIR/replace_regex_test.test" "$NEW_T_DIR/advanced"
-move_test_with_result "$OLD_T_DIR/sorted_result_test.test" "$NEW_T_DIR/advanced"
-move_test_with_result "$OLD_T_DIR/regex_test.test" "$NEW_T_DIR/advanced"
-move_test_with_result "$OLD_T_DIR/tags_test.test" "$NEW_T_DIR/advanced"
-move_test_with_result "$OLD_T_DIR/tag_coverage_test.test" "$NEW_T_DIR/advanced"
-move_test_with_result "$OLD_T_DIR/advanced_test.test" "$NEW_T_DIR/advanced"
-move_test_with_result "$OLD_T_DIR/exec_test.test" "$NEW_T_DIR/advanced"
+move_test_file "$OLD_T_DIR/replace_regex_test.test" "$NEW_T_DIR/advanced"
+move_test_file "$OLD_T_DIR/sorted_result_test.test" "$NEW_T_DIR/advanced"
+move_test_file "$OLD_T_DIR/regex_test.test" "$NEW_T_DIR/advanced"
+move_test_file "$OLD_T_DIR/tags_test.test" "$NEW_T_DIR/advanced"
+move_test_file "$OLD_T_DIR/tag_coverage_test.test" "$NEW_T_DIR/advanced"
+move_test_file "$OLD_T_DIR/advanced_test.test" "$NEW_T_DIR/advanced"
+move_test_file "$OLD_T_DIR/exec_test.test" "$NEW_T_DIR/advanced"
 
 # 7. 连接管理测试
 echo "=== 移动连接管理测试 ==="
-move_test_with_result "$OLD_T_DIR/connection_test.test" "$NEW_T_DIR/connection"
-move_test_with_result "$OLD_T_DIR/connection_management.test" "$NEW_T_DIR/connection"
-move_test_with_result "$OLD_T_DIR/connection_edge_cases.test" "$NEW_T_DIR/connection"
+move_test_file "$OLD_T_DIR/connection_test.test" "$NEW_T_DIR/connection"
+move_test_file "$OLD_T_DIR/connection_management.test" "$NEW_T_DIR/connection"
+move_test_file "$OLD_T_DIR/connection_edge_cases.test" "$NEW_T_DIR/connection"
 
 # 8. Source/Include 功能测试
 echo "=== 移动 Source/Include 功能测试 ==="
-move_test_with_result "$OLD_T_DIR/source_basic.test" "$NEW_T_DIR/source"
-move_test_with_result "$OLD_T_DIR/source_comprehensive.test" "$NEW_T_DIR/source"
-move_test_with_result "$OLD_T_DIR/source_depth.test" "$NEW_T_DIR/source"
-move_test_with_result "$OLD_T_DIR/source_error.test" "$NEW_T_DIR/source"
-move_test_with_result "$OLD_T_DIR/source_nested.test" "$NEW_T_DIR/source"
-move_test_with_result "$OLD_T_DIR/source_syntax.test" "$NEW_T_DIR/source"
-move_test_with_result "$OLD_T_DIR/source_variables.test" "$NEW_T_DIR/source"
+move_test_file "$OLD_T_DIR/source_basic.test" "$NEW_T_DIR/source"
+move_test_file "$OLD_T_DIR/source_comprehensive.test" "$NEW_T_DIR/source"
+move_test_file "$OLD_T_DIR/source_depth.test" "$NEW_T_DIR/source"
+move_test_file "$OLD_T_DIR/source_error.test" "$NEW_T_DIR/source"
+move_test_file "$OLD_T_DIR/source_nested.test" "$NEW_T_DIR/source"
+move_test_file "$OLD_T_DIR/source_syntax.test" "$NEW_T_DIR/source"
+move_test_file "$OLD_T_DIR/source_variables.test" "$NEW_T_DIR/source"
 
 # 9. 性能/边界测试
 echo "=== 移动性能/边界测试 ==="
-move_test_with_result "$OLD_T_DIR/parser_edge_cases.test" "$NEW_T_DIR/performance"
-move_test_with_result "$OLD_T_DIR/create_tables_loop.test" "$NEW_T_DIR/performance"
-move_test_with_result "$OLD_T_DIR/drop_tables_loop.test" "$NEW_T_DIR/performance"
-move_test_with_result "$OLD_T_DIR/sequence.test" "$NEW_T_DIR/performance"
+move_test_file "$OLD_T_DIR/parser_edge_cases.test" "$NEW_T_DIR/performance"
+move_test_file "$OLD_T_DIR/create_tables_loop.test" "$NEW_T_DIR/performance"
+move_test_file "$OLD_T_DIR/drop_tables_loop.test" "$NEW_T_DIR/performance"
+move_test_file "$OLD_T_DIR/sequence.test" "$NEW_T_DIR/performance"
 
 # 复制子目录（demo_tests, br 等保持原样）
 echo "=== 保留现有子目录 ==="

@@ -1,4 +1,0 @@
-SELECT VERSION()
-8.0.41
-SELECT 1 as test_number
-1
