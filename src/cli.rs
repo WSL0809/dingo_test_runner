@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 /// MySQL Test Runner (Rust) - A MySQL testing framework
-#[derive(Parser, Debug, Clone)]
+#[derive(Parser, Debug, Clone, Default)]
 #[command(name = "mysql-tester")]
 #[command(about = "A MySQL testing framework written in Rust")]
 #[command(version = "0.2.0")]

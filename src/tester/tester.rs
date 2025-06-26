@@ -1735,6 +1735,7 @@ mod tests {
     use std::io::Write;
 
     #[test]
+    #[ignore = "Requires database connection - run with integration tests"]
     fn test_tester_creation() {
         let args = Args {
             host: "127.0.0.1".to_string(),

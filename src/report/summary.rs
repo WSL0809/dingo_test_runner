@@ -115,3 +115,122 @@ pub fn print_summary(suite: &TestSuiteResult) {
         println!();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_result(name: &str, status: TestStatus, duration_ms: u64) -> TestResult {
+        let success = status == TestStatus::Passed;
+        let passed_queries = if status == TestStatus::Passed { 1 } else { 0 };
+        let failed_queries = if status == TestStatus::Failed { 1 } else { 0 };
+        let errors = if status == TestStatus::Failed {
+            vec!["Test error".to_string()]
+        } else {
+            vec![]
+        };
+        
+        TestResult {
+            test_name: name.to_string(),
+            success,
+            status,
+            duration_ms,
+            start_time: "2023-01-01T00:00:00Z".to_string(),
+            end_time: "2023-01-01T00:00:01Z".to_string(),
+            passed_queries,
+            failed_queries,
+            errors,
+            stdout: "".to_string(),
+            stderr: "".to_string(),
+            classname: format!("test.{}", name),
+            query_failures: vec![],
+        }
+    }
+
+    #[test]
+    fn test_print_case_result_passed() {
+        let case = create_test_result("test_pass", TestStatus::Passed, 100);
+        
+        // This test verifies the function doesn't panic
+        // In a real test environment, you might want to capture stdout
+        print_case_result(&case);
+    }
+
+    #[test]
+    fn test_print_case_result_failed() {
+        let case = create_test_result("test_fail", TestStatus::Failed, 200);
+        
+        // This test verifies the function doesn't panic
+        print_case_result(&case);
+    }
+
+    #[test]
+    fn test_print_case_result_skipped() {
+        let case = create_test_result("test_skip", TestStatus::Skipped, 0);
+        
+        // This test verifies the function doesn't panic
+        print_case_result(&case);
+    }
+
+    #[test]
+    fn test_print_running_test() {
+        // This test verifies the function doesn't panic
+        print_running_test("test_running");
+    }
+
+    #[test]
+    fn test_print_summary_empty_suite() {
+        let suite = TestSuiteResult::new("empty_suite");
+        
+        // This test verifies the function doesn't panic with empty suite
+        print_summary(&suite);
+    }
+
+    #[test]
+    fn test_print_summary_mixed_results() {
+        let mut suite = TestSuiteResult::new("mixed_suite");
+        
+        suite.add_case(create_test_result("test1", TestStatus::Passed, 100));
+        suite.add_case(create_test_result("test2", TestStatus::Failed, 200));
+        suite.add_case(create_test_result("test3", TestStatus::Skipped, 0));
+        
+        // This test verifies the function doesn't panic with mixed results
+        print_summary(&suite);
+        
+        // Verify basic statistics
+        assert_eq!(suite.total_tests(), 3);
+        assert_eq!(suite.passed_tests(), 1);
+        assert_eq!(suite.failed_tests(), 1);
+        assert_eq!(suite.skipped_tests(), 1);
+    }
+
+    #[test]
+    fn test_print_summary_all_passed() {
+        let mut suite = TestSuiteResult::new("all_passed_suite");
+        
+        suite.add_case(create_test_result("test1", TestStatus::Passed, 100));
+        suite.add_case(create_test_result("test2", TestStatus::Passed, 150));
+        
+        print_summary(&suite);
+        
+        assert_eq!(suite.total_tests(), 2);
+        assert_eq!(suite.passed_tests(), 2);
+        assert_eq!(suite.failed_tests(), 0);
+        assert!(suite.pass_rate() == 100.0);
+    }
+
+    #[test]
+    fn test_print_summary_all_failed() {
+        let mut suite = TestSuiteResult::new("all_failed_suite");
+        
+        suite.add_case(create_test_result("test1", TestStatus::Failed, 100));
+        suite.add_case(create_test_result("test2", TestStatus::Failed, 150));
+        
+        print_summary(&suite);
+        
+        assert_eq!(suite.total_tests(), 2);
+        assert_eq!(suite.passed_tests(), 0);
+        assert_eq!(suite.failed_tests(), 2);
+        assert!(suite.pass_rate() == 0.0);
+    }
+}
