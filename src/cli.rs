@@ -117,6 +117,14 @@ pub struct Args {
     /// 出现首个 ERROR 立即终止当前测试并返回失败
     #[arg(long, default_value = "true")]
     pub fail_fast: bool,
+
+    /// Number of test files to execute in parallel (1 = serial execution)
+    #[arg(long, default_value = "1")]
+    pub parallel: usize,
+
+    /// Maximum number of database connections in the pool
+    #[arg(long, default_value = "0")]
+    pub max_connections: usize,
 }
 
 /// Represents a resolved test input
@@ -492,6 +500,8 @@ mod tests {
             test_files,
             fail_fast: true,
             allure_dir: "".to_string(),
+            parallel: 1,
+            max_connections: 0,
         }
     }
 

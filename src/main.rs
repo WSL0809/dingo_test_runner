@@ -1,4 +1,5 @@
 pub mod cli;
+pub mod executor;
 pub mod loader;
 pub mod report;
 pub mod stub;
@@ -7,12 +8,12 @@ pub mod util;
 
 use anyhow::Result;
 use cli::Args;
+use executor::FileExecutor;
 use log::{error, info, warn};
 use report::{
     create_renderer_with_allure_dir, html, summary, xunit, TestSuiteResult,
 };
 use stub::email::MailSender;
-use tester::tester::Tester;
 
 fn main() -> Result<()> {
     // Parse command line arguments
@@ -29,12 +30,12 @@ fn main() -> Result<()> {
 
     info!("MySQL Test Runner (Rust) v0.2.0");
     info!("Connecting to {}@{}:{}", args.user, args.host, args.port);
-
-    // Create test suite result
-    let mut suite = TestSuiteResult::new("mysql-test-runner");
-
-    // Create a clone of args for reuse in the loop
-    let base_args = args.clone();
+    
+    if args.parallel > 1 {
+        info!("File-level parallel execution enabled with {} workers", args.parallel);
+    } else {
+        info!("Serial execution mode (backward compatibility)");
+    }
 
     // Resolve tests to run
     let resolved_tests = if args.all {
@@ -81,52 +82,15 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    // Run tests
-    for resolved_test in &resolved_tests {
-        // Print running indicator
-        summary::print_running_test(&resolved_test.name);
-
-        // Check if test file exists
-        if !resolved_test.path.exists() {
-            let mut failed_case = tester::tester::TestResult::new(&resolved_test.name);
-            failed_case.add_error(format!(
-                "Test file not found: {}",
-                resolved_test.path.display()
-            ));
-            summary::print_case_result(&failed_case);
-            suite.add_case(failed_case);
-            continue;
+    // Create file executor and run tests
+    let executor = FileExecutor::new(args.clone());
+    let suite = match executor.execute(&resolved_tests) {
+        Ok(suite) => suite,
+        Err(e) => {
+            error!("Failed to execute tests: {}", e);
+            std::process::exit(1);
         }
-
-        // Create a new tester instance for each test file to ensure isolation
-        let mut tester = match Tester::new(base_args.clone()) {
-            Ok(t) => t,
-            Err(e) => {
-                let mut failed_case = tester::tester::TestResult::new(&resolved_test.name);
-                failed_case.add_error(format!("Failed to create tester: {}", e));
-                summary::print_case_result(&failed_case);
-                suite.add_case(failed_case);
-                continue;
-            }
-        };
-
-        // Run the test
-        match tester.run_test_file(&resolved_test.name) {
-            Ok(result) => {
-                summary::print_case_result(&result);
-                suite.add_case(result);
-            }
-            Err(e) => {
-                let mut failed_case = tester::tester::TestResult::new(&resolved_test.name);
-                failed_case.add_error(format!("Test execution failed: {}", e));
-                summary::print_case_result(&failed_case);
-                suite.add_case(failed_case);
-            }
-        }
-
-        // 显式 drop Tester，确保连接及资源释放
-        drop(tester);
-    }
+    };
 
     // Generate and output report using the new renderer architecture
     // Determine if Allure output should be used

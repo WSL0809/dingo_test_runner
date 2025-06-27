@@ -174,6 +174,8 @@ mod tests {
             email_enable_tls: false,
             test_files: vec![],
             fail_fast: false,
+            parallel: 1,
+            max_connections: 0,
         };
 
         match Tester::new(args) {

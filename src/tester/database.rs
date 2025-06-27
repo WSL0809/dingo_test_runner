@@ -282,9 +282,35 @@ impl MySQLDatabase {
         sanitized
     }
 
+    /// Extract unique database suffix from connection parameters
+    /// This is used for parallel execution to ensure database isolation
+    fn get_unique_db_suffix(&self) -> Option<String> {
+        if self.info.params.is_empty() {
+            return None;
+        }
+        
+        for param in self.info.params.split('&') {
+            if let Some((key, value)) = param.split_once('=') {
+                if key == "test_db_suffix" {
+                    return Some(value.to_string());
+                }
+            }
+        }
+        None
+    }
+
     pub fn init_for_test(&mut self, test_name: &str) -> Result<()> {
         let start_time = std::time::Instant::now();
-        let test_db = format!("test_{}", Self::sanitize_db_name(test_name));
+        
+        // Check if we have a unique database suffix for parallel execution
+        let test_db = if let Some(suffix) = self.get_unique_db_suffix() {
+            // For parallel execution, use the unique suffix
+            format!("test_{}_{}", Self::sanitize_db_name(test_name), suffix)
+        } else {
+            // For serial execution, use the original behavior
+            format!("test_{}", Self::sanitize_db_name(test_name))
+        };
+        
         trace!("Starting init_for_test for database '{}'", test_db);
         
         // Step 1: Drop existing database
@@ -316,7 +342,16 @@ impl MySQLDatabase {
 
     pub fn cleanup_after_test(&mut self, test_name: &str) -> Result<()> {
         let start_time = std::time::Instant::now();
-        let test_db = format!("test_{}", Self::sanitize_db_name(test_name));
+        
+        // Use the same naming logic as init_for_test
+        let test_db = if let Some(suffix) = self.get_unique_db_suffix() {
+            // For parallel execution, use the unique suffix
+            format!("test_{}_{}", Self::sanitize_db_name(test_name), suffix)
+        } else {
+            // For serial execution, use the original behavior
+            format!("test_{}", Self::sanitize_db_name(test_name))
+        };
+        
         trace!("Starting cleanup_after_test for database '{}'", test_db);
 
         // 1. 查询并删除所有表，避免遗留大型表阻塞 DROP DATABASE

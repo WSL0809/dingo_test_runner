@@ -1764,6 +1764,8 @@ mod tests {
             test_files: vec![],
             report_format: "terminal".to_string(),
             allure_dir: "".to_string(),
+            parallel: 1,
+            max_connections: 0,
         };
 
         // Note: This test would require a running MySQL server to actually work
@@ -1817,6 +1819,8 @@ mod tests {
             test_files: vec![],
             report_format: "terminal".to_string(),
             allure_dir: "".to_string(),
+            parallel: 1,
+            max_connections: 0,
         };
 
         let mut tester = match Tester::new(args) {
@@ -1882,6 +1886,8 @@ mod tests {
             test_files: vec![],
             report_format: "terminal".to_string(),
             allure_dir: "".to_string(),
+            parallel: 1,
+            max_connections: 0,
         };
 
         let mut tester = match Tester::new(args) {
@@ -1934,6 +1940,8 @@ mod tests {
             test_files: vec![],
             report_format: "terminal".to_string(),
             allure_dir: "".to_string(),
+            parallel: 1,
+            max_connections: 0,
         };
 
         // This test doesn't actually create a tester since it would require MySQL
@@ -1992,6 +2000,8 @@ mod tests {
             test_files: vec![],
             report_format: "terminal".to_string(),
             allure_dir: "".to_string(),
+            parallel: 1,
+            max_connections: 0,
         };
 
         let mut tester = match Tester::new(args) {

@@ -7,7 +7,8 @@
 
 - **完全兼容** MySQL 官方测试格式，支持 48 种查询类型和指令
 - **Pest 语法解析器** 基于 Pest 库的高性能解析器架构
-- **并发执行** 支持 `--BEGIN_CONCURRENT` / `--END_CONCURRENT` 并发块
+- **文件级并发** 支持多个测试文件并行执行，3-8x 性能提升
+- **查询级并发** 支持 `--BEGIN_CONCURRENT` / `--END_CONCURRENT` 并发块
 - **多数据库支持** MySQL 8.0 + SQLite 本地调试
 - **丰富报告** Terminal 彩色输出、HTML、JUnit XML、Allure 企业级报告
 - **变量系统** 支持 `--let` 变量定义、表达式求值、SQL 反引号表达式
@@ -93,6 +94,9 @@ cargo run -- --all
 
 # 指定数据库连接
 cargo run -- --host 127.0.0.1 --port 3306 --user root --passwd password basic
+
+# 文件级并发执行（新功能）
+cargo run -- --parallel 4 test1 test2 test3 test4
 ```
 
 ### Record 模式 vs 比对模式
@@ -397,6 +401,8 @@ pub fn create_renderer(format: &str) -> Result<Box<dyn ReportRenderer>> {
 --all                  # 运行所有测试
 --log-level <level>    # 日志级别 (error/warn/info/debug/trace)
 --fail-fast <bool>     # 遇到错误立即停止 (默认: true)
+--parallel <N>         # 文件级并发执行线程数 (默认: 1)
+--max-connections <N>  # 数据库连接池大小 (默认: 0，自动计算)
 ```
 
 ### 报告输出

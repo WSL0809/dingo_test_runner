@@ -1,0 +1,11 @@
+# Test file 3 for parallel execution
+--echo Starting parallel test 3
+
+CREATE TABLE test3 (id INT, data VARCHAR(50));
+INSERT INTO test3 VALUES (100, 'Test3-Alpha'), (200, 'Test3-Beta');
+
+--echo Test 3 data:
+SELECT * FROM test3 ORDER BY id;
+
+DROP TABLE test3;
+--echo Parallel test 3 completed
