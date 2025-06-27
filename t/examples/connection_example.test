@@ -1,0 +1,14 @@
+# 数据库连接示例
+
+-- echo 连接示例开始
+
+CREATE TABLE connection_test (id INTEGER, name VARCHAR(50));
+
+INSERT INTO connection_test VALUES (1, 'connection test');
+
+-- echo 查询数据:
+SELECT * FROM connection_test;
+
+DROP TABLE connection_test;
+
+-- echo 连接示例完成

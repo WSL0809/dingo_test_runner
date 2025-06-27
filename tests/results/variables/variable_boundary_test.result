@@ -1,0 +1,5 @@
+123
+456
+123	should_not_expand$distance
+456	explicit_expansion
+789	text$distance

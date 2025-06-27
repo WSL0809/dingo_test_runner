@@ -74,7 +74,7 @@ impl FileExecutor {
             };
 
             // Run the test
-            match tester.run_test_file(&resolved_test.name) {
+            match tester.run_test_file(&resolved_test.path) {
                 Ok(result) => {
                     summary::print_case_result(&result);
                     suite.add_case(result);
@@ -202,7 +202,7 @@ impl FileExecutor {
         };
 
         // Run the test
-        let result = match tester.run_test_file(&resolved_test.name) {
+        let result = match tester.run_test_file(&resolved_test.path) {
             Ok(result) => result,
             Err(e) => {
                 let mut failed_case = TestResult::new(&resolved_test.name);

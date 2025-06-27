@@ -1,0 +1,11 @@
+# 开发测试示例
+-- echo 开发测试开始
+
+CREATE TABLE dev_test (id INTEGER, name VARCHAR(50));
+INSERT INTO dev_test VALUES (1, 'dev data');
+
+-- echo 查询开发数据:
+SELECT * FROM dev_test;
+
+DROP TABLE dev_test;
+-- echo 开发测试完成
