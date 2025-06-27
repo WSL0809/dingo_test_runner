@@ -40,9 +40,16 @@ impl PestParser {
             // Update line number based on the pair's position
             let pair_line = pair.line_col().0;
             line_num = pair_line;
+            
+            
             match pair.as_rule() {
                 Rule::test_file => {
                     // Recursively process the test file contents
+                    let inner_queries = self.convert_to_queries(pair.into_inner())?;
+                    queries.extend(inner_queries);
+                }
+                Rule::line => {
+                    // Recursively process the line contents
                     let inner_queries = self.convert_to_queries(pair.into_inner())?;
                     queries.extend(inner_queries);
                 }
@@ -132,12 +139,23 @@ impl PestParser {
                 }
                 Rule::sql_statement => {
                     let sql_content = self.extract_sql_statement(pair)?;
-                    self.process_sql_line(
-                        &mut pending_sql_lines,
-                        &mut queries,
-                        sql_content,
-                        line_num,
-                    )?;
+                    
+                    // Check if this is actually our new syntax that wasn't caught by Pest
+                    if let Some(query) = self.try_parse_new_syntax(&sql_content, line_num)? {
+                        // Finalize any pending SQL first
+                        if !pending_sql_lines.is_empty() {
+                            self.finalize_pending_sql(&mut queries, &mut pending_sql_lines, line_num)?;
+                        }
+                        queries.push(query);
+                    } else {
+                        // Process as regular SQL
+                        self.process_sql_line(
+                            &mut pending_sql_lines,
+                            &mut queries,
+                            sql_content,
+                            line_num,
+                        )?;
+                    }
                 }
                 Rule::let_stmt => {
                     // Finalize any pending SQL before processing let
@@ -149,6 +167,113 @@ impl PestParser {
                     queries.push(Query {
                         query_type: QueryType::Let,
                         query: let_args,
+                        line: line_num,
+                        options: QueryOptions::default(),
+                    });
+                }
+                Rule::inc_stmt => {
+                    // Finalize any pending SQL before processing inc statement
+                    if !pending_sql_lines.is_empty() {
+                        self.finalize_pending_sql(&mut queries, &mut pending_sql_lines, line_num)?;
+                    }
+
+                    // Extract variable name from "inc $varname"
+                    let text = pair.as_str().trim();
+                    let var_name = text.split_whitespace().nth(1).unwrap_or("").to_string();
+                    queries.push(Query {
+                        query_type: QueryType::Inc,
+                        query: var_name,
+                        line: line_num,
+                        options: QueryOptions::default(),
+                    });
+                }
+                Rule::inc_operation => {
+                    // Finalize any pending SQL before processing inc operation
+                    if !pending_sql_lines.is_empty() {
+                        self.finalize_pending_sql(&mut queries, &mut pending_sql_lines, line_num)?;
+                    }
+
+                    // Extract variable name from "inc $varname"
+                    let text = pair.as_str();
+                    let var_name = text.split_whitespace().nth(1).unwrap_or("").to_string();
+                    queries.push(Query {
+                        query_type: QueryType::Inc,
+                        query: var_name,
+                        line: line_num,
+                        options: QueryOptions::default(),
+                    });
+                }
+                Rule::var_stmt => {
+                    // Finalize any pending SQL before processing variable statement
+                    if !pending_sql_lines.is_empty() {
+                        self.finalize_pending_sql(&mut queries, &mut pending_sql_lines, line_num)?;
+                    }
+
+                    // Process the inner var_operation
+                    for inner in pair.into_inner() {
+                        if let Rule::var_operation = inner.as_rule() {
+                            let (query_type, query_content) = self.parse_var_operation(inner)?;
+                            queries.push(Query {
+                                query_type,
+                                query: query_content,
+                                line: line_num,
+                                options: QueryOptions::default(),
+                            });
+                        }
+                    }
+                }
+                Rule::var_operation => {
+                    // Finalize any pending SQL before processing variable operation
+                    if !pending_sql_lines.is_empty() {
+                        self.finalize_pending_sql(&mut queries, &mut pending_sql_lines, line_num)?;
+                    }
+
+                    let (query_type, query_content) = self.parse_var_operation(pair)?;
+                    queries.push(Query {
+                        query_type,
+                        query: query_content,
+                        line: line_num,
+                        options: QueryOptions::default(),
+                    });
+                }
+                Rule::batch_operation => {
+                    // Finalize any pending SQL before processing batch operation
+                    if !pending_sql_lines.is_empty() {
+                        self.finalize_pending_sql(&mut queries, &mut pending_sql_lines, line_num)?;
+                    }
+
+                    let (query_type, query_content) = self.parse_batch_operation(pair)?;
+                    queries.push(Query {
+                        query_type,
+                        query: query_content,
+                        line: line_num,
+                        options: QueryOptions::default(),
+                    });
+                }
+                Rule::transaction_operation => {
+                    // Finalize any pending SQL before processing transaction operation
+                    if !pending_sql_lines.is_empty() {
+                        self.finalize_pending_sql(&mut queries, &mut pending_sql_lines, line_num)?;
+                    }
+
+                    let (query_type, query_content) = self.parse_transaction_operation(pair)?;
+                    queries.push(Query {
+                        query_type,
+                        query: query_content,
+                        line: line_num,
+                        options: QueryOptions::default(),
+                    });
+                }
+                Rule::simple_command => {
+                    // Finalize any pending SQL before processing simple command
+                    if !pending_sql_lines.is_empty() {
+                        self.finalize_pending_sql(&mut queries, &mut pending_sql_lines, line_num)?;
+                    }
+
+                    let (query_type, query_content) = self.parse_simple_command(pair)?;
+                    queries.push(Query {
+                        query_type,
+                        query: query_content,
                         line: line_num,
                         options: QueryOptions::default(),
                     });
@@ -228,6 +353,155 @@ impl PestParser {
 
         pending_sql_lines.clear();
         Ok(())
+    }
+
+    /// Try to parse new syntax that wasn't caught by Pest grammar
+    fn try_parse_new_syntax(&self, content: &str, line_num: usize) -> Result<Option<Query>> {
+        let content = content.trim();
+        
+        // Variable operations
+        if content.starts_with("inc ") {
+            let parts: Vec<&str> = content.split_whitespace().collect();
+            if parts.len() == 2 && parts[1].starts_with('$') {
+                return Ok(Some(Query {
+                    query_type: QueryType::Inc,
+                    query: parts[1].to_string(),
+                    line: line_num,
+                    options: QueryOptions::default(),
+                }));
+            }
+        } else if content.starts_with("dec ") {
+            let parts: Vec<&str> = content.split_whitespace().collect();
+            if parts.len() == 2 && parts[1].starts_with('$') {
+                return Ok(Some(Query {
+                    query_type: QueryType::Dec,
+                    query: parts[1].to_string(),
+                    line: line_num,
+                    options: QueryOptions::default(),
+                }));
+            }
+        } else if content.starts_with("add ") {
+            let parts: Vec<&str> = content.split(',').collect();
+            if parts.len() == 2 {
+                let var_part = parts[0].trim().split_whitespace().nth(1).unwrap_or("");
+                let value_part = parts[1].trim();
+                if var_part.starts_with('$') {
+                    let args = format!("{}, {}", var_part, value_part);
+                    return Ok(Some(Query {
+                        query_type: QueryType::Add,
+                        query: args,
+                        line: line_num,
+                        options: QueryOptions::default(),
+                    }));
+                }
+            }
+        } else if content.starts_with("sub ") {
+            let parts: Vec<&str> = content.split(',').collect();
+            if parts.len() == 2 {
+                let var_part = parts[0].trim().split_whitespace().nth(1).unwrap_or("");
+                let value_part = parts[1].trim();
+                if var_part.starts_with('$') {
+                    let args = format!("{}, {}", var_part, value_part);
+                    return Ok(Some(Query {
+                        query_type: QueryType::Sub,
+                        query: args,
+                        line: line_num,
+                        options: QueryOptions::default(),
+                    }));
+                }
+            }
+        }
+        // Batch operations
+        else if content.starts_with("batch_insert ") {
+            let table = content.strip_prefix("batch_insert ").unwrap_or("").trim();
+            return Ok(Some(Query {
+                query_type: QueryType::BatchInsert,
+                query: table.to_string(),
+                line: line_num,
+                options: QueryOptions::default(),
+            }));
+        } else if content == "batch_execute" {
+            return Ok(Some(Query {
+                query_type: QueryType::BatchExecute,
+                query: String::new(),
+                line: line_num,
+                options: QueryOptions::default(),
+            }));
+        } else if content == "end_batch" {
+            return Ok(Some(Query {
+                query_type: QueryType::EndBatch,
+                query: String::new(),
+                line: line_num,
+                options: QueryOptions::default(),
+            }));
+        }
+        // Transaction operations
+        else if content == "begin_transaction" {
+            return Ok(Some(Query {
+                query_type: QueryType::BeginTransaction,
+                query: String::new(),
+                line: line_num,
+                options: QueryOptions::default(),
+            }));
+        } else if content == "commit_transaction" {
+            return Ok(Some(Query {
+                query_type: QueryType::CommitTransaction,
+                query: String::new(),
+                line: line_num,
+                options: QueryOptions::default(),
+            }));
+        } else if content == "rollback_transaction" {
+            return Ok(Some(Query {
+                query_type: QueryType::RollbackTransaction,
+                query: String::new(),
+                line: line_num,
+                options: QueryOptions::default(),
+            }));
+        }
+        // Simple commands without -- prefix
+        else if content.starts_with("echo ") {
+            let echo_content = content.strip_prefix("echo ").unwrap_or("");
+            return Ok(Some(Query {
+                query_type: QueryType::Echo,
+                query: echo_content.to_string(),
+                line: line_num,
+                options: QueryOptions::default(),
+            }));
+        } else if content.starts_with("sleep ") {
+            let sleep_content = content.strip_prefix("sleep ").unwrap_or("");
+            return Ok(Some(Query {
+                query_type: QueryType::Sleep,
+                query: sleep_content.to_string(),
+                line: line_num,
+                options: QueryOptions::default(),
+            }));
+        } else if content.starts_with("error ") {
+            let error_content = content.strip_prefix("error ").unwrap_or("");
+            return Ok(Some(Query {
+                query_type: QueryType::Error,
+                query: error_content.to_string(),
+                line: line_num,
+                options: QueryOptions::default(),
+            }));
+        } else if content == "sorted_result" {
+            return Ok(Some(Query {
+                query_type: QueryType::SortedResult,
+                query: String::new(),
+                line: line_num,
+                options: QueryOptions::default(),
+            }));
+        } else if content.starts_with("source ") {
+            let source_content = content.strip_prefix("source ").unwrap_or("");
+            return Ok(Some(Query {
+                query_type: QueryType::Source,
+                query: source_content.to_string(),
+                line: line_num,
+                options: QueryOptions::default(),
+            }));
+        }
+        
+        // Not our new syntax
+        Ok(None)
     }
 
     fn parse_command_pair(&self, pair: pest::iterators::Pair<Rule>) -> Result<(QueryType, String)> {
@@ -323,6 +597,70 @@ impl PestParser {
             }
         }
         Err(anyhow!("Failed to extract let arguments"))
+    }
+
+    // === New parsing methods for enhanced syntax ===
+
+    fn parse_var_operation(&self, pair: pest::iterators::Pair<Rule>) -> Result<(QueryType, String)> {
+        let full_text = pair.as_str().trim();
+        
+        if full_text.starts_with("inc ") {
+            Ok((QueryType::Inc, full_text[4..].trim().to_string()))
+        } else if full_text.starts_with("dec ") {
+            Ok((QueryType::Dec, full_text[4..].trim().to_string()))
+        } else if full_text.starts_with("add ") {
+            Ok((QueryType::Add, full_text[4..].trim().to_string()))
+        } else if full_text.starts_with("sub ") {
+            Ok((QueryType::Sub, full_text[4..].trim().to_string()))
+        } else {
+            Err(anyhow!("Unknown variable operation: {}", full_text))
+        }
+    }
+
+    fn parse_batch_operation(&self, pair: pest::iterators::Pair<Rule>) -> Result<(QueryType, String)> {
+        let full_text = pair.as_str().trim();
+        
+        if full_text.starts_with("batch_insert ") {
+            Ok((QueryType::BatchInsert, full_text[13..].trim().to_string()))
+        } else if full_text.starts_with("batch_execute") {
+            Ok((QueryType::BatchExecute, String::new()))
+        } else if full_text.starts_with("end_batch") {
+            Ok((QueryType::EndBatch, String::new()))
+        } else {
+            Err(anyhow!("Unknown batch operation: {}", full_text))
+        }
+    }
+
+    fn parse_transaction_operation(&self, pair: pest::iterators::Pair<Rule>) -> Result<(QueryType, String)> {
+        let full_text = pair.as_str().trim();
+        
+        if full_text.starts_with("begin_transaction") {
+            Ok((QueryType::BeginTransaction, String::new()))
+        } else if full_text.starts_with("commit_transaction") {
+            Ok((QueryType::CommitTransaction, String::new()))
+        } else if full_text.starts_with("rollback_transaction") {
+            Ok((QueryType::RollbackTransaction, String::new()))
+        } else {
+            Err(anyhow!("Unknown transaction operation: {}", full_text))
+        }
+    }
+
+    fn parse_simple_command(&self, pair: pest::iterators::Pair<Rule>) -> Result<(QueryType, String)> {
+        let full_text = pair.as_str().trim();
+        
+        if full_text.starts_with("echo ") {
+            Ok((QueryType::Echo, full_text[5..].to_string()))
+        } else if full_text.starts_with("sleep ") {
+            Ok((QueryType::Sleep, full_text[6..].trim().to_string()))
+        } else if full_text.starts_with("error ") {
+            Ok((QueryType::Error, full_text[6..].to_string()))
+        } else if full_text == "sorted_result" {
+            Ok((QueryType::SortedResult, String::new()))
+        } else if full_text.starts_with("source ") {
+            Ok((QueryType::Source, full_text[7..].to_string()))
+        } else {
+            Err(anyhow!("Unknown simple command: {}", full_text))
+        }
     }
 }
 

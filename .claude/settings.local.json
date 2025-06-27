@@ -10,7 +10,12 @@
       "Bash(git add:*)",
       "Bash(rg:*)",
       "Bash(git commit:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(time cargo run:*)",
+      "Bash(RUST_LOG=debug cargo run -- --record simple_inc_test)",
+      "Bash(RUST_LOG=trace cargo run -- --record simple_inc_test 2 >& 1)",
+      "Bash(RUST_LOG=dingo_test_runner::tester::pest_parser=debug cargo run -- --record --host 127.0.0.1 --port 3306 --user root --passwd 123456 simple_inc_test)",
+      "Bash(sed:*)"
     ],
     "deny": []
   }

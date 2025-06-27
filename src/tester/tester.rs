@@ -97,6 +97,21 @@ pub struct Tester {
     current_query_line: usize,
     /// Source nesting depth to prevent infinite recursion
     source_depth: u32,
+    
+    // === New enhanced syntax state ===
+    /// Transaction active state
+    transaction_active: bool,
+    /// Batch operation mode (None, Insert(table), Execute)
+    batch_mode: Option<BatchMode>,
+    /// Batch statements collection
+    batch_statements: Vec<String>,
+}
+
+/// Batch operation modes
+#[derive(Debug, Clone)]
+pub enum BatchMode {
+    Insert(String), // table name
+    Execute,
 }
 
 impl Tester {
@@ -147,6 +162,10 @@ impl Tester {
             current_query: None,
             current_query_line: 0,
             source_depth: 0,
+            // Initialize new enhanced syntax state
+            transaction_active: false,
+            batch_mode: None,
+            batch_statements: Vec::new(),
         })
     }
 
@@ -365,7 +384,14 @@ impl Tester {
 
         match query.query_type {
             QueryType::Query => {
-                self.execute_sql_query(&query.query, query.line)?;
+                // Check if we're in batch mode
+                if let Some(_) = &self.batch_mode {
+                    // Add to batch instead of executing immediately
+                    self.add_to_batch(query.query.clone())?;
+                } else {
+                    // Normal execution
+                    self.execute_sql_query(&query.query, query.line)?;
+                }
                 // Modifiers are one-shot, clear them after the SQL query runs.
                 self.expected_errors.clear();
                 self.pending_sorted_result = false;
@@ -666,6 +692,47 @@ impl Tester {
                     warn!("--error directive before --eval is ignored");
                     self.expected_errors.clear();
                 }
+            }
+            // === New enhanced syntax query types ===
+            QueryType::Inc => {
+                use crate::tester::handlers::var_operations::execute_inc;
+                execute_inc(self, &query.query)?;
+            }
+            QueryType::Dec => {
+                use crate::tester::handlers::var_operations::execute_dec;
+                execute_dec(self, &query.query)?;
+            }
+            QueryType::Add => {
+                use crate::tester::handlers::var_operations::execute_add;
+                execute_add(self, &query.query)?;
+            }
+            QueryType::Sub => {
+                use crate::tester::handlers::var_operations::execute_sub;
+                execute_sub(self, &query.query)?;
+            }
+            QueryType::BatchInsert => {
+                use crate::tester::handlers::batch_operations::execute_batch_insert;
+                execute_batch_insert(self, &query.query)?;
+            }
+            QueryType::BatchExecute => {
+                use crate::tester::handlers::batch_operations::execute_batch_execute;
+                execute_batch_execute(self, &query.query)?;
+            }
+            QueryType::EndBatch => {
+                use crate::tester::handlers::batch_operations::execute_end_batch;
+                execute_end_batch(self, &query.query)?;
+            }
+            QueryType::BeginTransaction => {
+                use crate::tester::handlers::transaction_operations::execute_begin_transaction;
+                execute_begin_transaction(self, &query.query)?;
+            }
+            QueryType::CommitTransaction => {
+                use crate::tester::handlers::transaction_operations::execute_commit_transaction;
+                execute_commit_transaction(self, &query.query)?;
+            }
+            QueryType::RollbackTransaction => {
+                use crate::tester::handlers::transaction_operations::execute_rollback_transaction;
+                execute_rollback_transaction(self, &query.query)?;
             }
             _ => {
                 warn!("Unhandled query type: {:?}", query.query_type);
@@ -2018,5 +2085,90 @@ mod tests {
         // 清理
         fs::remove_file(test_file_path).unwrap();
         fs::remove_file(result_file_path).unwrap();
+    }
+}
+
+// === New enhanced syntax methods ===
+impl Tester {
+    /// Get transaction active state
+    pub fn is_transaction_active(&self) -> bool {
+        self.transaction_active
+    }
+
+    /// Set transaction active state
+    pub fn set_transaction_active(&mut self, active: bool) {
+        self.transaction_active = active;
+    }
+
+    /// Start batch insert mode
+    pub fn start_batch_insert(&mut self, table_name: String) -> Result<()> {
+        if self.batch_mode.is_some() {
+            return Err(anyhow!("Already in batch mode"));
+        }
+        
+        self.batch_mode = Some(BatchMode::Insert(table_name));
+        self.batch_statements.clear();
+        Ok(())
+    }
+
+    /// Start batch execute mode
+    pub fn start_batch_execute(&mut self) -> Result<()> {
+        if self.batch_mode.is_some() {
+            return Err(anyhow!("Already in batch mode"));
+        }
+        
+        self.batch_mode = Some(BatchMode::Execute);
+        self.batch_statements.clear();
+        Ok(())
+    }
+
+    /// Add statement to current batch
+    pub fn add_to_batch(&mut self, statement: String) -> Result<()> {
+        match &self.batch_mode {
+            None => Err(anyhow!("Not in batch mode")),
+            Some(BatchMode::Insert(table_name)) => {
+                // For batch insert, expect values like (1, 'name')
+                let insert_sql = format!("INSERT INTO {} VALUES {}", table_name, statement);
+                self.batch_statements.push(insert_sql);
+                Ok(())
+            }
+            Some(BatchMode::Execute) => {
+                // For batch execute, store statement as-is
+                self.batch_statements.push(statement);
+                Ok(())
+            }
+        }
+    }
+
+    /// End batch operation and execute all statements
+    pub fn end_batch(&mut self) -> Result<usize> {
+        if self.batch_mode.is_none() {
+            return Err(anyhow!("Not in batch mode"));
+        }
+
+        let statement_count = self.batch_statements.len();
+        
+        if statement_count > 0 {
+            // Get database connection
+            let db = self.connection_manager.current_database()?;
+            
+            // Execute all statements in a transaction for consistency
+            db.execute("BEGIN")?;
+            
+            for statement in &self.batch_statements {
+                debug!("Executing batch statement: {}", statement);
+                db.execute(statement)?;
+            }
+            
+            db.execute("COMMIT")?;
+            
+            info!("Executed {} batch statements successfully", statement_count);
+        }
+
+        // Reset batch state
+        self.batch_mode = None;
+        self.batch_statements.clear();
+
+        Ok(statement_count)
     }
 }

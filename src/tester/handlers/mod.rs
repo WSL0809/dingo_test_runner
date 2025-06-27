@@ -11,3 +11,8 @@ pub mod replace_regex;
 pub mod result_log;
 pub mod sleep;
 pub mod sorted_result;
+
+// New enhanced syntax handlers
+pub mod var_operations;
+pub mod batch_operations;
+pub mod transaction_operations;

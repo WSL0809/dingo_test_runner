@@ -1,0 +1,7 @@
+"=== Variable Operations Test ==="
+"Initial counter: 10"
+"After increment: 11"
+"After decrement: 10"
+"After adding 5: 15"
+"After subtracting 3: 12"
+"=== Variable Operations Test Complete ==="

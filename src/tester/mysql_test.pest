@@ -9,13 +9,20 @@ test_file = { SOI ~ line* ~ EOI }
 
 // A line can be empty, comment, command, control flow, or SQL
 // Order matters! More specific rules should come first
-line = _{ 
+line = { 
+    // Test just inc first - put at very beginning
+    inc_stmt |
     empty_line |
     comment |
     command |
     delimiter_change |
     control_flow |
     let_stmt |
+    // New commands without -- prefix (with newline handling)
+    var_stmt |
+    batch_stmt |
+    transaction_stmt |
+    simple_command_stmt |
     sql_statement
 }
 
@@ -44,12 +51,15 @@ let_assignment = { (!NEWLINE ~ ANY)+ }
 
 // SQL statements - anything that doesn't match above patterns
 // This should be the last rule to catch remaining content
-sql_statement = { (!end_stmt ~ !let_stmt_lookahead ~ sql_content) ~ NEWLINE? }
+sql_statement = { sql_content ~ NEWLINE? }
 sql_content = { (!NEWLINE ~ ANY)+ }
 
-// Lookahead to prevent let statements from being parsed as SQL
-// Case insensitive lookahead
+// Lookahead rules to prevent new syntax from being parsed as SQL
 let_stmt_lookahead = { ^"let" ~ (WHITESPACE | "$" | ASCII_ALPHA) }
+var_op_lookahead = { (^"inc" | ^"dec" | ^"add" | ^"sub") ~ WHITESPACE }
+batch_op_lookahead = { (^"batch_insert" | ^"batch_execute" | ^"end_batch") ~ (WHITESPACE | NEWLINE | EOI) }
+transaction_op_lookahead = { (^"begin_transaction" | ^"commit_transaction" | ^"rollback_transaction") ~ (WHITESPACE | NEWLINE | EOI) }
+simple_cmd_lookahead = { (^"echo" | ^"sleep" | ^"error" | ^"sorted_result" | ^"source") ~ WHITESPACE }
 
 // 现在仅支持传统语法：if (cond) ... end
 if_stmt = { "if" ~ WHITESPACE* ~ "(" ~ condition ~ ")" ~ NEWLINE? }
@@ -57,8 +67,59 @@ if_stmt = { "if" ~ WHITESPACE* ~ "(" ~ condition ~ ")" ~ NEWLINE? }
 // 同理 while
 while_stmt = { "while" ~ WHITESPACE* ~ "(" ~ condition ~ ")" ~ NEWLINE? }
 
-// 结束标记
-end_stmt = { "end" ~ NEWLINE? }
+// 结束标记 - 确保只匹配确切的 "end"，不匹配 "end_batch" 等
+end_stmt = { "end" ~ !(ASCII_ALPHANUMERIC | "_") ~ NEWLINE? }
 
 // 条件内部内容（直到右括号）
 condition = { (!")" ~ ANY)+ }
+
+// === New syntax enhancements ===
+
+// Variable operations (inc, dec, add, sub)
+var_operation = { 
+    ("inc" ~ WHITESPACE+ ~ variable_name) |
+    ("dec" ~ WHITESPACE+ ~ variable_name) |
+    ("add" ~ WHITESPACE+ ~ variable_name ~ WHITESPACE* ~ "," ~ WHITESPACE* ~ number_or_variable) |
+    ("sub" ~ WHITESPACE+ ~ variable_name ~ WHITESPACE* ~ "," ~ WHITESPACE* ~ number_or_variable)
+}
+
+// Statement rules for new syntax (with explicit NEWLINE handling)
+inc_stmt = { inc_operation ~ NEWLINE? }
+var_stmt = { var_operation ~ NEWLINE? }
+batch_stmt = { batch_operation ~ NEWLINE? }
+transaction_stmt = { transaction_operation ~ NEWLINE? }
+simple_command_stmt = { simple_command ~ NEWLINE? }
+
+// Test specific rule just for inc - match everything after inc
+inc_operation = { "inc" ~ " " ~ (!NEWLINE ~ ANY)+ }
+
+// Batch operations
+batch_operation = {
+    (^"batch_insert" ~ WHITESPACE+ ~ table_name ~ NEWLINE?) |
+    (^"batch_execute" ~ NEWLINE?) |
+    (^"end_batch" ~ NEWLINE?)
+}
+
+// Transaction operations  
+transaction_operation = {
+    (^"begin_transaction" ~ NEWLINE?) |
+    (^"commit_transaction" ~ NEWLINE?) |
+    (^"rollback_transaction" ~ NEWLINE?)
+}
+
+// Simple commands without -- prefix (for control flow contexts)
+simple_command = {
+    (^"echo" ~ WHITESPACE+ ~ echo_content ~ NEWLINE?) |
+    (^"sleep" ~ WHITESPACE+ ~ number_or_variable ~ NEWLINE?) |
+    (^"error" ~ WHITESPACE+ ~ error_content ~ NEWLINE?) |
+    (^"sorted_result" ~ NEWLINE?) |
+    (^"source" ~ WHITESPACE+ ~ file_path ~ NEWLINE?)
+}
+
+// Helper rules
+variable_name = { "$" ~ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+table_name = { ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+number_or_variable = { variable_name | ASCII_DIGIT+ }
+echo_content = { (!NEWLINE ~ ANY)* }
+error_content = { (!NEWLINE ~ ANY)* }
+file_path = { (!NEWLINE ~ ANY)+ }

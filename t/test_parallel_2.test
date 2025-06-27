@@ -1,0 +1,5 @@
+# 并发测试文件 2
+--echo Test 2 开始
+--exec echo "Test 2 executing"
+--exec sleep 1
+--echo Test 2 完成

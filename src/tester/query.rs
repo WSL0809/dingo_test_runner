@@ -56,6 +56,22 @@ pub enum QueryType {
     While,
     End,
     CloseBrace, // } for closing control flow blocks
+    
+    // Variable operations
+    Inc,        // inc $var
+    Dec,        // dec $var  
+    Add,        // add $var, N
+    Sub,        // sub $var, N
+    
+    // Batch operations
+    BatchInsert,   // batch_insert table_name
+    BatchExecute,  // batch_execute
+    EndBatch,      // end_batch
+    
+    // Transaction operations
+    BeginTransaction,    // begin_transaction
+    CommitTransaction,   // commit_transaction
+    RollbackTransaction, // rollback_transaction
 }
 
 /// 一次性修饰符、期望错误等元数据

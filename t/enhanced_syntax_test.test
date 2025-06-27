@@ -1,0 +1,72 @@
+# Enhanced DSL syntax test - tests new syntax improvements
+echo "=== Enhanced DSL Syntax Test ==="
+
+# Test 1: Variable increment/decrement operations
+echo "--- Test 1: Variable operations ---"
+let $counter = 10
+echo "Initial counter: $counter"
+
+inc $counter
+echo "After increment: $counter"
+
+dec $counter
+echo "After decrement: $counter"
+
+add $counter, 5
+echo "After adding 5: $counter"
+
+sub $counter, 3
+echo "After subtracting 3: $counter"
+
+# Test 2: Control flow with simplified syntax (省略 -- 前缀)
+echo "--- Test 2: Control flow without -- prefix ---"
+let $i = 1
+while ($i <= 3)
+  echo "Loop iteration: $i"
+  inc $i
+end
+
+# Test 3: Batch insert operations
+echo "--- Test 3: Batch insert operations ---"
+CREATE TABLE test_batch (id INT, name VARCHAR(50));
+
+batch_insert test_batch
+  (1, 'Alice')
+  (2, 'Bob')  
+  (3, 'Charlie')
+end_batch
+
+SELECT * FROM test_batch ORDER BY id;
+
+# Test 4: Batch execute operations  
+echo "--- Test 4: Batch execute operations ---"
+batch_execute
+  UPDATE test_batch SET name = 'Alice_Updated' WHERE id = 1;
+  UPDATE test_batch SET name = 'Bob_Updated' WHERE id = 2;
+  DELETE FROM test_batch WHERE id = 3;
+end_batch
+
+SELECT * FROM test_batch ORDER BY id;
+
+# Test 5: Transaction management
+echo "--- Test 5: Transaction management ---"
+begin_transaction
+  INSERT INTO test_batch VALUES (4, 'David');
+  INSERT INTO test_batch VALUES (5, 'Eva');
+commit_transaction
+
+SELECT * FROM test_batch WHERE id >= 4 ORDER BY id;
+
+# Test rollback
+begin_transaction
+  INSERT INTO test_batch VALUES (6, 'Frank');
+  INSERT INTO test_batch VALUES (7, 'Grace');
+rollback_transaction
+
+# Should only show David and Eva, not Frank and Grace
+SELECT * FROM test_batch WHERE id >= 4 ORDER BY id;
+
+# Cleanup
+DROP TABLE test_batch;
+
+echo "=== Enhanced DSL Syntax Test Complete ==="

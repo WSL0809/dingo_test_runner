@@ -1,0 +1,5 @@
+# Very simple increment test
+--let $counter = 10
+--echo "Before: $counter"
+inc $counter
+--echo "After: $counter"

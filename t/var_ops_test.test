@@ -1,0 +1,19 @@
+# Simple variable operations test
+--echo "=== Variable Operations Test ==="
+
+--let $counter = 10
+--echo "Initial counter: $counter"
+
+inc $counter
+--echo "After increment: $counter"
+
+dec $counter  
+--echo "After decrement: $counter"
+
+add $counter, 5
+--echo "After adding 5: $counter"
+
+sub $counter, 3
+--echo "After subtracting 3: $counter"
+
+--echo "=== Variable Operations Test Complete ==="
