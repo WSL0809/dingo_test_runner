@@ -47,9 +47,9 @@ quick-xml = "0.37.5"
 console = "0.15"
 
 # 邮件功能
-lettre = { version = "0.11", optional = true }
+lettre = "0.11"
 # HTML 模板引擎
-askama = { version = "0.14.0", optional = true }
+askama = "0.14.0"
 # 字符串映射
 phf = { version = "0.11.2", features = ["macros"] }
 
@@ -73,6 +73,5 @@ mockall = "0.13"
 tokio-test = "0.4"
 
 [features]
-default = ["email"]
-email = ["lettre", "askama"]
+default = []
 

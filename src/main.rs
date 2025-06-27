@@ -229,8 +229,7 @@ fn send_email_report(
     // Generate plain text report
     let plain_text_body = html::generate_plain_text_report(suite_result);
 
-    // Generate HTML report (if email feature is enabled)
-    #[cfg(feature = "email")]
+    // Generate HTML report
     let html_body = {
         let html_report = html::HtmlReport::new(suite_result, &suite_result.cases);
         html_report.generate().unwrap_or_else(|e| {
@@ -241,9 +240,6 @@ fn send_email_report(
             plain_text_body.clone()
         })
     };
-
-    #[cfg(not(feature = "email"))]
-    let html_body = plain_text_body.clone();
 
     // Determine XUnit file path
     let xunit_path = if !xunit_file.is_empty() && email_config.attach_xunit {

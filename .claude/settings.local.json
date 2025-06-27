@@ -8,7 +8,9 @@
       "Bash(./verify_migration.sh:*)",
       "Bash(cargo:*)",
       "Bash(git add:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(git commit:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

@@ -3,33 +3,25 @@
 //! This module provides email sending capabilities for test reports,
 //! supporting both HTML and plain text formats with optional attachments.
 
-#[cfg(feature = "email")]
 use anyhow::{anyhow, Result};
-#[cfg(feature = "email")]
 use lettre::{
     message::{header::ContentType, Attachment, Mailbox, Message, MultiPart, SinglePart},
     transport::smtp::{authentication::Credentials, PoolConfig},
     SmtpTransport, Transport,
 };
-#[cfg(feature = "email")]
 use log::{error, info, warn};
-#[cfg(feature = "email")]
 use std::path::Path;
 
-#[cfg(feature = "email")]
 use crate::cli::EmailConfig;
-#[cfg(feature = "email")]
 use crate::report::TestSuiteResult;
 
 /// Email sender for test reports
-#[cfg(feature = "email")]
 pub struct MailSender {
     transport: SmtpTransport,
     from: Mailbox,
     config: EmailConfig,
 }
 
-#[cfg(feature = "email")]
 impl MailSender {
     /// Create a new mail sender with the given configuration
     pub fn new(config: EmailConfig) -> Result<Self> {
@@ -192,25 +184,3 @@ impl MailSender {
     }
 }
 
-/// Stub implementation when email feature is disabled
-#[cfg(not(feature = "email"))]
-pub struct MailSender;
-
-#[cfg(not(feature = "email"))]
-impl MailSender {
-    pub fn new(_config: crate::cli::EmailConfig) -> anyhow::Result<Self> {
-        Err(anyhow::anyhow!(
-            "Email feature is not enabled. Please compile with --features email"
-        ))
-    }
-
-    pub fn send_test_report(
-        &self,
-        _suite_result: &crate::report::TestSuiteResult,
-        _plain_text_body: &str,
-        _html_body: &str,
-        _xunit_file_path: Option<&std::path::Path>,
-    ) -> anyhow::Result<()> {
-        Err(anyhow::anyhow!("Email feature is not enabled"))
-    }
-}

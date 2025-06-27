@@ -6,7 +6,7 @@
 ## 🎯 项目特色
 
 - **完全兼容** MySQL 官方测试格式，支持 48 种查询类型和指令
-- **双解析器架构** 基于 Pest 语法解析器 + 手写解析器备选方案
+- **Pest 语法解析器** 基于 Pest 库的高性能解析器架构
 - **并发执行** 支持 `--BEGIN_CONCURRENT` / `--END_CONCURRENT` 并发块
 - **多数据库支持** MySQL 8.0 + SQLite 本地调试
 - **丰富报告** Terminal 彩色输出、HTML、JUnit XML、Allure 企业级报告
@@ -22,7 +22,7 @@ CLI 层 (cli.rs)          → 解析命令行参数，支持多种输入格式
   ↓
 加载层 (loader.rs)       → 发现和加载 .test 文件
   ↓  
-解析层 (parser.rs)       → 双解析器：Pest + 手写解析器
+解析层 (parser.rs)       → Pest 语法解析器
   ↓
 执行层 (tester.rs)       → 核心测试引擎，串行+并发执行
   ↓
@@ -44,7 +44,7 @@ graph TD
     G --> H["tester.rs:84<br/>ConnectionManager::new()"]
     H --> I["main.rs:108<br/>tester.run_test_file()"]
     I --> J["tester.rs:239<br/>default_parser().parse()"]
-    J --> K["parser.rs:24<br/>PestParser 或 HandwrittenParser"]
+    J --> K["parser.rs:24<br/>PestParser"]
     K --> L["tester.rs:349<br/>execute_query() 循环"]
     L --> M["handlers/*<br/>各种命令处理器"]
     M --> N["database.rs<br/>MySQL/SQLite 执行"]
@@ -115,7 +115,7 @@ src/
 ├── lib.rs                     # 库入口模块 (11行)
 ├── tester/                    # 🔥 核心测试执行模块
 │   ├── tester.rs              # 测试执行引擎，串行+并发 (2014行)
-│   ├── parser.rs              # 解析器抽象层和手写实现 (537行)
+│   ├── parser.rs              # 解析器抽象层和工厂函数 (89行)
 │   ├── pest_parser.rs         # Pest 语法解析器 (486行)
 │   ├── mysql_test.pest        # Pest 语法定义文件 (61行)
 │   ├── query.rs               # Query 结构和 48 种查询类型定义
@@ -287,7 +287,7 @@ impl VariableContext {
 
 ## 🔍 Parser 解析系统
 
-### 双解析器架构
+### Pest 解析器架构
 
 ```rust
 // src/tester/parser.rs:10-35
@@ -295,15 +295,9 @@ pub trait QueryParser: Send + Sync {
     fn parse(&mut self, content: &str) -> Result<Vec<Query>>;
 }
 
+/// Factory function to create the default parser implementation
 pub fn default_parser() -> Box<dyn QueryParser> {
-    #[cfg(feature = "pest")]
-    {
-        Box::new(crate::tester::pest_parser::PestParser::new())
-    }
-    #[cfg(not(feature = "pest"))]
-    {
-        Box::new(HandwrittenParser::new())
-    }
+    Box::new(crate::tester::pest_parser::PestParser::new())
 }
 ```
 
@@ -582,9 +576,9 @@ RUST_LOG=trace cargo run -- basic
 ### 解析器调试
 
 ```bash
-# 使用手写解析器
-cargo run --no-default-features -- basic
+# 使用 Pest 解析器
+cargo run -- basic
 
-# 使用 Pest 解析器 (默认)
-cargo run --features pest -- basic
+# 启用详细的解析日志
+RUST_LOG=dingo_test_runner::tester::pest_parser=debug cargo run -- basic
 ```

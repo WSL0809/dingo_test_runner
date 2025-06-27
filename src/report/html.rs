@@ -4,14 +4,11 @@
 //! It creates beautiful, responsive HTML reports with dark/light mode support.
 
 use crate::report::TestSuiteResult;
-#[cfg(feature = "email")]
 use crate::tester::tester::TestResult;
-#[cfg(feature = "email")]
 use askama::Template;
 use chrono::Local;
 
 /// HTML report template data
-#[cfg(feature = "email")]
 #[derive(Template)]
 #[template(path = "report.html")]
 pub struct HtmlReport<'a> {
@@ -23,7 +20,6 @@ pub struct HtmlReport<'a> {
     pub duration_seconds: f64,
 }
 
-#[cfg(feature = "email")]
 impl<'a> HtmlReport<'a> {
     /// Create a new HTML report
     pub fn new(summary: &'a TestSuiteResult, cases: &'a [TestResult]) -> Self {
