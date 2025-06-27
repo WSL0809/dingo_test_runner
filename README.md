@@ -5,7 +5,12 @@
 
 ## 🎯 项目特色
 
-- **完全兼容** MySQL 官方测试格式，支持 48 种查询类型和指令
+- **完全兼容** MySQL 官方测试格式，支持 50+ 种查询类型和指令
+- **增强 DSL 语法** 新增 4 种语法特性，减少冗余，提升开发效率
+  - 控制流内省略 `--` 前缀
+  - 变量自增/自减操作 (`inc $var`, `dec $var`)
+  - 批量操作 (`batch_insert`, `batch_execute`, `end_batch`)
+  - 事务管理简化 (`begin_transaction`, `commit_transaction`)
 - **Pest 语法解析器** 基于 Pest 库的高性能解析器架构
 - **文件级并发** 支持多个测试文件并行执行，3-8x 性能提升
 - **查询级并发** 支持 `--BEGIN_CONCURRENT` / `--END_CONCURRENT` 并发块
@@ -338,18 +343,22 @@ let_stmt = { ^"let" ~ WHITESPACE* ~ let_assignment ~ NEWLINE? }
 
 ### 支持的查询类型
 
-系统支持 48 种查询类型，定义在 `src/tester/query.rs`：
+系统支持 50+ 种查询类型，定义在 `src/tester/query.rs`：
 
 | 类别 | 指令 | 功能 | 处理器 |
 |------|------|------|--------|
 | **基础查询** | `Query` | SQL 查询执行 | `handlers/mod.rs` |
-| **输出控制** | `--echo` | 输出文本 | `handlers/echo.rs` |
-| **错误处理** | `--error` | 预期错误捕获 | `handlers/error.rs` |
-| **变量系统** | `--let` | 变量定义 | `handlers/let_handler.rs` |
+| **输出控制** | `--echo` / `echo` | 输出文本 | `handlers/echo.rs` |
+| **错误处理** | `--error` / `error` | 预期错误捕获 | `handlers/error.rs` |
+| **变量系统** | `--let` / `let` | 变量定义 | `handlers/let_handler.rs` |
+| **变量操作** | `inc` / `dec` | 变量自增/自减 | `handlers/var_operations.rs` |
+| **变量运算** | `add` / `sub` | 变量加法/减法 | `handlers/var_operations.rs` |
 | **控制流** | `if/while/end` | 条件循环 | `tester.rs:1502-1579` |
+| **批量操作** | `batch_insert` / `batch_execute` / `end_batch` | 批量SQL执行 | `handlers/batch_operations.rs` |
+| **事务管理** | `begin_transaction` / `commit_transaction` / `rollback_transaction` | 事务控制 | `handlers/transaction_operations.rs` |
 | **并发执行** | `--begin_concurrent` | 并发块开始 | `tester.rs:1580-1731` |
 | **连接管理** | `--connect` | 多连接管理 | `handlers/connect.rs` |
-| **结果处理** | `--sorted_result` | 结果排序 | `handlers/sorted_result.rs` |
+| **结果处理** | `--sorted_result` / `sorted_result` | 结果排序 | `handlers/sorted_result.rs` |
 | **正则替换** | `--replace_regex` | 结果替换 | `handlers/replace_regex.rs` |
 | **外部命令** | `--exec` | 系统命令执行 | `handlers/exec.rs` |
 
@@ -458,18 +467,27 @@ SELECT 2;
 
 ### 支持的指令
 
-| 指令 | 语法 | 功能 |
-|------|------|------|
-| `--echo` | `--echo <text>` | 输出文本 |
-| `--error` | `--error <code>` | 预期错误码 |
-| `--let` | `--let $var = value` | 变量定义 |
-| `let` | `let $var = value` | 变量定义 (简化语法) |
-| `--sorted_result` | `--sorted_result` | 结果排序 |
-| `--replace_regex` | `--replace_regex /<regex>/<replacement>/` | 正则替换 |
-| `--exec` | `--exec <command>` | 执行系统命令 |
-| `--source` | `--source <file>` | 包含其他测试文件 |
-| `--connect` | `--connect (name,host,user,password,db)` | 连接管理 |
-| `--sleep` | `--sleep <seconds>` | 暂停执行 |
+| 类别 | 指令 | 语法 | 功能 |
+|------|------|------|------|
+| **基础控制** | `--echo` / `echo` | `--echo <text>` / `echo <text>` | 输出文本 |
+| | `--error` / `error` | `--error <code>` / `error <code>` | 预期错误码 |
+| | `--sleep` / `sleep` | `--sleep <seconds>` / `sleep <seconds>` | 暂停执行 |
+| **变量系统** | `--let` / `let` | `--let $var = value` / `let $var = value` | 变量定义 |
+| | `inc` | `inc $var` | 变量自增 |
+| | `dec` | `dec $var` | 变量自减 |
+| | `add` | `add $var, <value>` | 变量加法 |
+| | `sub` | `sub $var, <value>` | 变量减法 |
+| **批量操作** | `batch_insert` | `batch_insert <table>` | 开始批量插入 |
+| | `batch_execute` | `batch_execute` | 执行批量操作 |
+| | `end_batch` | `end_batch` | 结束批量操作 |
+| **事务控制** | `begin_transaction` | `begin_transaction` | 开始事务 |
+| | `commit_transaction` | `commit_transaction` | 提交事务 |
+| | `rollback_transaction` | `rollback_transaction` | 回滚事务 |
+| **结果处理** | `--sorted_result` / `sorted_result` | `--sorted_result` / `sorted_result` | 结果排序 |
+| | `--replace_regex` | `--replace_regex /<regex>/<replacement>/` | 正则替换 |
+| **文件操作** | `--source` / `source` | `--source <file>` / `source <file>` | 包含其他测试文件 |
+| | `--exec` | `--exec <command>` | 执行系统命令 |
+| **连接管理** | `--connect` | `--connect (name,host,user,password,db)` | 连接管理 |
 
 ## 📈 使用示例
 
@@ -477,7 +495,7 @@ SELECT 2;
 
 ```sql
 # t/basic.test
---echo 开始基础测试
+echo 开始基础测试
 
 CREATE TABLE users (
     id INTEGER PRIMARY KEY AUTO_INCREMENT,
@@ -486,11 +504,11 @@ CREATE TABLE users (
 
 INSERT INTO users (name) VALUES ('Alice'), ('Bob');
 
---echo 查询所有用户：
+echo 查询所有用户：
 SELECT * FROM users ORDER BY id;
 
 DROP TABLE users;
---echo 基础测试完成
+echo 基础测试完成
 ```
 
 运行：
@@ -506,19 +524,19 @@ cargo run -- basic
 
 ```sql
 # t/variables.test
---echo 变量系统测试
+echo 变量系统测试
 
 let $user_count = 5
 let $table_name = test_users
 let $result = $user_count * 2
 
---echo 用户数量: $user_count
---echo 表名: $table_name  
---echo 计算结果: $result
+echo 用户数量: $user_count
+echo 表名: $table_name  
+echo 计算结果: $result
 
 # SQL 反引号表达式
 let $row_count = `SELECT COUNT(*) FROM information_schema.tables`
---echo 系统表数量: $row_count
+echo 系统表数量: $row_count
 
 CREATE TABLE $table_name (id INT, name VARCHAR(50));
 INSERT INTO $table_name VALUES (1, 'User1');
@@ -530,19 +548,19 @@ DROP TABLE $table_name;
 
 ```sql
 # t/control_flow.test
---echo 控制流测试
+echo 控制流测试
 
 let $count = 3
 let $i = 1
 
 while ($i <= $count)
-  --echo 循环第 $i 次
+  echo 循环第 $i 次
   SELECT $i as iteration;
-  let $i = $i + 1
+  inc $i
 end
 
 if ($count > 2)
-  --echo 数量大于2
+  echo 数量大于2
   SELECT 'Large count' as result;
 end
 ```
@@ -551,7 +569,7 @@ end
 
 ```sql
 # t/concurrent.test
---echo 并发执行测试
+echo 并发执行测试
 
 CREATE TABLE concurrent_test (id INT, value VARCHAR(50));
 
@@ -561,10 +579,56 @@ INSERT INTO concurrent_test VALUES (2, 'Thread2');
 INSERT INTO concurrent_test VALUES (3, 'Thread3');
 --END_CONCURRENT
 
---sorted_result
+sorted_result
 SELECT * FROM concurrent_test;
 
 DROP TABLE concurrent_test;
+```
+
+### 增强语法示例
+
+```sql
+# t/enhanced_syntax.test
+echo 增强语法特性测试
+
+# 变量操作 - 无需 --let 语法
+let $counter = 0
+let $total = 100
+
+echo 初始计数器: $counter
+inc $counter
+echo 自增后: $counter
+
+add $counter, 5
+echo 加法后: $counter
+
+dec $total
+echo 减法后: $total
+
+# 批量操作
+CREATE TABLE batch_test (id INT, name VARCHAR(50));
+
+batch_insert batch_test
+INSERT INTO batch_test VALUES (1, 'Item1');
+INSERT INTO batch_test VALUES (2, 'Item2');
+INSERT INTO batch_test VALUES (3, 'Item3');
+batch_execute
+
+echo 批量插入完成
+SELECT * FROM batch_test;
+
+# 事务管理
+begin_transaction
+
+UPDATE batch_test SET name = 'Modified' WHERE id = 1;
+echo 事务中修改数据
+
+if ($counter > 5)
+  commit_transaction
+  echo 事务已提交
+end
+
+DROP TABLE batch_test;
 ```
 
 ## 🔧 开发和调试
