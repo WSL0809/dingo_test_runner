@@ -26,7 +26,13 @@
       "Bash(# 移动高级测试\nmv t/advanced_test.test tests/integration/advanced/ && mv r/advanced_test.result tests/results/advanced/\nmv t/exec_test.test tests/integration/advanced/ && mv r/exec_test.result tests/results/advanced/\nmv t/regex_test.test tests/integration/advanced/ && mv r/regex_test.result tests/results/advanced/\nmv t/replace_regex_test.test tests/integration/advanced/ && mv r/replace_regex_test.result tests/results/advanced/\nmv t/sorted_result_test.test tests/integration/advanced/ && mv r/sorted_result_test.result tests/results/advanced/)",
       "Bash(# 移动性能测试\nmv t/*_loop.test tests/integration/performance/ 2>/dev/null || true\nmv r/*_loop.result tests/results/performance/ 2>/dev/null || true\nmv t/parser_edge_cases.test tests/integration/performance/ && mv r/parser_edge_cases.result tests/results/performance/\nmv t/sequence.test tests/integration/performance/ && mv r/sequence.result tests/results/performance/)",
       "Bash(RUST_LOG=debug cargo run -- --host 127.0.0.1 --port 3306 --user root --passwd 123456 --record examples/connection_example)",
-      "Bash(RUST_LOG=debug cargo run -- --extension dev --host 127.0.0.1 --port 3306 --user root --passwd 123456 t_for_test/basic/simple_test.test 2 >& 1)"
+      "Bash(RUST_LOG=debug cargo run -- --extension dev --host 127.0.0.1 --port 3306 --user root --passwd 123456 t_for_test/basic/simple_test.test 2 >& 1)",
+      "Bash(chmod:*)",
+      "Bash(CARGO_PROFILE_RELEASE_DEBUG=true cargo flamegraph --bin dingo_test_runner -- t/examples/basic_example.test --record)",
+      "Bash(mv:*)",
+      "Bash(rm:*)",
+      "Bash(CARGO_PROFILE_RELEASE_DEBUG=true cargo flamegraph --bin dingo_test_runner -- --parallel 2 t/examples/basic_example.test t/examples/connection_example.test --host 127.0.0.1 --port 3306 --user root --passwd 123456)",
+      "Bash(CARGO_PROFILE_RELEASE_DEBUG=true cargo flamegraph --bin dingo_test_runner -- --parallel 4 --host 127.0.0.1 --port 3306 --user root --passwd 123456 t/examples/ t/demo_tests/)"
     ],
     "deny": []
   }

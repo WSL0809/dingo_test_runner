@@ -170,19 +170,27 @@ impl FileExecutor {
         
         // Generate unique database name for isolation
         let thread_id = rayon::current_thread_index().unwrap_or(0);
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis();
         
-        // Sanitize test name for database name
-        let sanitized_name = resolved_test.name
-            .chars()
-            .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
-            .collect::<String>();
+        // Sanitize test name for database name and create short hash
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
         
-        let unique_db_suffix = format!("{}_{}_{}_{}", 
-            sanitized_name, thread_id, timestamp, std::process::id());
+        let mut hasher = DefaultHasher::new();
+        resolved_test.name.hash(&mut hasher);
+        let name_hash = hasher.finish();
+        
+        // Generate unique but short database suffix (under MySQL's 64 char limit)
+        let unique_db_suffix = format!("test_{}_{}", 
+            name_hash % 1000000, thread_id);
+        
+        // Validate database name length (MySQL limit is 64 characters)
+        if unique_db_suffix.len() > 64 {
+            let mut failed_case = TestResult::new(&resolved_test.name);
+            failed_case.add_error(format!("Database name too long: {} ({}chars > 64)", 
+                unique_db_suffix, unique_db_suffix.len()));
+            failed_case.set_duration(start_time.elapsed().as_millis() as u64);
+            return failed_case;
+        }
         
         // Store the unique suffix in params for tester to use
         if isolated_args.params.is_empty() {
