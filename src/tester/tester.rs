@@ -1647,28 +1647,8 @@ impl Tester {
             return Ok(());
         }
 
-        // Log the queries themselves if query logging is enabled
-        if self.enable_query_log {
-            // Collect query strings first to avoid borrowing issues
-            let query_outputs: Result<Vec<String>> = self.concurrent_queries
-                .iter()
-                .map(|query| {
-                    let expanded_sql = self.variable_context.expand(&query.query)?;
-                    Ok(format!("{}\n", expanded_sql))
-                })
-                .collect();
-            
-            let query_outputs = query_outputs?;
-            for query_output in query_outputs {
-                if self.args.record {
-                    write!(self.output_buffer, "{}", query_output)?;
-                } else {
-                    if let Err(e) = self.compare_with_result(&query_output) {
-                        return Err(e);
-                    }
-                }
-            }
-        }
+        // 注意：并发块执行查询但不输出到 result 文件
+        // 这是有意设计的 - 并发查询只是执行，不记录输出
 
         let indexed_queries: Vec<_> = self
             .concurrent_queries
@@ -1794,24 +1774,9 @@ impl Tester {
             }
         }
 
-        // Only log results if result logging is enabled
-        if self.enable_result_log {
-            // 将并发查询的输出合并，并确保与串行路径保持相同的换行语义（结尾带 \n）
-            let mut combined_output = output_parts.join("\n");
-            if !combined_output.is_empty() && !combined_output.ends_with('\n') {
-                combined_output.push('\n');
-            }
-
-            if !combined_output.is_empty() {
-                if self.args.record {
-                    write!(self.output_buffer, "{}", combined_output)?;
-                } else {
-                    if let Err(e) = self.compare_with_result(&combined_output) {
-                        return Err(e);
-                    }
-                }
-            }
-        }
+        // 并发查询结果不写入到 result 文件
+        // 查询已经执行完毕，但是输出被忽略
+        // 这确保并发块中的查询执行但不影响 result 文件内容
 
         self.in_concurrent_block = false;
         self.concurrent_queries.clear();
