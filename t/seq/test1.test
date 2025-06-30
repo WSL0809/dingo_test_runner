@@ -1,0 +1,40 @@
+DROP SEQUENCE IF EXISTS test_seq;
+CREATE SEQUENCE test_seq START WITH 1 MINVALUE 1 MAXVALUE 100 INCREMENT 1;
+
+--BEGIN_CONCURRENT
+SELECT nextval('test_seq');
+
+SELECT nextval('test_seq');
+
+SELECT nextval('test_seq');
+
+SELECT nextval('test_seq');
+
+SELECT nextval('test_seq');
+
+SELECT nextval('test_seq');
+
+SELECT nextval('test_seq');
+
+SELECT nextval('test_seq');
+
+SELECT nextval('test_seq');
+
+SELECT nextval('test_seq');
+
+SELECT nextval('test_seq');
+
+SELECT nextval('test_seq');
+
+SELECT nextval('test_seq');
+
+SELECT nextval('test_seq');
+
+SELECT nextval('test_seq');
+
+SELECT nextval('test_seq');
+--END_CONCURRENT
+
+SELECT nextval('test_seq');
+
+DROP SEQUENCE IF EXISTS test_seq;

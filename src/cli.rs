@@ -30,7 +30,7 @@ pub struct Args {
     pub passwd: String,
 
     /// Log level: error, warn, info, debug, trace
-    #[arg(long, default_value = "error")]
+    #[arg(long, default_value = "info")]
     pub log_level: String,
 
     /// Record test output to result files
