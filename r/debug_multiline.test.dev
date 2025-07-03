@@ -1,0 +1,2 @@
+Testing multi-line SQL parsing
+CREATE TABLE test_table (

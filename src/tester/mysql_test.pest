@@ -51,8 +51,16 @@ let_assignment = { (!NEWLINE ~ ANY)+ }
 
 // SQL statements - anything that doesn't match above patterns
 // This should be the last rule to catch remaining content
+// Allow SQL content to include newlines (multi-line SQL support)
 sql_statement = { sql_content ~ NEWLINE? }
-sql_content = { (!NEWLINE ~ ANY)+ }
+sql_content = { (!(NEWLINE ~ (comment_start | command_start | delimiter_start | control_start | let_start)) ~ ANY)+ }
+
+// Lookahead patterns to stop SQL parsing
+comment_start = { "#" }
+command_start = { "--" }
+delimiter_start = { "--" ~ WHITESPACE* ~ "delimiter" }
+control_start = { "if" ~ WHITESPACE* ~ "(" | "while" ~ WHITESPACE* ~ "(" | "end" ~ !(ASCII_ALPHANUMERIC | "_") }
+let_start = { ^"let" ~ WHITESPACE }
 
 // Lookahead rules to prevent new syntax from being parsed as SQL
 let_stmt_lookahead = { ^"let" ~ (WHITESPACE | "$" | ASCII_ALPHA) }

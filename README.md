@@ -652,3 +652,213 @@ cargo run -- basic
 # 启用详细的解析日志
 RUST_LOG=dingo_test_runner::tester::pest_parser=debug cargo run -- basic
 ```
+
+## 📋 常用命令快速操作手册
+
+### 🚀 基础测试命令
+
+```bash
+# 基本测试执行
+cargo run -- basic_test                                    # 运行单个测试
+cargo run -- t/examples/basic_example.test                 # 运行指定文件
+cargo run -- t/demo_tests/                                 # 运行目录下所有测试
+cargo run -- --all                                         # 运行所有测试
+
+# Record模式（生成期望结果）
+cargo run -- --record basic_test                           # 记录单个测试结果
+cargo run -- --record t/examples/                          # 记录目录下所有测试
+```
+
+### 🔗 数据库连接命令
+
+```bash
+# 标准MySQL连接
+cargo run -- --host 127.0.0.1 --port 3306 --user root --passwd 123456 basic_test
+
+# 本地开发环境连接
+export DB_PASSWORD="123456"
+cargo run -- --host 127.0.0.1 --port 3306 --user root --passwd $DB_PASSWORD basic_test
+
+```
+
+### ⚡ 并发执行命令
+
+```bash
+# 文件级并发执行
+cargo run -- --parallel 4 test1 test2 test3 test4         # 4线程并发
+cargo run -- --parallel 8 t/examples/                     # 8线程运行目录
+cargo run -- --parallel 2 --all                           # 2线程运行所有测试
+
+# 配置连接池
+cargo run -- --parallel 4 --max-connections 8 t/demo_tests/
+```
+
+### 📊 报告生成命令
+
+```bash
+# 终端彩色输出（默认）
+cargo run -- --report-format terminal basic_test
+
+# HTML报告
+cargo run -- --report-format html basic_test > report.html
+
+# JUnit XML报告（CI/CD集成）
+cargo run -- --report-format xunit --xunit-file report.xml basic_test
+
+# Allure企业级报告
+cargo run -- --report-format allure --allure-dir ./allure-results basic_test
+
+# 纯文本报告（脚本处理）
+cargo run -- --report-format plain basic_test > report.txt
+```
+
+### 🌍 环境隔离命令
+
+```bash
+# 开发环境测试
+cargo run -- --extension dev --record basic_test           # 生成开发环境基线
+cargo run -- --extension dev basic_test                    # 开发环境验证
+
+# 集成测试环境
+cargo run -- --extension integration --record tests/integration/
+cargo run -- --extension integration tests/integration/
+
+# CI环境测试
+cargo run -- --extension ci --record t/examples/
+cargo run -- --extension ci t/examples/
+
+# 数据库版本环境
+cargo run -- --extension mysql8 --record basic_test
+cargo run -- --extension mysql57 basic_test
+```
+
+### 🛠️ 开发调试命令
+
+```bash
+# 详细日志调试
+RUST_LOG=debug cargo run -- basic_test                     # 调试级别日志
+RUST_LOG=trace cargo run -- basic_test                     # 追踪级别日志
+RUST_LOG=dingo_test_runner::tester::pest_parser=debug cargo run -- basic_test
+
+# 构建和测试
+cargo build                                                 # 标准构建
+cargo build --release                                       # 发布构建
+cargo test                                                  # 运行Rust单元测试
+
+# 性能分析（需要cargo-flamegraph）
+cargo install flamegraph
+sudo cargo flamegraph --bin dingo_test_runner -- --parallel 4 t/examples/
+```
+
+### 📧 邮件通知命令
+
+```bash
+# 设置邮件环境变量
+export EMAIL_PASSWORD="your_email_password"
+export SMTP_HOST="smtp.partner.outlook.cn"
+export EMAIL_FROM="test@company.com"
+export EMAIL_TO="admin@company.com"
+
+# 邮件通知测试
+cargo run -- --email-enable \
+  --email-smtp-host $SMTP_HOST \
+  --email-smtp-port 587 \
+  --email-username $EMAIL_FROM \
+  --email-password $EMAIL_PASSWORD \
+  --email-from $EMAIL_FROM \
+  --email-to $EMAIL_TO \
+  --email-enable-tls \
+  basic_test
+```
+
+### 🔍 故障排查命令
+
+```bash
+# 检查测试文件语法
+cargo run -- --dry-run basic_test                          # 仅解析不执行
+
+# 单步调试模式
+cargo run -- --fail-fast true basic_test                   # 遇错即停
+cargo run -- --fail-fast false basic_test                  # 继续执行
+
+# 连接测试
+cargo run -- --host 127.0.0.1 --port 3306 --user root --passwd 123456 \
+  --max-connections 1 simple_connection_test
+
+# 清理测试环境
+cargo run -- --cleanup-db basic_test                       # 清理测试数据库
+```
+
+### 🎯 批处理脚本示例
+
+```bash
+# 一键开发测试脚本 (dev_test.sh)
+#!/bin/bash
+export EMAIL_PASSWORD="your_password"
+export DB_PASSWORD="123456"
+
+# 运行开发环境全量测试
+cargo run -- --extension dev --parallel 4 \
+  --host 127.0.0.1 --port 3306 --user root --passwd $DB_PASSWORD \
+  --report-format html \
+  tests/integration/ > dev_report.html
+
+echo "开发测试完成，报告已生成: dev_report.html"
+
+# 一键生产验证脚本 (prod_test.sh)
+#!/bin/bash
+export EMAIL_PASSWORD="your_password"
+export DB_PASSWORD="production_password"
+
+# 生产环境测试并发送邮件
+cargo run -- --extension prod --parallel 2 \
+  --host production-db --port 3306 --user testuser --passwd $DB_PASSWORD \
+  --report-format allure --allure-dir ./allure-results \
+  --email-enable --email-smtp-host smtp.company.com \
+  --email-password $EMAIL_PASSWORD \
+  t/examples/
+
+echo "生产验证完成，Allure报告已生成，邮件已发送"
+```
+
+### 📋 常用alias配置
+
+```bash
+# 添加到 ~/.bashrc 或 ~/.zshrc
+alias dt='cargo run --'
+alias dt-dev='cargo run -- --extension dev --host 127.0.0.1 --port 3306 --user root --passwd 123456'
+alias dt-record='cargo run -- --extension dev --record --host 127.0.0.1 --port 3306 --user root --passwd 123456'
+alias dt-parallel='cargo run -- --extension dev --parallel 4 --host 127.0.0.1 --port 3306 --user root --passwd 123456'
+alias dt-html='cargo run -- --extension dev --report-format html --host 127.0.0.1 --port 3306 --user root --passwd 123456'
+
+# 使用示例
+dt-dev basic_test                                           # 开发环境测试
+dt-record tests/integration/basic/                          # 记录基线
+dt-parallel tests/integration/                              # 并发测试
+dt-html t/examples/ > report.html                           # 生成HTML报告
+```
+
+### 🔧 IDE集成命令
+
+```bash
+# VS Code tasks.json 配置示例
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Test Single File",
+      "type": "shell",
+      "command": "cargo",
+      "args": ["run", "--", "--extension", "dev", "${fileBasenameNoExtension}"],
+      "group": "test"
+    },
+    {
+      "label": "Record Test Result",
+      "type": "shell", 
+      "command": "cargo",
+      "args": ["run", "--", "--extension", "dev", "--record", "${fileBasenameNoExtension}"],
+      "group": "test"
+    }
+  ]
+}
+```

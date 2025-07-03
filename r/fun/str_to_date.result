@@ -1,0 +1,35 @@
+STR_TO_DATE 两位年份兼容性测试
+Commit 4555e13 验证用例
+测试用例1: 边界值 00-69 应该解析为 2000-2069
+SELECT STR_TO_DATE('00-01-01', '%y-%m-%d') as test_00;
+SELECT STR_TO_DATE('69-12-31', '%y-%m-%d') as test_69
+2000-01-01
+测试用例2: 边界值 70-99 应该解析为 1970-1999
+SELECT STR_TO_DATE('70-01-01', '%y-%m-%d') as test_70;
+SELECT STR_TO_DATE('99-12-31', '%y-%m-%d') as test_99
+1970-01-01
+测试用例3: 关键边界值
+SELECT STR_TO_DATE('68-01-01', '%y-%m-%d') as test_68;
+SELECT STR_TO_DATE('71-01-01', '%y-%m-%d') as test_71
+2068-01-01
+测试用例4: 不同格式的两位年份
+SELECT STR_TO_DATE('01/15/85', '%m/%d/%y') as test_format1;
+SELECT STR_TO_DATE('85-Jan-15', '%y-%b-%d') as test_format2
+1985-01-15
+测试用例5: 混合格式 - 四位年份不应受影响
+SELECT STR_TO_DATE('2025-01-01', '%Y-%m-%d') as test_four_digit
+2025-01-01
+测试用例6: 转义的%%y不应触发两位年份处理
+SELECT STR_TO_DATE('2025-01-01-y', '%Y-%m-%d-%%y') as test_escaped
+NULL
+测试用例7: 性能测试 - 大批量数据
+SELECT STR_TO_DATE('85-01-01', '%y-%m-%d'), STR_TO_DATE('86-01-01', '%y-%m-%d'),
+    STR_TO_DATE('87-01-01', '%y-%m-%d'),
+    STR_TO_DATE('88-01-01', '%y-%m-%d'),
+    STR_TO_DATE('89-01-01', '%y-%m-%d')
+1985-01-01	1986-01-01	1987-01-01	1988-01-01	1989-01-01
+测试用例8: 错误处理
+SELECT STR_TO_DATE(NULL, '%y-%m-%d') as test_null_date;
+SELECT STR_TO_DATE('85-01-01', NULL) as test_null_format;
+SELECT STR_TO_DATE('invalid', '%y-%m-%d') as test_invalid
+NULL

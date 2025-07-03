@@ -1,3 +1,0 @@
-# concurrent_advanced.test - 高级并发功能测试
-# 演示并发块与变量、连接管理的综合应用
-CREATE TABLE concurrent_advanced_test (

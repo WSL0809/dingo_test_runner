@@ -245,17 +245,21 @@ impl Tester {
 
     /// Execute a test file
     pub fn run_test_file<P: AsRef<Path>>(&mut self, test_file: P) -> Result<TestResult> {
-        let test_name = test_file.as_ref().to_string_lossy().to_string();
+        let input_path = test_file.as_ref();
         let start_time = std::time::Instant::now();
 
         // 构造默认测试文件路径 (基于实例创建时记录的 current_dir)
-        let mut test_path = self.current_dir.join("t").join(&test_name);
+        let mut test_path = self.current_dir.join("t").join(input_path);
         if !test_path.exists() {
             test_path = test_path.with_extension("test");
         }
         if !test_path.exists() {
-            test_path = test_file.as_ref().to_path_buf();
+            test_path = input_path.to_path_buf();
         }
+
+        // 根据实际测试文件路径推导合理的test_name
+        let test_name = self.derive_test_name(&test_path)?;
+        debug!("Input path: {:?}, Test path: {:?}, Derived test_name: {}", input_path, test_path, test_name);
 
         let mut result = TestResult::new(&test_name);
         result.classname = format!("mysql-test.{}", test_name);
@@ -1220,6 +1224,31 @@ impl Tester {
             }
         }
         Ok(())
+    }
+
+    /// Derive appropriate test name from actual test file path
+    fn derive_test_name(&self, test_path: &Path) -> Result<String> {
+        // 确保使用绝对路径进行比较
+        let absolute_test_path = if test_path.is_absolute() {
+            test_path.to_path_buf()
+        } else {
+            self.current_dir.join(test_path)
+        };
+        
+        let t_dir = self.current_dir.join("t");
+        
+        // 如果测试文件在标准的t目录下，提取相对路径（保持子目录结构）
+        if let Ok(relative_path) = absolute_test_path.strip_prefix(&t_dir) {
+            let test_name = relative_path.with_extension("");
+            return Ok(test_name.to_string_lossy().to_string());
+        }
+        
+        // 如果测试文件在其他地方，使用文件名（不含扩展名）
+        let file_stem = absolute_test_path.file_stem()
+            .and_then(|s| s.to_str())
+            .ok_or_else(|| anyhow!("Invalid test file path: {}", absolute_test_path.display()))?;
+        
+        Ok(file_stem.to_string())
     }
 
     /// Write result file

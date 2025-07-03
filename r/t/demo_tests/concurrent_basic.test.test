@@ -1,5 +1,0 @@
-# concurrent_basic.test - 基础并发查询测试
-# 演示 begin_concurrent / end_concurrent 的最简用法
-# 并发块执行完毕，继续串行命令
-SELECT 'finished'
-finished
