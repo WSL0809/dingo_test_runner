@@ -8,3 +8,4 @@ test_email.sh
 *.xml
 CLAUDE.md
 .claude/
+.cursor/
