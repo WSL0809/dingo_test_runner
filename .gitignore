@@ -5,3 +5,4 @@ Cargo.lock
 allure-demo-test/
 test_email_multiple.sh
 test_email.sh
+*.xml

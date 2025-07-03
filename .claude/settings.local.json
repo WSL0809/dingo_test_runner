@@ -32,7 +32,8 @@
       "Bash(mv:*)",
       "Bash(rm:*)",
       "Bash(CARGO_PROFILE_RELEASE_DEBUG=true cargo flamegraph --bin dingo_test_runner -- --parallel 2 t/examples/basic_example.test t/examples/connection_example.test --host 127.0.0.1 --port 3306 --user root --passwd 123456)",
-      "Bash(CARGO_PROFILE_RELEASE_DEBUG=true cargo flamegraph --bin dingo_test_runner -- --parallel 4 --host 127.0.0.1 --port 3306 --user root --passwd 123456 t/examples/ t/demo_tests/)"
+      "Bash(CARGO_PROFILE_RELEASE_DEBUG=true cargo flamegraph --bin dingo_test_runner -- --parallel 4 --host 127.0.0.1 --port 3306 --user root --passwd 123456 t/examples/ t/demo_tests/)",
+      "Bash(export EMAIL_PASSWORD=\"_Dj2024!\")"
     ],
     "deny": []
   }
