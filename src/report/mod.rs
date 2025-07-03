@@ -114,7 +114,7 @@ impl EnvironmentInfo {
             os: std::env::consts::OS.to_string(),
             rust_version: env!("CARGO_PKG_VERSION").to_string(),
             mysql_version: None, // Will be set later if available
-            cli_args: std::env::args().collect(),
+            cli_args: Self::filter_sensitive_args(std::env::args().collect()),
         }
     }
 
@@ -139,6 +139,39 @@ impl EnvironmentInfo {
         }
 
         None
+    }
+
+    /// Filter sensitive information from CLI arguments
+    fn filter_sensitive_args(args: Vec<String>) -> Vec<String> {
+        let mut filtered_args = Vec::new();
+        let mut skip_next = false;
+        
+        for arg in args {
+            if skip_next {
+                // Replace sensitive values with placeholder
+                if arg.starts_with("--email-password") || arg.starts_with("--passwd") {
+                    filtered_args.push("***".to_string());
+                } else {
+                    filtered_args.push("***".to_string());
+                }
+                skip_next = false;
+            } else if arg == "--email-password" || arg == "--passwd" {
+                filtered_args.push(arg);
+                skip_next = true;
+            } else if arg.starts_with("--email-password=") || arg.starts_with("--passwd=") {
+                // Handle --arg=value format
+                let parts: Vec<&str> = arg.splitn(2, '=').collect();
+                if parts.len() == 2 {
+                    filtered_args.push(format!("{}=***", parts[0]));
+                } else {
+                    filtered_args.push(arg);
+                }
+            } else {
+                filtered_args.push(arg);
+            }
+        }
+        
+        filtered_args
     }
 }
 
