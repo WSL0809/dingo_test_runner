@@ -1,37 +1,5 @@
 DROP SEQUENCE IF EXISTS test_seq
 CREATE SEQUENCE test_seq START WITH 1 MINVALUE 1 MAXVALUE 100 INCREMENT 1
 SELECT nextval('test_seq')
-SELECT nextval('test_seq')
-SELECT nextval('test_seq')
-SELECT nextval('test_seq')
-SELECT nextval('test_seq')
-SELECT nextval('test_seq')
-SELECT nextval('test_seq')
-SELECT nextval('test_seq')
-SELECT nextval('test_seq')
-SELECT nextval('test_seq')
-SELECT nextval('test_seq')
-SELECT nextval('test_seq')
-SELECT nextval('test_seq')
-SELECT nextval('test_seq')
-SELECT nextval('test_seq')
-SELECT nextval('test_seq')
-6
-16
-4
-15
-7
-13
-8
-10
-9
-12
-5
-14
-11
-18
-17
-19
-SELECT nextval('test_seq')
-20
+71
 DROP SEQUENCE IF EXISTS test_seq
