@@ -1,0 +1,82 @@
+select 1
+1
+CREATE TABLE test_basic (id INT PRIMARY KEY, name VARCHAR(50));
+SELECT 'Test 1: Basic rollback consistency' AS test_info
+Test 1: Basic rollback consistency
+尝试无效DDL触发回滚
+ALTER TABLE test_basic ADD COLUMN invalid_col INT;
+show create table test_basic
+test_basic	CREATE TABLE `test_basic`(
+    `id` INT NOT NULL,
+    `name` VARCHAR(50),
+    `invalid_col` INT,
+    PRIMARY KEY (`id`)
+) engine=TXN_LSM  replica=3
+show create table test_basic;
+test_basic	CREATE TABLE `test_basic`(
+    `id` INT NOT NULL,
+    `name` VARCHAR(50),
+    `invalid_col` INT,
+    `col1` INT,
+    PRIMARY KEY (`id`)
+) engine=TXN_LSM  replica=3
+CREATE TABLE concurrent_test (id INT PRIMARY KEY, data VARCHAR(100))
+show create table concurrent_test;
+concurrent_test	CREATE TABLE `concurrent_test`(
+    `id` INT NOT NULL,
+    `data` VARCHAR(100),
+    PRIMARY KEY (`id`),
+    INDEX idx_data(`data`) replica=3
+) engine=TXN_LSM  replica=3
+show index from concurrent_test
+concurrent_test	0	PRIMARY	1	id	A	0	NULL	NULL	 	TXN_LSM		 	YES	NULL	YES	NO
+concurrent_test	0	idx_data	1	data	A	0	NULL	NULL	YES	TXN_LSM			YES	NULL	YES	NO
+DROP TABLE IF EXISTS test_basic;
+DROP TABLE IF EXISTS concurrent_test;
+DROP TABLE IF EXISTS evil_test;
+show processlist
+1378	root	172.30.14.172:57252	dingo	sleep	NULL	open	CREATE SEQUENCE test_seq START WITH 1 MINVALUE 1 MAXVALUE 100 INCREMENT 1	MYSQL	
+1422	root	10.230.205.106:55211	test_ddl_t1	query	1	open	show processlist	MYSQL	
+1382	root	172.30.14.172:60076	dingo	sleep	NULL	open	YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%2y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%3y-%m-%d')) as year_69,
+CREATE SEQUENCE test_seq START WITH 1 MINVALUE 1 MAXVALUE 100 INCREMENT 1	MYSQL	
+1383	root	172.30.14.172:60080	dingo	sleep	NULL	open	YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%2y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%3y-%m-%d')) as year_69,
+CREATE SEQUENCE test_seq START WITH 1 MINVALUE 1 MAXVALUE 100 INCREMENT 1	MYSQL	
+1384	root	172.30.14.172:60090	dingo	sleep	NULL	open	YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%1y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%2y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('69-12-31', '%3y-%m-%d')) as year_69,
+CREATE SEQUENCE test_seq START WITH 1 MINVALUE 1 MAXVALUE 100 INCREMENT 1	MYSQL	
+1395	root	10.230.205.106:54999	test_seq_test1	query	75189	open	CREATE SEQUENCE test_seq START WITH 1 MINVALUE 1 MAXVALUE 100 INCREMENT 1	MYSQL	

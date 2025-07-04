@@ -1,0 +1,12 @@
+# 正则替换测试
+# 验证--replace_regex功能
+
+--disable_query_log
+
+# 创建测试表
+CREATE TABLE test_strings (content TEXT);
+INSERT INTO test_strings (content) VALUES ('test123'), ('abc456def');
+
+# 测试正则替换
+--replace_regex /[0-9]+/XXX/
+SELECT content FROM test_strings WHERE content LIKE '%123%';

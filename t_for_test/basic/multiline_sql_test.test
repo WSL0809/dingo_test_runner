@@ -1,0 +1,50 @@
+# 多行SQL测试用例 - 验证parser修复
+
+--echo 测试用例1: 基本的多行CREATE TABLE
+CREATE TABLE multiline_test (
+    id INT PRIMARY KEY,
+    name VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--echo 测试用例2: 多行INSERT语句
+INSERT INTO multiline_test (id, name) VALUES
+    (1, 'Test1'),
+    (2, 'Test2'),
+    (3, 'Test3');
+
+--echo 测试用例3: 复杂的多行SELECT
+SELECT 
+    id,
+    name,
+    created_at,
+    CONCAT(name, '_', id) as display_name
+FROM multiline_test
+WHERE id IN (1, 2, 3)
+ORDER BY id;
+
+--echo 测试用例4: 多行UPDATE
+UPDATE multiline_test 
+SET name = CONCAT(name, '_updated')
+WHERE id = 1;
+
+--echo 测试用例5: 多行DELETE
+DELETE FROM multiline_test
+WHERE id = 2;
+
+--echo 测试用例6: 嵌套查询
+SELECT * FROM (
+    SELECT id, name,
+           ROW_NUMBER() OVER (ORDER BY id) as rn
+    FROM multiline_test
+) as ranked
+WHERE rn = 1;
+
+--echo 测试用例7: 清理
+DROP TABLE multiline_test;
+
+--echo 测试用例8: 验证comments和commands仍然正常工作
+# 这是一个注释
+SELECT 1 as simple_test;
+
+--echo 测试完成

@@ -371,8 +371,8 @@ impl Tester {
     /// Execute a single query and handle its result
     fn execute_query(&mut self, query: &Query, query_num: usize) -> Result<()> {
         debug!(
-            "Executing query {:?} (line {}): {:?}",
-            query_num, query.line, query.query_type
+            "Executing query {} (line {}): {:?} - '{}'",
+            query_num, query.line, query.query_type, query.query
         );
 
         // 注入绑定在 Query 上的一次性修饰符
@@ -1867,6 +1867,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "Requires database connection and file system access - run with integration tests"]
     fn test_sorted_result_modifier() {
         // 准备测试文件内容
         let test_name = "sorted_result_test";
@@ -1937,6 +1938,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "Requires database connection and file system access - run with integration tests"]
     fn test_replace_regex_modifier() {
         let test_name = "replace_regex_test";
         let test_dir = std::path::Path::new("t");
@@ -2046,6 +2048,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "Requires database connection and file system access - run with integration tests"]
     fn test_expected_error_handling() {
         let test_name = "expected_error_test";
         let test_dir = std::path::Path::new("t");

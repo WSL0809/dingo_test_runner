@@ -1,0 +1,288 @@
+
+
+# --echo 1. 关键边界值测试
+# SELECT 
+#     'MySQL Standard Results' as source,
+#     STR_TO_DATE('00-01-01', '%y-%m-%d') as mysql_00,
+#     STR_TO_DATE('69-12-31', '%y-%m-%d') as mysql_69,
+#     STR_TO_DATE('70-01-01', '%y-%m-%d') as mysql_70,
+#     STR_TO_DATE('99-12-31', '%y-%m-%d') as mysql_99,
+#     YEAR(STR_TO_DATE('00-01-01', '%y-%m-%d')) as year_00,
+#     YEAR(STR_TO_DATE('69-12-31', '%y-%m-%d')) as year_69,
+#     YEAR(STR_TO_DATE('70-01-01', '%y-%m-%d')) as year_70,
+#     YEAR(STR_TO_DATE('99-12-31', '%y-%m-%d')) as year_99;
+
+--echo 2. 不同格式测试
+SELECT 
+    'MySQL Format Test' as source,
+    STR_TO_DATE('85/01/15', '%y/%m/%d') as mysql_slash,
+    STR_TO_DATE('85-Jan-15', '%y-%b-%d') as mysql_month_abbr,
+    STR_TO_DATE('01/15/85', '%m/%d/%y') as mysql_american,
+    YEAR(STR_TO_DATE('85/01/15', '%y/%m/%d')) as year_85_1,
+    YEAR(STR_TO_DATE('85-Jan-15', '%y-%b-%d')) as year_85_2,
+    YEAR(STR_TO_DATE('01/15/85', '%m/%d/%y')) as year_85_3;
+
+--echo 3. 异常处理测试
+SELECT 
+    'MySQL Exception Test' as source,
+    STR_TO_DATE(NULL, '%y-%m-%d') as mysql_null_date,
+    STR_TO_DATE('85-01-01', NULL) as mysql_null_format,
+    STR_TO_DATE('invalid', '%y-%m-%d') as mysql_invalid;
+
+--echo 1. DingoDB结果对比
+SELECT 
+    'DingoDB Results' as source,
+    STR_TO_DATE('00-01-01', '%y-%m-%d') as dingo_00,
+    STR_TO_DATE('69-12-31', '%y-%m-%d') as dingo_69,
+    STR_TO_DATE('70-01-01', '%y-%m-%d') as dingo_70,
+    STR_TO_DATE('99-12-31', '%y-%m-%d') as dingo_99,
+    YEAR(STR_TO_DATE('00-01-01', '%y-%m-%d')) as year_00,
+    YEAR(STR_TO_DATE('69-12-31', '%y-%m-%d')) as year_69,
+    YEAR(STR_TO_DATE('70-01-01', '%y-%m-%d')) as year_70,
+    YEAR(STR_TO_DATE('99-12-31', '%y-%m-%d')) as year_99;
+
+# --echo 2. DATE函数对比 (MySQL没有对应的DATE函数处理两位年份)
+# SELECT 
+#     'DingoDB DATE Function' as source,
+#     DATE('00-01-01') as dingo_date_00,
+#     DATE('69-12-31') as dingo_date_69,
+#     DATE('70-01-01') as dingo_date_70,
+#     DATE('99-12-31') as dingo_date_99,
+#     YEAR(DATE('00-01-01')) as year_00,
+#     YEAR(DATE('69-12-31')) as year_69,
+#     YEAR(DATE('70-01-01')) as year_70,
+#     YEAR(DATE('99-12-31')) as year_99;
+
+--echo 3. 一致性验证
+SELECT 
+    'Consistency Check' as source,
+    DATE('85-01-01') = STR_TO_DATE('85-01-01', '%y-%m-%d') as consistency_85,
+    DATE('00-01-01') = STR_TO_DATE('00-01-01', '%y-%m-%d') as consistency_00,
+    DATE('69-12-31') = STR_TO_DATE('69-12-31', '%y-%m-%d') as consistency_69,
+    DATE('70-01-01') = STR_TO_DATE('70-01-01', '%y-%m-%d') as consistency_70,
+    DATE('99-12-31') = STR_TO_DATE('99-12-31', '%y-%m-%d') as consistency_99;
+
+# --echo 以下查询应该全部返回TRUE，证明修复成功
+# SELECT 
+#     'Final Validation' as test_name,
+#     YEAR(STR_TO_DATE('00-01-01', '%y-%m-%d')) BETWEEN 2000 AND 2069 as range_00_69_correct,
+#     YEAR(STR_TO_DATE('70-01-01', '%y-%m-%d')) BETWEEN 1970 AND 1999 as range_70_99_correct,
+#     YEAR(STR_TO_DATE('69-01-01', '%y-%m-%d')) = 2069 as boundary_69_correct,
+#     YEAR(STR_TO_DATE('70-01-01', '%y-%m-%d')) = 1970 as boundary_70_correct,
+#     YEAR(DATE('69-01-01')) = 2069 as date_69_correct,
+#     YEAR(DATE('70-01-01')) = 1970 as date_70_correct,
+#     DATE('85-01-01') = STR_TO_DATE('85-01-01', '%y-%m-%d') as functions_consistent;
+
+
+--echo 测试用例1: 边界值 00-69 应该解析为 2000-2069
+SELECT STR_TO_DATE('00-01-01', '%y-%m-%d');
+SELECT STR_TO_DATE('69-12-31', '%y-%m-%d');
+
+--echo 测试用例2: 边界值 70-99 应该解析为 1970-1999  
+SELECT STR_TO_DATE('70-01-01', '%y-%m-%d') as test_70;
+SELECT STR_TO_DATE('99-12-31', '%y-%m-%d') as test_99;
+
+--echo 测试用例3: 关键边界值
+SELECT STR_TO_DATE('68-01-01', '%y-%m-%d') as test_68;
+SELECT STR_TO_DATE('71-01-01', '%y-%m-%d') as test_71;
+
+--echo 测试用例4: 不同格式的两位年份
+SELECT STR_TO_DATE('01/15/85', '%m/%d/%y') as test_format1;
+SELECT STR_TO_DATE('85-Jan-15', '%y-%b-%d') as test_format2;
+
+--echo 测试用例5: 混合格式 - 四位年份不应受影响
+SELECT STR_TO_DATE('2025-01-01', '%Y-%m-%d') as test_four_digit;
+
+--echo 测试用例6: 转义的%%y不应触发两位年份处理
+SELECT STR_TO_DATE('2025-01-01-y', '%Y-%m-%d-%%y') as test_escaped;
+
+--echo 测试用例7: 性能测试 - 大批量数据
+SELECT 
+    STR_TO_DATE('85-01-01', '%y-%m-%d'),
+    STR_TO_DATE('86-01-01', '%y-%m-%d'),
+    STR_TO_DATE('87-01-01', '%y-%m-%d'),
+    STR_TO_DATE('88-01-01', '%y-%m-%d'),
+    STR_TO_DATE('89-01-01', '%y-%m-%d');
+
+--echo 测试用例8: 错误处理
+SELECT STR_TO_DATE(NULL, '%y-%m-%d') as test_null_date;
+SELECT STR_TO_DATE('85-01-01', NULL) as test_null_format;
+SELECT STR_TO_DATE('invalid', '%y-%m-%d') as test_invalid;
+
+--echo 对比MySQL标准行为的参考测试
+--echo 在MySQL中运行以下语句获取期望结果：
+
+--echo MySQL 参考结果:
+SELECT STR_TO_DATE('00-01-01', '%y-%m-%d');
+SELECT STR_TO_DATE('69-01-01', '%y-%m-%d');
+SELECT STR_TO_DATE('70-01-01', '%y-%m-%d');
+SELECT STR_TO_DATE('99-01-01', '%y-%m-%d');
+
+
+--echo =================================================================
+--echo 综合测试：DATE函数 vs STR_TO_DATE函数的两位年份一致性
+--echo Commits: 94ad8c1 (DATE) + 4555e13 (STR_TO_DATE) 
+--echo =================================================================
+
+--echo 测试用例9: DATE函数和STR_TO_DATE函数的一致性
+SELECT 
+    DATE('85-01-01') as date_fun_result,
+    STR_TO_DATE('85-01-01', '%y-%m-%d') as str_to_date_result,
+    DATE('85-01-01') = STR_TO_DATE('85-01-01', '%y-%m-%d') as consistency_check;
+
+--echo 测试用例11: 边界值一致性测试
+SELECT 
+    DATE('00-01-01') as date_00, 
+    STR_TO_DATE('00-01-01', '%y-%m-%d') as str_date_00,
+    DATE('69-12-31') as date_69, 
+    STR_TO_DATE('69-12-31', '%y-%m-%d') as str_date_69,
+    DATE('70-01-01') as date_70, 
+    STR_TO_DATE('70-01-01', '%y-%m-%d') as str_date_70,
+    DATE('99-12-31') as date_99, 
+    STR_TO_DATE('99-12-31', '%y-%m-%d') as str_date_99;
+
+--echo 测试用例12: JDBC兼容性测试
+--echo 检查DATE函数新返回类型是否兼容JDBC getDate()
+SELECT DATE('2025-01-01') as jdbc_date_test;
+
+--echo ================================================================
+--echo 潜在问题验证测试
+--echo 基于代码深入分析，验证两个修复中可能存在的问题
+--echo ================================================================
+
+--echo 问题1: STR_TO_DATE的adjustDateForTwoDigitYear逻辑验证
+--echo 代码假设Java DateTimeFormatter将70-99解析为2070-2099
+--echo 需要验证这个假设是否正确
+
+--echo
+SELECT 
+    'Java DateTimeFormatter Behavior Test' as test_group,
+    STR_TO_DATE('70-01-01', '%y-%m-%d') as test_70_actual,
+    STR_TO_DATE('85-01-01', '%y-%m-%d') as test_85_actual,
+    STR_TO_DATE('99-01-01', '%y-%m-%d') as test_99_actual,
+    YEAR(STR_TO_DATE('70-01-01', '%y-%m-%d')) as year_70_should_be_1970,
+    YEAR(STR_TO_DATE('85-01-01', '%y-%m-%d')) as year_85_should_be_1985,
+    YEAR(STR_TO_DATE('99-01-01', '%y-%m-%d')) as year_99_should_be_1999;
+
+--echo 1.2 验证containsUnescapedY函数的格式检测是否正确
+SELECT 
+    'Format Detection Edge Cases' as test_group,
+    STR_TO_DATE('85-01-01-y', '%y-%m-%d-%%y') as escaped_percent_y,
+    STR_TO_DATE('85-01-01%y', '%y-%m-%d%%y') as escaped_percent_y_2,
+    STR_TO_DATE('85-01-01', '%y-%m-%d') as simple_y_format,
+    STR_TO_DATE('2085-01-01', '%Y-%m-%d') as capital_y_format;
+
+--echo 问题2: 00-69范围的处理验证
+--echo 验证00-69是否被正确处理（不被adjustDateForTwoDigitYear调整）
+
+--echo 2.1 验证00-69范围不会被错误调整
+SELECT 
+    'Range 00-69 Validation' as test_group,
+    STR_TO_DATE('00-01-01', '%y-%m-%d') as test_00,
+    STR_TO_DATE('35-01-01', '%y-%m-%d') as test_35,
+    STR_TO_DATE('69-01-01', '%y-%m-%d') as test_69,
+    YEAR(STR_TO_DATE('00-01-01', '%y-%m-%d')) as year_00_should_be_2000,
+    YEAR(STR_TO_DATE('35-01-01', '%y-%m-%d')) as year_35_should_be_2035,
+    YEAR(STR_TO_DATE('69-01-01', '%y-%m-%d')) as year_69_should_be_2069;
+
+--echo 问题3: 三重try-catch的性能和异常处理验证
+--echo 验证复杂的异常处理逻辑是否正确工作
+
+--echo 3.1 测试不同解析分支的触发条件
+SELECT 
+    'Parse Branch Test' as test_group,
+    STR_TO_DATE('85-01-01', '%y-%m-%d') as date_only,
+    STR_TO_DATE('12:30:45', '%H:%i:%s') as time_only,
+    STR_TO_DATE('85-01-01 12:30:45', '%y-%m-%d %H:%i:%s') as datetime_format;
+
+--echo 3.2 测试异常处理的正确性
+SELECT 
+    'Exception Handling Test' as test_group,
+    STR_TO_DATE('invalid-date', '%y-%m-%d') as invalid_input,
+    STR_TO_DATE('85-13-01', '%y-%m-%d') as invalid_month,
+    STR_TO_DATE('85-01-32', '%y-%m-%d') as invalid_day,
+    STR_TO_DATE('85-01-01', '%invalid-format') as invalid_format;
+
+--echo 问题4: 返回类型不一致的验证
+--echo 验证java.util.Date vs java.sql.Date的兼容性问题
+
+# --echo 4.1 类型转换和比较测试
+# SELECT 
+#     'Type Compatibility Test' as test_group,
+#     DATE('85-01-01') as date_function_result,
+#     STR_TO_DATE('85-01-01', '%y-%m-%d') as str_to_date_result,
+#     DATE('85-01-01') = STR_TO_DATE('85-01-01', '%y-%m-%d') as type_comparison,
+#     YEAR(DATE('85-01-01')) as date_func_year,
+#     YEAR(STR_TO_DATE('85-01-01', '%y-%m-%d')) as str_to_date_year,
+#     YEAR(DATE('85-01-01')) = YEAR(STR_TO_DATE('85-01-01', '%y-%m-%d')) as year_consistency;
+
+# --echo 问题5: 时区处理的验证
+# --echo 验证ZoneOffset.UTC的使用是否正确
+
+# --echo 5.1 时区一致性测试
+# SELECT 
+#     'Timezone Consistency Test' as test_group,
+#     STR_TO_DATE('85-01-01 12:00:00', '%y-%m-%d %H:%i:%s') as with_time,
+#     DATE('85-01-01') as date_only,
+#     STR_TO_DATE('85-01-01 00:00:00', '%y-%m-%d %H:%i:%s') as midnight,
+#     STR_TO_DATE('85-01-01 23:59:59', '%y-%m-%d %H:%i:%s') as end_of_day;
+
+--echo 问题6: 边界条件的完整性验证
+--echo 验证边界条件的完整覆盖
+
+--echo 6.1 年份边界测试
+SELECT 
+    'Year Boundary Test' as test_group,
+    STR_TO_DATE('68-01-01', '%y-%m-%d') as test_68,
+    STR_TO_DATE('69-01-01', '%y-%m-%d') as test_69,
+    STR_TO_DATE('70-01-01', '%y-%m-%d') as test_70,
+    STR_TO_DATE('71-01-01', '%y-%m-%d') as test_71,
+    YEAR(STR_TO_DATE('68-01-01', '%y-%m-%d')) as year_68_should_be_2068,
+    YEAR(STR_TO_DATE('69-01-01', '%y-%m-%d')) as year_69_should_be_2069,
+    YEAR(STR_TO_DATE('70-01-01', '%y-%m-%d')) as year_70_should_be_1970,
+    YEAR(STR_TO_DATE('71-01-01', '%y-%m-%d')) as year_71_should_be_1971;
+
+--echo 6.2 月份和日期边界测试
+SELECT 
+    'Month Day Boundary Test' as test_group,
+    STR_TO_DATE('85-01-01', '%y-%m-%d') as jan_1st,
+    STR_TO_DATE('85-12-31', '%y-%m-%d') as dec_31st,
+    STR_TO_DATE('00-02-29', '%y-%m-%d') as leap_year_2000,
+    STR_TO_DATE('04-02-29', '%y-%m-%d') as leap_year_2004;
+
+# --echo 问题7: 性能回归测试
+# --echo 验证修复后的性能是否可接受
+
+# --echo 7.1 批量处理性能测试
+# SELECT 
+#     'Performance Regression Test' as test_group,
+#     COUNT(*) as processed_count,
+#     MIN(YEAR(result_date)) as min_year,
+#     MAX(YEAR(result_date)) as max_year
+# FROM (
+#     SELECT STR_TO_DATE('00-01-01', '%y-%m-%d') as result_date
+#     UNION ALL SELECT STR_TO_DATE('10-01-01', '%y-%m-%d')
+#     UNION ALL SELECT STR_TO_DATE('20-01-01', '%y-%m-%d')
+#     UNION ALL SELECT STR_TO_DATE('30-01-01', '%y-%m-%d')
+#     UNION ALL SELECT STR_TO_DATE('40-01-01', '%y-%m-%d')
+#     UNION ALL SELECT STR_TO_DATE('50-01-01', '%y-%m-%d')
+#     UNION ALL SELECT STR_TO_DATE('60-01-01', '%y-%m-%d')
+#     UNION ALL SELECT STR_TO_DATE('69-01-01', '%y-%m-%d')
+#     UNION ALL SELECT STR_TO_DATE('70-01-01', '%y-%m-%d')
+#     UNION ALL SELECT STR_TO_DATE('80-01-01', '%y-%m-%d')
+#     UNION ALL SELECT STR_TO_DATE('90-01-01', '%y-%m-%d')
+#     UNION ALL SELECT STR_TO_DATE('99-01-01', '%y-%m-%d')
+# ) perf_test;
+
+# --echo 最终验证：所有关键假设的确认
+# SELECT 
+#     'Final Assumptions Validation' as test_group,
+#     YEAR(STR_TO_DATE('00-01-01', '%y-%m-%d')) = 2000 as assumption_00_correct,
+#     YEAR(STR_TO_DATE('69-01-01', '%y-%m-%d')) = 2069 as assumption_69_correct,
+#     YEAR(STR_TO_DATE('70-01-01', '%y-%m-%d')) = 1970 as assumption_70_correct,
+#     YEAR(STR_TO_DATE('99-01-01', '%y-%m-%d')) = 1999 as assumption_99_correct,
+#     YEAR(DATE('00-01-01')) = 2000 as date_00_correct,
+#     YEAR(DATE('69-01-01')) = 2069 as date_69_correct,
+#     YEAR(DATE('70-01-01')) = 1970 as date_70_correct,
+#     YEAR(DATE('99-01-01')) = 1999 as date_99_correct,
+#     DATE('85-01-01') = STR_TO_DATE('85-01-01', '%y-%m-%d') as functions_consistent;

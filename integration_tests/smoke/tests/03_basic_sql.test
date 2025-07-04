@@ -1,0 +1,28 @@
+# 基础SQL执行测试
+# 验证基本的SQL语句能够正确执行
+
+--disable_query_log
+
+# 创建测试表和数据
+CREATE TABLE test_users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL
+);
+
+INSERT INTO test_users (name) VALUES ('Alice'), ('Bob'), ('Charlie');
+
+CREATE TABLE test_numbers (
+    value INT
+);
+
+INSERT INTO test_numbers (value) VALUES (1), (2), (3), (4), (5);
+
+# 测试查询
+SELECT COUNT(*) as user_count FROM test_users;
+
+# 测试带条件的查询
+SELECT name FROM test_users WHERE name = 'Alice';
+
+# 测试排序
+--sorted_result
+SELECT value FROM test_numbers WHERE value < 5;

@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  mysql-test:
+    image: mysql:8.0
+    container_name: dingo_test_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: test123456
+      MYSQL_DATABASE: test_db
+      MYSQL_USER: test_user
+      MYSQL_PASSWORD: test123456
+    ports:
+      - "13306:3306"
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --skip-character-set-client-handshake
+      --log-bin-trust-function-creators=1
+    volumes:
+      - mysql_test_data:/var/lib/mysql
+      - ./integration_tests/docker/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ptest123456"]
+      timeout: 20s
+      retries: 10
+      interval: 5s
+    networks:
+      - test_network
+
+  dingo-test:
+    image: pingcap/tidb:latest
+    container_name: dingo_test_dingo
+    ports:
+      - "14000:4000"
+    environment:
+      - TIDB_HOST=0.0.0.0
+    command: >
+      /tidb-server
+      --host=0.0.0.0
+      --port=4000
+      --store=unistore
+      --path=""
+      --log-level=error
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "4000"]
+      timeout: 20s
+      retries: 10
+      interval: 5s
+    networks:
+      - test_network
+
+volumes:
+  mysql_test_data:
+
+networks:
+  test_network:
+    driver: bridge

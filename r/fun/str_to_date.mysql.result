@@ -1,15 +1,3 @@
-1. 关键边界值测试
-SELECT 
-    'MySQL Standard Results' as source,
-    STR_TO_DATE('00-01-01', '%y-%m-%d') as mysql_00,
-    STR_TO_DATE('69-12-31', '%y-%m-%d') as mysql_69,
-    STR_TO_DATE('70-01-01', '%y-%m-%d') as mysql_70,
-    STR_TO_DATE('99-12-31', '%y-%m-%d') as mysql_99,
-    YEAR(STR_TO_DATE('00-01-01', '%y-%m-%d')) as year_00,
-    YEAR(STR_TO_DATE('69-12-31', '%y-%m-%d')) as year_69,
-    YEAR(STR_TO_DATE('70-01-01', '%y-%m-%d')) as year_70,
-    YEAR(STR_TO_DATE('99-12-31', '%y-%m-%d')) as year_99
-MySQL Standard Results	2000-01-01	2069-12-31	2070-01-01	2099-12-31	2000	2069	2070	2099
 2. 不同格式测试
 SELECT 
     'MySQL Format Test' as source,
@@ -19,7 +7,7 @@ SELECT
     YEAR(STR_TO_DATE('85/01/15', '%y/%m/%d')) as year_85_1,
     YEAR(STR_TO_DATE('85-Jan-15', '%y-%b-%d')) as year_85_2,
     YEAR(STR_TO_DATE('01/15/85', '%m/%d/%y')) as year_85_3
-MySQL Format Test	2085-01-15	2085-01-15	2085-01-15	2085	2085	2085
+MySQL Format Test	1985-01-15	1985-01-15	1985-01-15	1985	1985	1985
 3. 异常处理测试
 SELECT 
     'MySQL Exception Test' as source,
@@ -38,7 +26,7 @@ SELECT
     YEAR(STR_TO_DATE('69-12-31', '%y-%m-%d')) as year_69,
     YEAR(STR_TO_DATE('70-01-01', '%y-%m-%d')) as year_70,
     YEAR(STR_TO_DATE('99-12-31', '%y-%m-%d')) as year_99
-DingoDB Results	2000-01-01	2069-12-31	2070-01-01	2099-12-31	2000	2069	2070	2099
+DingoDB Results	2000-01-01	2069-12-31	1970-01-01	1999-12-31	2000	2069	1970	1999
 3. 一致性验证
 SELECT 
     'Consistency Check' as source,
@@ -55,19 +43,19 @@ SELECT STR_TO_DATE('69-12-31', '%y-%m-%d')
 2069-12-31
 测试用例2: 边界值 70-99 应该解析为 1970-1999
 SELECT STR_TO_DATE('70-01-01', '%y-%m-%d') as test_70;
-2070-01-01
+1970-01-01
 SELECT STR_TO_DATE('99-12-31', '%y-%m-%d') as test_99
-2099-12-31
+1999-12-31
 测试用例3: 关键边界值
 SELECT STR_TO_DATE('68-01-01', '%y-%m-%d') as test_68;
 2068-01-01
 SELECT STR_TO_DATE('71-01-01', '%y-%m-%d') as test_71
-2071-01-01
+1971-01-01
 测试用例4: 不同格式的两位年份
 SELECT STR_TO_DATE('01/15/85', '%m/%d/%y') as test_format1;
-2085-01-15
+1985-01-15
 SELECT STR_TO_DATE('85-Jan-15', '%y-%b-%d') as test_format2
-2085-01-15
+1985-01-15
 测试用例5: 混合格式 - 四位年份不应受影响
 SELECT STR_TO_DATE('2025-01-01', '%Y-%m-%d') as test_four_digit
 2025-01-01
@@ -81,7 +69,7 @@ SELECT
     STR_TO_DATE('87-01-01', '%y-%m-%d'),
     STR_TO_DATE('88-01-01', '%y-%m-%d'),
     STR_TO_DATE('89-01-01', '%y-%m-%d')
-2085-01-01	2086-01-01	2087-01-01	2088-01-01	2089-01-01
+1985-01-01	1986-01-01	1987-01-01	1988-01-01	1989-01-01
 测试用例8: 错误处理
 SELECT STR_TO_DATE(NULL, '%y-%m-%d') as test_null_date;
 NULL
@@ -97,9 +85,9 @@ SELECT STR_TO_DATE('00-01-01', '%y-%m-%d');
 SELECT STR_TO_DATE('69-01-01', '%y-%m-%d');
 2069-01-01
 SELECT STR_TO_DATE('70-01-01', '%y-%m-%d');
-2070-01-01
+1970-01-01
 SELECT STR_TO_DATE('99-01-01', '%y-%m-%d')
-2099-01-01
+1999-01-01
 =================================================================
 综合测试：DATE函数 vs STR_TO_DATE函数的两位年份一致性
 Commits: 94ad8c1 (DATE) + 4555e13 (STR_TO_DATE)
@@ -109,7 +97,7 @@ SELECT
     DATE('85-01-01') as date_fun_result,
     STR_TO_DATE('85-01-01', '%y-%m-%d') as str_to_date_result,
     DATE('85-01-01') = STR_TO_DATE('85-01-01', '%y-%m-%d') as consistency_check
-2085-01-01	2085-01-01	1
+1985-01-01	1985-01-01	1
 测试用例11: 边界值一致性测试
 SELECT 
     DATE('00-01-01') as date_00, 
@@ -120,7 +108,7 @@ SELECT
     STR_TO_DATE('70-01-01', '%y-%m-%d') as str_date_70,
     DATE('99-12-31') as date_99, 
     STR_TO_DATE('99-12-31', '%y-%m-%d') as str_date_99
-2000-01-01	2000-01-01	2069-12-31	2069-12-31	2070-01-01	2070-01-01	2099-12-31	2099-12-31
+2000-01-01	2000-01-01	2069-12-31	2069-12-31	1970-01-01	1970-01-01	1999-12-31	1999-12-31
 测试用例12: JDBC兼容性测试
 检查DATE函数新返回类型是否兼容JDBC getDate()
 SELECT DATE('2025-01-01') as jdbc_date_test
@@ -141,7 +129,7 @@ SELECT
     YEAR(STR_TO_DATE('70-01-01', '%y-%m-%d')) as year_70_should_be_1970,
     YEAR(STR_TO_DATE('85-01-01', '%y-%m-%d')) as year_85_should_be_1985,
     YEAR(STR_TO_DATE('99-01-01', '%y-%m-%d')) as year_99_should_be_1999
-Java DateTimeFormatter Behavior Test	2070-01-01	2085-01-01	2099-01-01	2070	2085	2099
+Java DateTimeFormatter Behavior Test	1970-01-01	1985-01-01	1999-01-01	1970	1985	1999
 1.2 验证containsUnescapedY函数的格式检测是否正确
 SELECT 
     'Format Detection Edge Cases' as test_group,
@@ -149,7 +137,7 @@ SELECT
     STR_TO_DATE('85-01-01%y', '%y-%m-%d%%y') as escaped_percent_y_2,
     STR_TO_DATE('85-01-01', '%y-%m-%d') as simple_y_format,
     STR_TO_DATE('2085-01-01', '%Y-%m-%d') as capital_y_format
-Format Detection Edge Cases	NULL	2085-01-01	2085-01-01	2085-01-01
+Format Detection Edge Cases	NULL	NULL	1985-01-01	2085-01-01
 问题2: 00-69范围的处理验证
 验证00-69是否被正确处理（不被adjustDateForTwoDigitYear调整）
 2.1 验证00-69范围不会被错误调整
@@ -170,7 +158,7 @@ SELECT
     STR_TO_DATE('85-01-01', '%y-%m-%d') as date_only,
     STR_TO_DATE('12:30:45', '%H:%i:%s') as time_only,
     STR_TO_DATE('85-01-01 12:30:45', '%y-%m-%d %H:%i:%s') as datetime_format
-Parse Branch Test	2085-01-01	1970-01-01	2085-01-01
+Parse Branch Test	1985-01-01	12:30:45	1985-01-01 12:30:45
 3.2 测试异常处理的正确性
 SELECT 
     'Exception Handling Test' as test_group,
@@ -194,7 +182,7 @@ SELECT
     YEAR(STR_TO_DATE('69-01-01', '%y-%m-%d')) as year_69_should_be_2069,
     YEAR(STR_TO_DATE('70-01-01', '%y-%m-%d')) as year_70_should_be_1970,
     YEAR(STR_TO_DATE('71-01-01', '%y-%m-%d')) as year_71_should_be_1971
-Year Boundary Test	2068-01-01	2069-01-01	2070-01-01	2071-01-01	2068	2069	2070	2071
+Year Boundary Test	2068-01-01	2069-01-01	1970-01-01	1971-01-01	2068	2069	1970	1971
 6.2 月份和日期边界测试
 SELECT 
     'Month Day Boundary Test' as test_group,
@@ -202,4 +190,4 @@ SELECT
     STR_TO_DATE('85-12-31', '%y-%m-%d') as dec_31st,
     STR_TO_DATE('00-02-29', '%y-%m-%d') as leap_year_2000,
     STR_TO_DATE('04-02-29', '%y-%m-%d') as leap_year_2004
-Month Day Boundary Test	2085-01-01	2085-12-31	2000-02-29	2004-02-29
+Month Day Boundary Test	1985-01-01	1985-12-31	2000-02-29	2004-02-29

@@ -1,0 +1,5 @@
+# 基础连接测试
+# 验证能够连接到测试数据库并执行简单查询
+
+--disable_query_log
+SELECT 1 as basic_test;

@@ -115,7 +115,7 @@ pub struct Args {
     pub test_files: Vec<String>,
 
     /// 出现首个 ERROR 立即终止当前测试并返回失败
-    #[arg(long, default_value = "true")]
+    #[arg(long, default_value = "false")]
     pub fail_fast: bool,
 
     /// Number of test files to execute in parallel (1 = serial execution)

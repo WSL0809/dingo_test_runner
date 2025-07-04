@@ -1,0 +1,31 @@
+# Parser修复回归测试
+
+--echo 单行SQL测试
+SELECT 1 as single_line;
+
+--echo 多行SQL测试
+SELECT 
+    1 as multi_line,
+    'test' as name;
+
+--echo 注释测试
+# 这是注释
+SELECT 2 as after_comment;
+
+--echo 命令测试
+--sorted_result
+SELECT 3 as command_test;
+
+--echo 控制流测试
+let $var = 1;
+if ($var)
+SELECT 4 as control_flow;
+end;
+
+--echo 混合测试
+SELECT 'first' as first_col;
+# 中间注释
+SELECT 
+    'second' as second_col,
+    'multiline' as type;
+--echo 完成

@@ -1,0 +1,20 @@
+Smoke Test Report
+================
+
+Date: Sat Jul  5 02:11:29 CST 2025
+Environment: Docker MySQL (port 13306)
+Extension: smoke
+
+Test Suite Status: PASSED
+Duration: 6s
+
+Test Files:
+  /Users/wangshilong/Downloads/lazy-cat-sync/dingo_test_runner/integration_tests/smoke/tests/01_basic_connection.test
+  /Users/wangshilong/Downloads/lazy-cat-sync/dingo_test_runner/integration_tests/smoke/tests/02_basic_variables.test
+  /Users/wangshilong/Downloads/lazy-cat-sync/dingo_test_runner/integration_tests/smoke/tests/03_basic_sql.test
+  /Users/wangshilong/Downloads/lazy-cat-sync/dingo_test_runner/integration_tests/smoke/tests/04_control_flow.test
+  /Users/wangshilong/Downloads/lazy-cat-sync/dingo_test_runner/integration_tests/smoke/tests/05_regex_replacement.test
+
+Expected Results:
+       0 result files generated
+

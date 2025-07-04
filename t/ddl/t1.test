@@ -1,0 +1,58 @@
+select 1;
+
+--BEGIN_CONCURRENT
+CREATE TABLE evil_test (id INT PRIMARY KEY);
+CREATE TABLE evil_test (id INT PRIMARY KEY); 
+CREATE TABLE evil_test (id INT PRIMARY KEY); 
+CREATE TABLE evil_test (id INT PRIMARY KEY); 
+CREATE TABLE evil_test (id INT PRIMARY KEY);
+CREATE TABLE evil_test (id INT PRIMARY KEY);
+CREATE TABLE evil_test (id INT PRIMARY KEY); 
+CREATE TABLE evil_test (id INT PRIMARY KEY); 
+CREATE TABLE evil_test (id INT PRIMARY KEY); 
+CREATE TABLE evil_test (id INT PRIMARY KEY); 
+--END_CONCURRENT
+
+CREATE TABLE test_basic (id INT PRIMARY KEY, name VARCHAR(50));
+SELECT 'Test 1: Basic rollback consistency' AS test_info;
+
+--echo 尝试无效DDL触发回滚
+ALTER TABLE test_basic ADD COLUMN invalid_col INT;
+
+show create table test_basic;
+
+--BEGIN_CONCURRENT
+ALTER TABLE test_basic ADD COLUMN col1 INT;
+ALTER TABLE test_basic ADD COLUMN col1 INT;
+ALTER TABLE test_basic ADD COLUMN col1 INT;
+ALTER TABLE test_basic ADD COLUMN col1 INT;
+ALTER TABLE test_basic ADD COLUMN col1 INT;
+ALTER TABLE test_basic ADD COLUMN col1 INT;
+--END_CONCURRENT
+
+show create table test_basic;
+
+CREATE TABLE concurrent_test (id INT PRIMARY KEY, data VARCHAR(100)); 
+--BEGIN_CONCURRENT
+CREATE INDEX idx_data ON concurrent_test(data);
+CREATE INDEX idx_data ON concurrent_test(data);
+CREATE INDEX idx_data ON concurrent_test(data);
+CREATE INDEX idx_data ON concurrent_test(data);
+CREATE INDEX idx_data ON concurrent_test(data);
+CREATE INDEX idx_data ON concurrent_test(data);
+CREATE INDEX idx_data ON concurrent_test(data);
+CREATE INDEX idx_data ON concurrent_test(data);
+CREATE INDEX idx_data ON concurrent_test(data);
+CREATE INDEX idx_data ON concurrent_test(data);
+CREATE INDEX idx_data ON concurrent_test(data);
+CREATE INDEX idx_data ON concurrent_test(data);
+--END_CONCURRENT
+
+show create table concurrent_test;
+show index from concurrent_test;
+
+# drop all table
+DROP TABLE IF EXISTS test_basic;
+DROP TABLE IF EXISTS concurrent_test;
+DROP TABLE IF EXISTS evil_test;
+show processlist;

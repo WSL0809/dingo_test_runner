@@ -139,6 +139,7 @@ impl PestParser {
                 }
                 Rule::sql_statement => {
                     let sql_content = self.extract_sql_statement(pair)?;
+                    log::debug!("Parsing SQL statement at line {}: '{}'", line_num, sql_content);
                     
                     // Check if this is actually our new syntax that wasn't caught by Pest
                     if let Some(query) = self.try_parse_new_syntax(&sql_content, line_num)? {
@@ -146,9 +147,11 @@ impl PestParser {
                         if !pending_sql_lines.is_empty() {
                             self.finalize_pending_sql(&mut queries, &mut pending_sql_lines, line_num)?;
                         }
+                        log::debug!("Processed as new syntax query at line {}", line_num);
                         queries.push(query);
                     } else {
                         // Process as regular SQL
+                        log::debug!("Processing as regular SQL at line {}: '{}'", line_num, sql_content);
                         self.process_sql_line(
                             &mut pending_sql_lines,
                             &mut queries,
@@ -320,8 +323,8 @@ impl PestParser {
                 pending_sql_lines.push(content_without_delimiter.to_string());
             }
 
-            // Finalize the SQL statement
-            self.finalize_pending_sql(queries, pending_sql_lines, line_num)?;
+            // Finalize the SQL statement with smart splitting
+            self.finalize_pending_sql_with_splitting(queries, pending_sql_lines, line_num)?;
         } else {
             // Add to pending lines (multi-line SQL continues)
             pending_sql_lines.push(trimmed_content.to_string());
@@ -330,7 +333,109 @@ impl PestParser {
         Ok(())
     }
 
-    /// Finalize pending SQL lines into a single Query
+    /// Finalize pending SQL lines with smart splitting for multiple statements
+    fn finalize_pending_sql_with_splitting(
+        &self,
+        queries: &mut Vec<Query>,
+        pending_sql_lines: &mut Vec<String>,
+        line_num: usize,
+    ) -> Result<()> {
+        if pending_sql_lines.is_empty() {
+            return Ok(());
+        }
+
+        let full_sql = pending_sql_lines.join("\n").trim().to_string();
+        if full_sql.is_empty() {
+            pending_sql_lines.clear();
+            return Ok(());
+        }
+
+        // Check if this contains multiple complete SQL statements
+        // Look for pattern: semicolon + newline + capital letter (start of new SQL)
+        let lines: Vec<&str> = full_sql.lines().collect();
+        let mut statements = Vec::new();
+        let mut current_statement = String::new();
+        
+        for (i, line) in lines.iter().enumerate() {
+            let trimmed_line = line.trim();
+            if trimmed_line.is_empty() {
+                continue;
+            }
+            
+            current_statement.push_str(line);
+            current_statement.push('\n');
+            
+            // Check if this line ends with semicolon and next line starts new statement
+            if trimmed_line.ends_with(';') {
+                if i + 1 < lines.len() {
+                    // Look for next non-empty line
+                    let mut next_line_idx = i + 1;
+                    while next_line_idx < lines.len() {
+                        let next_line = lines[next_line_idx].trim();
+                        if !next_line.is_empty() {
+                            // Check if next line starts with SQL keywords (case insensitive)
+                            let first_word = next_line.split_whitespace().next().unwrap_or("").to_lowercase();
+                            let sql_keywords = ["select", "insert", "update", "delete", "create", "drop", "alter", "show", "describe", "explain"];
+                            if sql_keywords.contains(&first_word.as_str()) {
+                                // This ends a statement and next line starts a new one
+                                statements.push(current_statement.trim().to_string());
+                                current_statement.clear();
+                                break;
+                            } else {
+                                // Not a SQL statement start, continue current statement
+                                break;
+                            }
+                        }
+                        next_line_idx += 1;
+                    }
+                    if next_line_idx >= lines.len() {
+                        // End of input, finalize current statement
+                        statements.push(current_statement.trim().to_string());
+                        current_statement.clear();
+                    }
+                } else {
+                    // End of input, finalize current statement
+                    statements.push(current_statement.trim().to_string());
+                    current_statement.clear();
+                }
+            }
+        }
+        
+        // Add any remaining statement
+        if !current_statement.trim().is_empty() {
+            statements.push(current_statement.trim().to_string());
+        }
+        
+        if statements.len() > 1 {
+            // Multiple statements detected, split them
+            log::debug!("Splitting {} statements from multi-line SQL at line {}", statements.len(), line_num);
+            for (i, statement) in statements.iter().enumerate() {
+                let trimmed_statement = statement.trim();
+                if !trimmed_statement.is_empty() {
+                    queries.push(Query {
+                        query_type: QueryType::Query,
+                        query: trimmed_statement.to_string(),
+                        line: line_num + i, // Adjust line numbers
+                        options: QueryOptions::default(),
+                    });
+                }
+            }
+        } else {
+            // Single statement, process normally
+            log::debug!("Finalizing single multi-line SQL at line {}: '{}'", line_num, full_sql);
+            queries.push(Query {
+                query_type: QueryType::Query,
+                query: full_sql,
+                line: line_num,
+                options: QueryOptions::default(),
+            });
+        }
+
+        pending_sql_lines.clear();
+        Ok(())
+    }
+
+    /// Finalize pending SQL lines into a single Query (original method)
     fn finalize_pending_sql(
         &self,
         queries: &mut Vec<Query>,
@@ -343,6 +448,7 @@ impl PestParser {
 
         let full_sql = pending_sql_lines.join("\n").trim().to_string();
         if !full_sql.is_empty() {
+            log::debug!("Finalizing multi-line SQL at line {}: '{}'", line_num, full_sql);
             queries.push(Query {
                 query_type: QueryType::Query,
                 query: full_sql,
