@@ -1,0 +1,31 @@
+# 错误处理测试
+# 验证预期错误的捕获和处理
+
+--disable_query_log
+
+# 创建测试表
+CREATE TABLE error_test (
+    id INT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL
+);
+
+# 测试重复主键错误
+INSERT INTO error_test VALUES (1, 'test1');
+
+--error 1062
+INSERT INTO error_test VALUES (1, 'duplicate');
+
+# 测试非空约束错误
+--error 1364
+INSERT INTO error_test (id) VALUES (2);
+
+# 测试表不存在错误
+--error 1146
+SELECT * FROM non_existent_table;
+
+# 测试语法错误
+--error 1064
+SELCT * FROM error_test;
+
+# 清理
+DROP TABLE error_test;

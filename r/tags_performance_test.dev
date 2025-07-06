@@ -1,0 +1,118 @@
+Testing tag functionality performance
+CREATE TABLE perf_test (
+    id INT PRIMARY KEY,
+    data VARCHAR(100)
+)
+INSERT INTO perf_test (id, data) VALUES 
+    (1, 'Performance test data 1001'),
+    (2, 'Performance test data 1002'),
+    (3, 'Performance test data 1003'),
+    (4, 'Performance test data 1004'),
+    (5, 'Performance test data 1005'),
+    (6, 'Performance test data 1006'),
+    (7, 'Performance test data 1007'),
+    (8, 'Performance test data 1008'),
+    (9, 'Performance test data 1009'),
+    (10, 'Performance test data 1010')
+INSERT INTO perf_test (id, data) 
+SELECT id + 10, CONCAT('Batch data ', id + 1010) FROM perf_test;
+INSERT INTO perf_test (id, data) 
+SELECT id + 20, CONCAT('Batch data ', id + 1020) FROM perf_test;
+INSERT INTO perf_test (id, data) 
+SELECT id + 40, CONCAT('Batch data ', id + 1040) FROM perf_test
+Testing sorted_result performance with large dataset
+SELECT * FROM perf_test LIMIT 20
+1	Performance test data 1001
+10	Performance test data 1010
+11	Batch data 1011
+12	Batch data 1012
+13	Batch data 1013
+14	Batch data 1014
+15	Batch data 1015
+16	Batch data 1016
+17	Batch data 1017
+18	Batch data 1018
+19	Batch data 1019
+2	Performance test data 1002
+20	Batch data 1020
+3	Performance test data 1003
+4	Performance test data 1004
+5	Performance test data 1005
+6	Performance test data 1006
+7	Performance test data 1007
+8	Performance test data 1008
+9	Performance test data 1009
+Testing multiple replace_regex performance
+SELECT data FROM perf_test LIMIT 10
+Performance TEST DATA NUM
+Performance TEST DATA NUM
+Performance TEST DATA NUM
+Performance TEST DATA NUM
+Performance TEST DATA NUM
+Performance TEST DATA NUM
+Performance TEST DATA NUM
+Performance TEST DATA NUM
+Performance TEST DATA NUM
+Performance TEST DATA NUM
+Testing query log performance with complex queries
+14	43.5000	76	11
+14	44.5000	77	12
+14	45.5000	78	13
+14	46.5000	79	14
+14	47.5000	80	15
+Testing result log performance
+SELECT data FROM perf_test WHERE id BETWEEN 1 AND 20
+Testing frequent log state switching performance
+Query 1
+SELECT 'Query 2' as test
+Query 2
+Query 3
+SELECT 'Query 4' as test
+Query 4
+SELECT 'Query 5' as test
+SELECT 'Query 6' as test
+Query 6
+Testing parallel replace_regex performance
+CREATE TABLE regex_perf_test (
+    id INT,
+    email VARCHAR(100),
+    phone VARCHAR(20),
+    address TEXT
+);
+INSERT INTO regex_perf_test VALUES 
+    (1, 'user1@example.com', '(555) 123-4567', '123 Main St, City 12345'),
+    (2, 'user2@test.org', '(555) 234-5678', '456 Oak Ave, Town 67890'),
+    (3, 'user3@demo.net', '(555) 345-6789', '789 Pine Rd, Village 11111'),
+    (4, 'user4@sample.com', '(555) 456-7890', '321 Elm St, Borough 22222'),
+    (5, 'user5@example.org', '(555) 567-8901', '654 Maple Dr, District 33333')
+SELECT * FROM regex_perf_test;
+NUM	EMAIL	PHONE	NUM Main St, City NUM
+NUM	EMAIL	PHONE	NUM Oak Ave, Town NUM
+NUM	EMAIL	PHONE	NUM Pine Rd, Village NUM
+NUM	EMAIL	PHONE	NUM Elm St, Borough NUM
+NUM	EMAIL	PHONE	NUM Maple Dr, District NUM
+DROP TABLE regex_perf_test
+Testing sorted_result performance with large result set
+SELECT id, data FROM perf_test LIMIT 20
+1	Performance test data 1001
+10	Performance test data 1010
+11	Batch data 1011
+12	Batch data 1012
+13	Batch data 1013
+14	Batch data 1014
+15	Batch data 1015
+16	Batch data 1016
+17	Batch data 1017
+18	Batch data 1018
+19	Batch data 1019
+2	Performance test data 1002
+20	Batch data 1020
+3	Performance test data 1003
+4	Performance test data 1004
+5	Performance test data 1005
+6	Performance test data 1006
+7	Performance test data 1007
+8	Performance test data 1008
+9	Performance test data 1009
+DROP TABLE perf_test
+Tag functionality performance test completed!

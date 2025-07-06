@@ -1,0 +1,45 @@
+Testing basic tag functionality
+Testing echo with query log disabled
+Message without query log
+SELECT 'Message with query log' as message
+Message with query log
+Testing result log control
+SELECT 'Hidden result' as hidden
+SELECT 'Visible result' as visible
+Visible result
+Testing multiple replace_regex patterns
+CREATE TABLE test_data (id INT, message VARCHAR(100));
+INSERT INTO test_data VALUES (1, 'Hello123World456'), (2, 'Test789Data000')
+SELECT message FROM test_data ORDER BY id
+HelloNUMWorldNUM
+TestNUMDataNUM
+SELECT message FROM test_data WHERE id = 1;
+Hi123Universe456
+DROP TABLE test_data
+Testing sorted_result with complex data
+CREATE TABLE complex_sort (
+    id INT,
+    name VARCHAR(50),
+    score DECIMAL(5,2)
+);
+INSERT INTO complex_sort VALUES 
+    (3, 'Charlie', 85.5),
+    (1, 'Alice', 92.0),
+    (2, 'Bob', 78.5),
+    (4, 'David', 88.0)
+SELECT name, score FROM complex_sort
+Alice	92.00
+Bob	78.50
+Charlie	85.50
+David	88.00
+SELECT * FROM complex_sort WHERE score > 80;
+1	Alice	92.00
+3	Charlie	85.50
+4	David	88.00
+DROP TABLE complex_sort
+Testing error handling tags
+SELECT * FROM non_existent_table
+ERROR 1146 (42S02): Table 'test_tags_basic_features.non_existent_table' doesn't exist
+SELECT * FROM invalid syntax here
+ERROR 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'here' at line 1
+Basic tag functionality test completed!

@@ -1,0 +1,36 @@
+# 数据类型测试
+# 验证不同数据类型的处理
+
+--disable_query_log
+
+# 创建测试表覆盖多种数据类型
+CREATE TABLE data_types_test (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    int_col INT,
+    varchar_col VARCHAR(100),
+    text_col TEXT,
+    decimal_col DECIMAL(10,2),
+    date_col DATE,
+    datetime_col DATETIME,
+    timestamp_col TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+# 插入测试数据
+INSERT INTO data_types_test (int_col, varchar_col, text_col, decimal_col, date_col, datetime_col) VALUES
+(42, 'Hello World', 'This is a long text field', 123.45, '2024-01-01', '2024-01-01 12:30:00'),
+(-100, 'Special chars: !@#$%', 'Another text entry', -999.99, '2023-12-31', '2023-12-31 23:59:59');
+
+# 测试数据检索
+SELECT int_col, varchar_col FROM data_types_test WHERE int_col > 0;
+
+# 测试数值计算
+SELECT int_col + 10 as calculated, decimal_col * 2 as doubled FROM data_types_test;
+
+# 测试字符串函数
+SELECT UPPER(varchar_col) as uppercase, LENGTH(text_col) as text_length FROM data_types_test;
+
+# 测试日期函数
+SELECT YEAR(date_col) as year_part, MONTH(datetime_col) as month_part FROM data_types_test;
+
+# 清理
+DROP TABLE data_types_test;

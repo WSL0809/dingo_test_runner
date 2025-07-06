@@ -1,0 +1,74 @@
+Testing tag functionality integration scenarios
+Testing tags with variable system integration
+CREATE TABLE ${table_prefix}_data (
+    id INT PRIMARY KEY,
+    name VARCHAR(50),
+    value DECIMAL(10,2)
+);
+INSERT INTO ${table_prefix}_data VALUES 
+    (101, 'Item A', 25.50),
+    (102, 'Item B', 37.75),
+    (103, 'Item C', 42.00)
+SELECT * FROM ${table_prefix}_data
+SELECT * FROM ${table_prefix}_nonexistent
+Testing tags with control flow integration
+Testing tags with source directive integration
+Testing tags with connection management integration
+Connected to conn1
+SELECT 'Back to default connection' as connection_test
+Back to default connection
+Testing tags with transaction integration
+START TRANSACTION
+INSERT INTO ${table_prefix}_data VALUES (104, 'Item D', 15.25)
+SELECT * FROM ${table_prefix}_data WHERE id >= 104;
+
+ROLLBACK
+SELECT * FROM ${table_prefix}_data WHERE id >= 104
+Testing tags with stored procedures integration
+DELIMITER //
+CREATE PROCEDURE test_procedure(IN test_id INT)
+BEGIN
+    SELECT CONCAT('Processing ID: ', test_id) as proc_result;
+END//
+DELIMITER
+CALL test_procedure(12345);
+DROP PROCEDURE test_procedure
+Testing tags with functions integration
+CREATE TABLE function_test (
+    id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+INSERT INTO function_test (id) VALUES (1), (2), (3)
+SELECT id, created_at FROM function_test;
+1	TIMESTAMP
+2	TIMESTAMP
+3	TIMESTAMP
+DROP TABLE function_test
+Testing tags with triggers integration
+CREATE TABLE trigger_test (
+    id INT PRIMARY KEY,
+    name VARCHAR(50),
+    audit_log TEXT
+);
+CREATE TRIGGER audit_trigger
+BEFORE INSERT ON trigger_test
+FOR EACH ROW
+SET NEW.audit_log = CONCAT('Inserted at: ', NOW())
+INSERT INTO trigger_test (id, name) VALUES (1, 'Test Item')
+SELECT * FROM trigger_test;
+1	Test Item	Inserted at: TIMESTAMP
+DROP TRIGGER audit_trigger;
+DROP TABLE trigger_test
+Testing tags with views integration
+CREATE VIEW ${table_prefix}_view AS
+SELECT id, name, value * 1.1 as adjusted_value
+FROM ${table_prefix}_data
+SELECT * FROM ${table_prefix}_view
+SELECT adjusted_value FROM ${table_prefix}_view WHERE id = 101;
+DROP VIEW ${table_prefix}_view
+Testing tags with index integration
+CREATE INDEX idx_name ON ${table_prefix}_data (name)
+SELECT name FROM ${table_prefix}_data WHERE name LIKE 'Item%';
+DROP INDEX idx_name ON ${table_prefix}_data
+DROP TABLE ${table_prefix}_data
+Tag functionality integration test completed!

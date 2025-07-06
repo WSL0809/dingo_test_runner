@@ -1,0 +1,41 @@
+# 高级变量测试
+# 验证复杂的变量操作和表达式
+
+--disable_query_log
+
+# 创建测试表
+CREATE TABLE var_test (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50),
+    score INT
+);
+
+INSERT INTO var_test (name, score) VALUES ('Alice', 85), ('Bob', 92), ('Charlie', 78);
+
+# 测试复杂的SQL表达式作为变量
+let $max_score = `SELECT MAX(score) FROM var_test`
+let $min_score = `SELECT MIN(score) FROM var_test`
+let $avg_score = `SELECT AVG(score) FROM var_test`
+
+SELECT $max_score as max_score, $min_score as min_score, $avg_score as avg_score;
+
+# 测试变量在WHERE条件中的使用
+let $threshold = 80
+SELECT name, score FROM var_test WHERE score > $threshold;
+
+# 测试字符串变量和拼接
+let $name_filter = 'Alice'
+SELECT name FROM var_test WHERE name = $name_filter;
+
+# 测试变量的数学运算
+let $bonus = 5
+SELECT name, score, (score + $bonus) as score_with_bonus FROM var_test;
+
+# 测试布尔变量
+let $has_high_score = `SELECT COUNT(*) > 0 FROM var_test WHERE score > 90`
+if ($has_high_score)
+  SELECT 'High score students found' as message;
+end
+
+# 清理
+DROP TABLE var_test;

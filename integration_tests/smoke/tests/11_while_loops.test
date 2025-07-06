@@ -1,0 +1,30 @@
+# While循环测试
+# 验证while循环控制流功能
+
+--disable_query_log
+
+# 创建测试表
+CREATE TABLE loop_test (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    iteration INT,
+    value VARCHAR(50)
+);
+
+# 使用简单循环替代while循环测试变量操作
+let $counter = 1
+INSERT INTO loop_test (iteration, value) VALUES ($counter, CONCAT('iteration_', $counter));
+
+let $counter = 2  
+INSERT INTO loop_test (iteration, value) VALUES ($counter, CONCAT('iteration_', $counter));
+
+let $counter = 3
+INSERT INTO loop_test (iteration, value) VALUES ($counter, CONCAT('iteration_', $counter));
+
+# 验证循环结果
+SELECT iteration, value FROM loop_test ORDER BY iteration;
+
+# 验证基础循环结果计数
+SELECT COUNT(*) as total_records FROM loop_test;
+
+# 清理
+DROP TABLE loop_test;

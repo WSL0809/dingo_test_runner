@@ -1,0 +1,109 @@
+# 标签功能性能测试
+--echo Testing tag functionality performance
+
+# 创建大数据量测试表
+CREATE TABLE perf_test (
+    id INT PRIMARY KEY,
+    data VARCHAR(100)
+);
+
+# 插入大量数据用于性能测试
+INSERT INTO perf_test (id, data) VALUES 
+    (1, 'Performance test data 1001'),
+    (2, 'Performance test data 1002'),
+    (3, 'Performance test data 1003'),
+    (4, 'Performance test data 1004'),
+    (5, 'Performance test data 1005'),
+    (6, 'Performance test data 1006'),
+    (7, 'Performance test data 1007'),
+    (8, 'Performance test data 1008'),
+    (9, 'Performance test data 1009'),
+    (10, 'Performance test data 1010');
+
+# 批量插入更多数据
+INSERT INTO perf_test (id, data) 
+SELECT id + 10, CONCAT('Batch data ', id + 1010) FROM perf_test;
+INSERT INTO perf_test (id, data) 
+SELECT id + 20, CONCAT('Batch data ', id + 1020) FROM perf_test;
+INSERT INTO perf_test (id, data) 
+SELECT id + 40, CONCAT('Batch data ', id + 1040) FROM perf_test;
+
+# 测试 sorted_result 性能
+--echo Testing sorted_result performance with large dataset
+--sorted_result
+SELECT * FROM perf_test LIMIT 20;
+
+# 测试多个 replace_regex 性能
+--echo Testing multiple replace_regex performance
+--replace_regex /[0-9]+/NUM/
+--replace_regex /test/TEST/
+--replace_regex /data/DATA/
+SELECT data FROM perf_test LIMIT 10;
+
+# 测试复杂查询的日志控制性能
+--echo Testing query log performance with complex queries
+--disable_query_log
+SELECT 
+    COUNT(*) as total_count,
+    AVG(id) as avg_id,
+    MAX(id) as max_id,
+    MIN(id) as min_id
+FROM perf_test
+WHERE id > 10
+GROUP BY id % 5
+ORDER BY avg_id;
+--enable_query_log
+
+# 测试结果日志控制性能
+--echo Testing result log performance
+--disable_result_log
+SELECT data FROM perf_test WHERE id BETWEEN 1 AND 20;
+--enable_result_log
+
+# 测试频繁切换日志状态的性能
+--echo Testing frequent log state switching performance
+--disable_query_log
+SELECT 'Query 1' as test;
+--enable_query_log
+SELECT 'Query 2' as test;
+--disable_query_log
+SELECT 'Query 3' as test;
+--enable_query_log
+SELECT 'Query 4' as test;
+--disable_result_log
+SELECT 'Query 5' as test;
+--enable_result_log
+SELECT 'Query 6' as test;
+
+# 测试多个并行 replace_regex 的性能
+--echo Testing parallel replace_regex performance
+CREATE TABLE regex_perf_test (
+    id INT,
+    email VARCHAR(100),
+    phone VARCHAR(20),
+    address TEXT
+);
+
+INSERT INTO regex_perf_test VALUES 
+    (1, 'user1@example.com', '(555) 123-4567', '123 Main St, City 12345'),
+    (2, 'user2@test.org', '(555) 234-5678', '456 Oak Ave, Town 67890'),
+    (3, 'user3@demo.net', '(555) 345-6789', '789 Pine Rd, Village 11111'),
+    (4, 'user4@sample.com', '(555) 456-7890', '321 Elm St, Borough 22222'),
+    (5, 'user5@example.org', '(555) 567-8901', '654 Maple Dr, District 33333');
+
+--replace_regex /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/EMAIL/
+--replace_regex /\([0-9]{3}\) [0-9]{3}-[0-9]{4}/PHONE/
+--replace_regex /[0-9]+/NUM/
+SELECT * FROM regex_perf_test;
+
+DROP TABLE regex_perf_test;
+
+# 测试大结果集的 sorted_result 性能
+--echo Testing sorted_result performance with large result set
+--sorted_result
+SELECT id, data FROM perf_test LIMIT 20;
+
+# 清理测试数据
+DROP TABLE perf_test;
+
+--echo Tag functionality performance test completed!

@@ -1,0 +1,64 @@
+Testing advanced tag scenarios
+Testing tag state switching
+SELECT 'This should show query but not result' as test2
+SELECT 'This should show both query and result' as test3
+This should show both query and result
+SELECT 'Back to full logging' as test5
+Back to full logging
+Testing complex replace_regex patterns
+CREATE TABLE regex_test (
+    data VARCHAR(100),
+    timestamp_str VARCHAR(50),
+    json_data TEXT
+);
+INSERT INTO regex_test VALUES 
+    ('User ID: 12345, Session: ABC-67890', '2023-12-01 10:30:45', '{"id": 123, "name": "test"}'),
+    ('User ID: 98765, Session: XYZ-11111', '2023-12-01 11:45:30', '{"id": 456, "name": "demo"}')
+SELECT data FROM regex_test
+User ID: XXX, Session: ABC-67890
+User ID: XXX, Session: XYZ-11111
+SELECT timestamp_str FROM regex_test
+TIMESTAMP
+TIMESTAMP
+SELECT json_data FROM regex_test
+{"id": "NUM", "name": "test"}
+{"id": "NUM", "name": "demo"}
+SELECT data FROM regex_test;
+User ID: NUM, Session: PREFIX-NUM
+User ID: NUM, Session: PREFIX-NUM
+DROP TABLE regex_test
+Testing sorted_result with NULL values
+CREATE TABLE null_sort (
+    id INT,
+    nullable_field VARCHAR(50)
+);
+INSERT INTO null_sort VALUES 
+    (1, 'Alpha'),
+    (2, NULL),
+    (3, 'Beta'),
+    (4, NULL),
+    (5, 'Charlie')
+SELECT * FROM null_sort
+1	Alpha
+2	NULL
+3	Beta
+4	NULL
+5	Charlie
+SELECT nullable_field FROM null_sort WHERE nullable_field IS NOT NULL;
+Alpha
+Beta
+Charlie
+DROP TABLE null_sort
+Testing nested error handling
+SELECT COUNT(*) FROM table_that_does_not_exist
+ERROR 1146 (42S02): Table 'test_tags_advanced_scenarios.table_that_does_not_exist' doesn't exist
+SELECT unknown_column FROM information_schema.tables LIMIT 1
+ERROR 1054 (42S22): Unknown column 'unknown_column' in 'field list'
+Testing tags with variables
+CREATE TABLE dynamic_table (id INT, data VARCHAR(50));
+INSERT INTO dynamic_table VALUES (1, 'data123'), (2, 'info456')
+SELECT * FROM dynamic_table;
+REPLACED	dataREPLACED
+REPLACED	infoREPLACED
+DROP TABLE dynamic_table
+Advanced tag scenarios test completed!

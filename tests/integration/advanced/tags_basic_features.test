@@ -1,0 +1,61 @@
+# 基础标签功能测试
+--echo Testing basic tag functionality
+
+# 测试 echo 和 query log 组合
+--echo Testing echo with query log disabled
+--disable_query_log
+SELECT 'Message without query log' as message;
+--enable_query_log
+SELECT 'Message with query log' as message;
+
+# 测试 result log 控制
+--echo Testing result log control
+--disable_result_log
+SELECT 'Hidden result' as hidden;
+--enable_result_log
+SELECT 'Visible result' as visible;
+
+# 测试多个 replace_regex 组合
+--echo Testing multiple replace_regex patterns
+CREATE TABLE test_data (id INT, message VARCHAR(100));
+INSERT INTO test_data VALUES (1, 'Hello123World456'), (2, 'Test789Data000');
+
+--replace_regex /[0-9]+/NUM/
+SELECT message FROM test_data ORDER BY id;
+
+--replace_regex /Hello/Hi/
+--replace_regex /World/Universe/
+SELECT message FROM test_data WHERE id = 1;
+
+DROP TABLE test_data;
+
+# 测试 sorted_result 与复杂数据
+--echo Testing sorted_result with complex data
+CREATE TABLE complex_sort (
+    id INT,
+    name VARCHAR(50),
+    score DECIMAL(5,2)
+);
+INSERT INTO complex_sort VALUES 
+    (3, 'Charlie', 85.5),
+    (1, 'Alice', 92.0),
+    (2, 'Bob', 78.5),
+    (4, 'David', 88.0);
+
+--sorted_result
+SELECT name, score FROM complex_sort;
+
+--sorted_result
+SELECT * FROM complex_sort WHERE score > 80;
+
+DROP TABLE complex_sort;
+
+# 测试错误处理标签
+--echo Testing error handling tags
+--error 1146
+SELECT * FROM non_existent_table;
+
+--error 1064
+SELECT * FROM invalid syntax here;
+
+--echo Basic tag functionality test completed!

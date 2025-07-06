@@ -1,0 +1,30 @@
+# 基础事务测试
+# 验证基本的事务提交和回滚功能
+
+--disable_query_log
+
+# 创建测试表
+CREATE TABLE transaction_test (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    value VARCHAR(50)
+);
+
+# 测试事务提交
+START TRANSACTION;
+INSERT INTO transaction_test (value) VALUES ('test1');
+INSERT INTO transaction_test (value) VALUES ('test2');
+COMMIT;
+
+# 验证提交结果
+SELECT COUNT(*) as committed_count FROM transaction_test;
+
+# 测试事务回滚
+START TRANSACTION;
+INSERT INTO transaction_test (value) VALUES ('test3');
+ROLLBACK;
+
+# 验证回滚后数据没有增加
+SELECT COUNT(*) as after_rollback_count FROM transaction_test;
+
+# 清理
+DROP TABLE transaction_test;

@@ -1,0 +1,61 @@
+# 简化的标签功能集成测试
+--echo Testing simplified tag functionality integration
+
+# 测试标签与基本SQL集成
+--echo Testing tags with basic SQL integration
+CREATE TABLE integration_data (
+    id INT PRIMARY KEY,
+    name VARCHAR(50),
+    value DECIMAL(10,2)
+);
+
+INSERT INTO integration_data VALUES 
+    (101, 'Item A', 25.50),
+    (102, 'Item B', 37.75),
+    (103, 'Item C', 42.00);
+
+# 测试 replace_regex 与实际数据
+--replace_regex /[0-9]+/ID/
+SELECT * FROM integration_data;
+
+# 测试 sorted_result 与数据
+--sorted_result
+SELECT name, value FROM integration_data;
+
+# 测试错误处理
+--error 1146
+SELECT * FROM nonexistent_table;
+
+# 测试日志控制
+--disable_query_log
+SELECT 'Hidden query' as test;
+--enable_query_log
+SELECT 'Visible query' as test;
+
+# 测试结果日志控制
+--disable_result_log
+SELECT 'Hidden result' as test;
+--enable_result_log
+SELECT 'Visible result' as test;
+
+# 测试限制查询
+--echo Testing query with limit
+--sorted_result
+SELECT * FROM integration_data LIMIT 3;
+
+# 测试事务与标签
+START TRANSACTION;
+--disable_result_log
+INSERT INTO integration_data VALUES (104, 'Item D', 15.25);
+--enable_result_log
+--sorted_result
+SELECT * FROM integration_data WHERE id >= 104;
+ROLLBACK;
+
+# 验证回滚
+SELECT COUNT(*) as should_be_3 FROM integration_data;
+
+# 清理
+DROP TABLE integration_data;
+
+--echo Simplified tag integration test completed!

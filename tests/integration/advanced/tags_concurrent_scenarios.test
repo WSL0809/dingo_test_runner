@@ -1,0 +1,49 @@
+# 并发环境下的标签功能测试
+--echo Testing tags in concurrent scenarios
+
+# 设置并发测试数据
+CREATE TABLE concurrent_test (
+    id INT PRIMARY KEY,
+    thread_name VARCHAR(50),
+    data VARCHAR(100)
+);
+
+INSERT INTO concurrent_test VALUES 
+    (1, 'thread_1', 'data_from_thread_1'),
+    (2, 'thread_2', 'data_from_thread_2'),
+    (3, 'thread_3', 'data_from_thread_3');
+
+--BEGIN_CONCURRENT
+
+# 线程1：测试 disable_query_log 在并发中的行为
+--echo Thread 1: Testing query log in concurrent mode
+--disable_query_log
+SELECT 'Thread 1 query hidden' as msg;
+--enable_query_log
+SELECT 'Thread 1 query visible' as msg;
+
+# 线程2：测试 sorted_result 在并发中的行为
+--echo Thread 2: Testing sorted result in concurrent mode
+--sorted_result
+SELECT thread_name, data FROM concurrent_test WHERE id IN (1, 3);
+
+# 线程3：测试 replace_regex 在并发中的行为
+--echo Thread 3: Testing replace regex in concurrent mode
+--replace_regex /thread_[0-9]+/THREAD_X/
+SELECT thread_name FROM concurrent_test WHERE id = 2;
+
+# 线程4：测试错误处理在并发中的行为
+--echo Thread 4: Testing error handling in concurrent mode
+--error 1146
+SELECT * FROM non_existent_table_concurrent;
+
+--END_CONCURRENT
+
+# 测试并发后的状态恢复
+--echo Testing state recovery after concurrent execution
+SELECT 'State recovery test' as recovery_test;
+
+# 清理数据
+DROP TABLE concurrent_test;
+
+--echo Concurrent tag scenarios test completed!

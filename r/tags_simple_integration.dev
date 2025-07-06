@@ -1,0 +1,41 @@
+Testing simplified tag functionality integration
+Testing tags with basic SQL integration
+CREATE TABLE integration_data (
+    id INT PRIMARY KEY,
+    name VARCHAR(50),
+    value DECIMAL(10,2)
+);
+INSERT INTO integration_data VALUES 
+    (101, 'Item A', 25.50),
+    (102, 'Item B', 37.75),
+    (103, 'Item C', 42.00)
+SELECT * FROM integration_data
+ID	Item A	ID.ID
+ID	Item B	ID.ID
+ID	Item C	ID.ID
+SELECT name, value FROM integration_data
+Item A	25.50
+Item B	37.75
+Item C	42.00
+SELECT * FROM nonexistent_table
+ERROR 1146 (42S02): Table 'test_tags_simple_integration.nonexistent_table' doesn't exist
+Hidden query
+SELECT 'Visible query' as test
+Visible query
+SELECT 'Hidden result' as test
+SELECT 'Visible result' as test
+Visible result
+Testing query with limit
+SELECT * FROM integration_data LIMIT 3
+101	Item A	25.50
+102	Item B	37.75
+103	Item C	42.00
+START TRANSACTION
+INSERT INTO integration_data VALUES (104, 'Item D', 15.25)
+SELECT * FROM integration_data WHERE id >= 104;
+ROLLBACK
+104	Item D	15.25
+SELECT COUNT(*) as should_be_3 FROM integration_data
+3
+DROP TABLE integration_data
+Simplified tag integration test completed!

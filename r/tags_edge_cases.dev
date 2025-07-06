@@ -1,0 +1,77 @@
+Testing tag functionality edge cases
+Testing sorted_result with empty result set
+CREATE TABLE empty_test (id INT, name VARCHAR(50))
+SELECT * FROM empty_test;
+DROP TABLE empty_test
+Testing sorted_result with single row
+CREATE TABLE single_test (id INT, name VARCHAR(50));
+INSERT INTO single_test VALUES (1, 'single')
+SELECT * FROM single_test;
+1	single
+DROP TABLE single_test
+Testing replace_regex with no matches
+CREATE TABLE no_match_test (data VARCHAR(50));
+INSERT INTO no_match_test VALUES ('no numbers here'), ('just text')
+SELECT * FROM no_match_test;
+no numbers here
+just text
+DROP TABLE no_match_test
+Testing replace_regex with full match
+CREATE TABLE full_match_test (data VARCHAR(50));
+INSERT INTO full_match_test VALUES ('12345'), ('67890')
+SELECT * FROM full_match_test;
+REPLACED
+REPLACED
+DROP TABLE full_match_test
+Testing replace_regex with special characters
+CREATE TABLE special_char_test (data VARCHAR(100));
+INSERT INTO special_char_test VALUES 
+    ('Price: $19.99'),
+    ('Email: user@example.com'),
+    ('Phone: (555) 123-4567')
+SELECT data FROM special_char_test WHERE data LIKE 'Price:%'
+Price: PRICE
+SELECT data FROM special_char_test WHERE data LIKE 'Email:%'
+Email: EMAIL
+SELECT data FROM special_char_test WHERE data LIKE 'Phone:%';
+Phone: PHONE
+DROP TABLE special_char_test
+Testing error codes edge cases
+SELECT 'This should not cause an error' as no_error
+This should not cause an error
+Testing multi-line error messages
+SELECT 
+    * 
+FROM 
+    invalid 
+    syntax 
+    here
+ERROR 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'here' at line 6
+Testing replace_regex with long text
+CREATE TABLE long_text_test (content TEXT);
+INSERT INTO long_text_test VALUES 
+    ('This is a very long text with numbers 123 and 456 and more numbers 789 scattered throughout the entire content to test the replace functionality with longer strings.')
+SELECT content FROM long_text_test;
+This is a very long text with numbers NUM and NUM and more numbers NUM scattered throughout the entire content to test the replace functionality with longer strings.
+DROP TABLE long_text_test
+Testing with Unicode characters
+CREATE TABLE unicode_test (data VARCHAR(100) CHARACTER SET utf8mb4);
+INSERT INTO unicode_test VALUES 
+    ('测试123数据'),
+    ('データ456テスト'),
+    ('🔥789🚀')
+SELECT data FROM unicode_test;
+测试NUM数据
+データNUMテスト
+🔥NUM🚀
+DROP TABLE unicode_test
+Testing very long replace_regex patterns
+CREATE TABLE complex_pattern_test (data VARCHAR(200));
+INSERT INTO complex_pattern_test VALUES 
+    ('ID:12345-ABC-67890-XYZ-11111-DEF-22222'),
+    ('CODE:98765-GHI-33333-JKL-44444-MNO-55555')
+SELECT data FROM complex_pattern_test;
+COMPLEX_PATTERN
+COMPLEX_PATTERN
+DROP TABLE complex_pattern_test
+Tag functionality edge cases test completed!

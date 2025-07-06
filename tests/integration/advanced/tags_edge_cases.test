@@ -1,0 +1,105 @@
+# 标签功能边界条件测试
+--echo Testing tag functionality edge cases
+
+# 测试空结果集的 sorted_result
+--echo Testing sorted_result with empty result set
+CREATE TABLE empty_test (id INT, name VARCHAR(50));
+--sorted_result
+SELECT * FROM empty_test;
+DROP TABLE empty_test;
+
+# 测试单行结果的 sorted_result
+--echo Testing sorted_result with single row
+CREATE TABLE single_test (id INT, name VARCHAR(50));
+INSERT INTO single_test VALUES (1, 'single');
+--sorted_result
+SELECT * FROM single_test;
+DROP TABLE single_test;
+
+# 测试 replace_regex 无匹配模式
+--echo Testing replace_regex with no matches
+CREATE TABLE no_match_test (data VARCHAR(50));
+INSERT INTO no_match_test VALUES ('no numbers here'), ('just text');
+--replace_regex /[0-9]+/REPLACED/
+SELECT * FROM no_match_test;
+DROP TABLE no_match_test;
+
+# 测试 replace_regex 全匹配
+--echo Testing replace_regex with full match
+CREATE TABLE full_match_test (data VARCHAR(50));
+INSERT INTO full_match_test VALUES ('12345'), ('67890');
+--replace_regex /[0-9]+/REPLACED/
+SELECT * FROM full_match_test;
+DROP TABLE full_match_test;
+
+# 测试特殊字符的 replace_regex
+--echo Testing replace_regex with special characters
+CREATE TABLE special_char_test (data VARCHAR(100));
+INSERT INTO special_char_test VALUES 
+    ('Price: $19.99'),
+    ('Email: user@example.com'),
+    ('Phone: (555) 123-4567');
+
+--replace_regex /\$[0-9]+\.[0-9]+/PRICE/
+SELECT data FROM special_char_test WHERE data LIKE 'Price:%';
+
+--replace_regex /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/EMAIL/
+SELECT data FROM special_char_test WHERE data LIKE 'Email:%';
+
+--replace_regex /\([0-9]{3}\) [0-9]{3}-[0-9]{4}/PHONE/
+SELECT data FROM special_char_test WHERE data LIKE 'Phone:%';
+
+DROP TABLE special_char_test;
+
+# 测试错误码边界情况
+--echo Testing error codes edge cases
+--error 0
+SELECT 'This should not cause an error' as no_error;
+
+# 测试多行错误消息
+--echo Testing multi-line error messages
+--error 1064
+SELECT 
+    * 
+FROM 
+    invalid 
+    syntax 
+    here;
+
+# 测试长文本的 replace_regex
+--echo Testing replace_regex with long text
+CREATE TABLE long_text_test (content TEXT);
+INSERT INTO long_text_test VALUES 
+    ('This is a very long text with numbers 123 and 456 and more numbers 789 scattered throughout the entire content to test the replace functionality with longer strings.');
+
+--replace_regex /[0-9]+/NUM/
+SELECT content FROM long_text_test;
+
+DROP TABLE long_text_test;
+
+# 测试 Unicode 字符
+--echo Testing with Unicode characters
+CREATE TABLE unicode_test (data VARCHAR(100) CHARACTER SET utf8mb4);
+INSERT INTO unicode_test VALUES 
+    ('测试123数据'),
+    ('データ456テスト'),
+    ('🔥789🚀');
+
+--replace_regex /[0-9]+/NUM/
+SELECT data FROM unicode_test;
+
+DROP TABLE unicode_test;
+
+# 测试极长的 replace_regex 模式
+--echo Testing very long replace_regex patterns
+CREATE TABLE complex_pattern_test (data VARCHAR(200));
+INSERT INTO complex_pattern_test VALUES 
+    ('ID:12345-ABC-67890-XYZ-11111-DEF-22222'),
+    ('CODE:98765-GHI-33333-JKL-44444-MNO-55555');
+
+--replace_regex /[A-Z]{2,4}:[0-9]{5}-[A-Z]{3}-[0-9]{5}-[A-Z]{3}-[0-9]{5}-[A-Z]{3}-[0-9]{5}/COMPLEX_PATTERN/
+SELECT data FROM complex_pattern_test;
+
+DROP TABLE complex_pattern_test;
+
+--echo Tag functionality edge cases test completed!

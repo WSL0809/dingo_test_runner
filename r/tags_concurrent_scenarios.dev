@@ -1,0 +1,19 @@
+Testing tags in concurrent scenarios
+CREATE TABLE concurrent_test (
+    id INT PRIMARY KEY,
+    thread_name VARCHAR(50),
+    data VARCHAR(100)
+);
+INSERT INTO concurrent_test VALUES 
+    (1, 'thread_1', 'data_from_thread_1'),
+    (2, 'thread_2', 'data_from_thread_2'),
+    (3, 'thread_3', 'data_from_thread_3')
+Thread 1: Testing query log in concurrent mode
+Thread 2: Testing sorted result in concurrent mode
+Thread 3: Testing replace regex in concurrent mode
+Thread 4: Testing error handling in concurrent mode
+Testing state recovery after concurrent execution
+SELECT 'State recovery test' as recovery_test
+State recovery test
+DROP TABLE concurrent_test
+Concurrent tag scenarios test completed!

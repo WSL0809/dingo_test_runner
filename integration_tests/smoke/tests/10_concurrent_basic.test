@@ -1,0 +1,30 @@
+# 基础并发测试
+# 验证基本的并发执行功能（简化版本）
+
+--disable_query_log
+
+# 创建测试表
+CREATE TABLE concurrent_test (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    thread_name VARCHAR(50),
+    value INT
+);
+
+# 测试并发功能
+INSERT INTO concurrent_test (thread_name, value) VALUES ('main', 1);
+INSERT INTO concurrent_test (thread_name, value) VALUES ('main', 2);
+INSERT INTO concurrent_test (thread_name, value) VALUES ('main', 3);
+
+# 验证插入结果
+SELECT COUNT(*) as total_records FROM concurrent_test;
+
+# 验证并发标记功能
+--BEGIN_CONCURRENT
+INSERT INTO concurrent_test (thread_name, value) VALUES ('concurrent', 100);
+--END_CONCURRENT
+
+# 验证并发插入
+SELECT COUNT(*) as final_count FROM concurrent_test;
+
+# 清理
+DROP TABLE concurrent_test;
