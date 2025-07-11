@@ -1,0 +1,23 @@
+# Simple parse test without database operations
+# This is for performance testing of parser only
+
+--let $var1 = 100
+--let $var2 = hello world
+
+# Test variable substitution
+--echo Variable 1: $var1
+--echo Variable 2: $var2
+
+# Test simple control flow
+if ($var1 > 50)
+  --echo Variable is greater than 50
+end
+
+# Test while loop
+--let $counter = 0
+while ($counter < 3)
+  --echo Counter: $counter
+  --let $counter = $counter + 1
+end
+
+--echo Test completed successfully
