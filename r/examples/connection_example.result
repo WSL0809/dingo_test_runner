@@ -1,8 +1,0 @@
-连接示例开始
-CREATE TABLE connection_test (id INTEGER, name VARCHAR(50))
-INSERT INTO connection_test VALUES (1, 'connection test')
-查询数据:
-SELECT * FROM connection_test
-1	connection test
-DROP TABLE connection_test
-连接示例完成

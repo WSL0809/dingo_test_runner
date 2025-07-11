@@ -92,7 +92,7 @@ cargo run -- basic
 cargo run -- basic.test
 
 # 运行目录下所有测试
-cargo run -- t/demo_tests
+cargo run -- examples
 
 # 运行所有测试
 cargo run -- --all
@@ -173,7 +173,7 @@ pub struct Args {
 **支持的输入格式** (`cli.rs:211-360`)：
 - 测试名称：`basic` → 查找 `t/basic.test`
 - 文件名：`basic.test` → 查找 `t/basic.test`
-- 目录：`t/demo_tests` → 运行目录下所有 `.test` 文件
+- 目录：`examples` → 运行目录下所有 `.test` 文件
 - 路径：`path/to/test.test` → 直接使用该路径
 - 部分匹配：`user` → 匹配所有包含 "user" 的测试
 
@@ -667,7 +667,7 @@ RUST_LOG=dingo_test_runner::tester::pest_parser=debug cargo run -- basic
 # 基本测试执行
 cargo run -- basic_test                                    # 运行单个测试
 cargo run -- t/examples/basic_example.test                 # 运行指定文件
-cargo run -- t/demo_tests/                                 # 运行目录下所有测试
+cargo run -- examples/                                     # 运行目录下所有测试
 cargo run -- --all                                         # 运行所有测试
 
 # Record模式（生成期望结果）
@@ -696,7 +696,7 @@ cargo run -- --parallel 8 t/examples/                     # 8线程运行目录
 cargo run -- --parallel 2 --all                           # 2线程运行所有测试
 
 # 配置连接池
-cargo run -- --parallel 4 --max-connections 8 t/demo_tests/
+cargo run -- --parallel 4 --max-connections 8 examples/
 ```
 
 ### 报告生成命令

@@ -12,7 +12,7 @@
 - **source/** - Source/Include 功能测试
 - **performance/** - 性能和边界测试（解析器边界、循环测试）
 - **include/** - 共享的包含文件
-- **demo_tests/** - 演示测试（保持原结构）
+- **../examples/** - 演示测试（已移动到根目录）
 - **br/** - BR相关测试（保持原结构）
 
 ## 迁移说明

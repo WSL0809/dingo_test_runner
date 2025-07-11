@@ -1,5 +1,0 @@
-### connection_multi.test 开始
-DROP DATABASE IF EXISTS conn_db1
-DROP DATABASE IF EXISTS conn_db2
-CREATE DATABASE conn_db1
-CREATE DATABASE conn_db2

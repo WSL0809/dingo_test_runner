@@ -81,21 +81,21 @@
 
 ### 录制模式（生成期望结果）
 ```bash
-cargo run -- --passwd 123456 --record demo_tests/variable_basic demo_tests/variable_expression demo_tests/let_expression_showcase demo_tests/sorted_result demo_tests/error_handling demo_tests/exec_replace_regex demo_tests/connection_multi demo_tests/let_with_control_flow demo_tests/concurrent_basic demo_tests/concurrent_error_handling demo_tests/concurrent_mixed_control demo_tests/concurrent_advanced
+cargo run -- --passwd 123456 --record examples/variable_basic examples/variable_expression examples/let_expression_showcase examples/sorted_result examples/error_handling examples/exec_replace_regex examples/connection_multi examples/let_with_control_flow examples/concurrent_basic examples/concurrent_error_handling examples/concurrent_mixed_control examples/concurrent_advanced
 ```
 
 ### 比对模式（验证测试结果）
 ```bash
-cargo run -- --passwd 123456 demo_tests/variable_basic demo_tests/variable_expression demo_tests/let_expression_showcase demo_tests/sorted_result demo_tests/error_handling demo_tests/exec_replace_regex demo_tests/connection_multi demo_tests/let_with_control_flow demo_tests/concurrent_basic demo_tests/concurrent_error_handling demo_tests/concurrent_mixed_control demo_tests/concurrent_advanced
+cargo run -- --passwd 123456 examples/variable_basic examples/variable_expression examples/let_expression_showcase examples/sorted_result examples/error_handling examples/exec_replace_regex examples/connection_multi examples/let_with_control_flow examples/concurrent_basic examples/concurrent_error_handling examples/concurrent_mixed_control examples/concurrent_advanced
 ```
 
 ### 单个测试
 ```bash
 # 录制单个测试
-cargo run -- --passwd 123456 --record demo_tests/variable_expression
+cargo run -- --passwd 123456 --record examples/variable_expression
 
 # 比对单个测试
-cargo run -- --passwd 123456 demo_tests/variable_expression
+cargo run -- --passwd 123456 examples/variable_expression
 ```
 
 ## 功能覆盖

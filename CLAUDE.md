@@ -46,7 +46,7 @@ cargo run -- basic_test
 cargo run -- t/basic_test.test
 
 # Run all tests in directory
-cargo run -- t/demo_tests/
+cargo run -- examples/
 
 # 🔥 Run tests from any directory (NEW FEATURE)
 cargo run -- path/to/test_dir/
@@ -108,7 +108,7 @@ cargo run -- --report-format allure --allure-dir ./allure-results test_name
 **用户目录（客户使用）**：
 - `t/examples/` - 用户友好的测试示例（3个精选示例）
 - `t/br/` - 特殊 BR 功能测试（保留）
-- `t/demo_tests/` - 演示测试套件（保留）
+- `examples/` - 演示测试套件（已移动到根目录）
 - `t/include/` - Include files (`.inc`) for `--source` functionality
 - `r/examples/` - 用户示例的期望结果文件
 
@@ -201,7 +201,7 @@ cargo run -- --extension dev --parallel 8 tests/integration/
 # 1. 创建用户测试文件到 t/ 目录
 # 2. 生成期望结果: cargo run -- --record test_name
 # 3. 验证测试: cargo run -- test_name
-# 4. 对于演示测试，使用 t/demo_tests/ 结构
+# 4. 对于演示测试，使用 examples/ 结构
 ```
 
 ### 🔧 开发者常用命令别名

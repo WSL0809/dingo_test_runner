@@ -223,4 +223,4 @@ help:
 	@echo "  make dev-record ARGS='tests/integration/basic/'"
 	@echo "  make parallel-test PARALLEL=8 ARGS='tests/integration/'"
 	@echo "  make debug ARGS='t/examples/basic_example.test'"
-	@echo "  make user-test HOST=192.168.1.100 PASSWD=mypass ARGS='t/demo_tests/'"
+	@echo "  make user-test HOST=192.168.1.100 PASSWD=mypass ARGS='examples/'"
