@@ -149,7 +149,7 @@ impl MySQLDatabase {
             self.conn = Some(self.pool.get_conn()?);
         }
 
-        // 这里通过 match 单独取出 &mut 引用，避免双可变借用冲突。
+        // 这里通过 match 单独取出 &mut 引用
         let result: Result<Vec<mysql::Row>, mysql::Error> = {
             let conn_ref = self.conn.as_mut().unwrap();
             conn_ref.query(sql)

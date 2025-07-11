@@ -1,0 +1,32 @@
+select 1;
+1
+create table t1 (id int primary key, a int, b int, c int, index idx_a_b_c (a, b, c));
+show create table t1;
+t1	CREATE TABLE `t1`(
+    `id` INT NOT NULL,
+    `a` INT,
+    `b` INT,
+    `c` INT,
+    PRIMARY KEY (`id`),
+    INDEX idx_a_b_c(`a`,`b`,`c`) replica=3
+) engine=TXN_LSM  replica=3
+show index from t1;
+t1	0	PRIMARY	1	id	A	0	NULL	NULL	 	TXN_LSM		 	YES	NULL	YES	NO
+t1	0	idx_a_b_c	1	a	A	0	NULL	NULL	YES	TXN_LSM			YES	NULL	YES	NO
+t1	0	idx_a_b_c	2	b	A	0	NULL	NULL	YES	TXN_LSM			YES	NULL	YES	NO
+t1	0	idx_a_b_c	3	c	A	0	NULL	NULL	YES	TXN_LSM			YES	NULL	YES	NO
+ALTER TABLE t1 ALTER INDEX idx_a_b_c INVISIBLE;
+show create table t1;
+t1	CREATE TABLE `t1`(
+    `id` INT NOT NULL,
+    `a` INT,
+    `b` INT,
+    `c` INT,
+    PRIMARY KEY (`id`),
+    INDEX idx_a_b_c(`a`,`b`,`c`) replica=3
+) engine=TXN_LSM  replica=3
+show index from t1
+t1	0	PRIMARY	1	id	A	0	NULL	NULL	 	TXN_LSM		 	YES	NULL	YES	NO
+t1	0	idx_a_b_c	1	a	A	0	NULL	NULL	YES	TXN_LSM			NO	NULL	YES	NO
+t1	0	idx_a_b_c	2	b	A	0	NULL	NULL	YES	TXN_LSM			NO	NULL	YES	NO
+t1	0	idx_a_b_c	3	c	A	0	NULL	NULL	YES	TXN_LSM			NO	NULL	YES	NO

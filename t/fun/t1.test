@@ -1,0 +1,5 @@
+SELECT DATE('2025-03-15') AS date_result;
+SELECT QUARTER(DATE('2025-03-15')) AS quarter_result;
+SELECT YEAR(DATE('2025-03-15')) AS year_result;
+SELECT MONTH(DATE('2025-03-15')) AS month_result;
+SELECT DAY(DATE('2025-03-15')) AS day_result;

@@ -1,0 +1,10 @@
+select 1;
+
+create table t1 (id int primary key, a int, b int, c int, index idx_a_b_c (a, b, c));
+show create table t1;
+show index from t1;
+ALTER TABLE t1 ALTER INDEX idx_a_b_c INVISIBLE;
+show create table t1;
+show index from t1;
+
+
