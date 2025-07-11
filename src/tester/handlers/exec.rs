@@ -147,45 +147,46 @@ mod tests {
     use crate::tester::tester::Tester;
 
     fn create_test_tester() -> Option<Tester> {
-        let args = Args {
-            host: "127.0.0.1".to_string(),
-            port: "3306".to_string(),
-            user: "root".to_string(),
-            passwd: "123456".to_string(),
-            log_level: "error".to_string(),
-            record: true,
-            params: "".to_string(),
-            all: false,
-            reserve_schema: false,
-            xunit_file: "".to_string(),
-            report_format: "terminal".to_string(),
-            allure_dir: "".to_string(),
-            retry_conn_count: 1, // Reduce retry count for tests
-            check_err: false,
-            collation_disable: false,
-            extension: "result".to_string(),
-            email_enable: false,
-            email_smtp_host: "".to_string(),
-            email_smtp_port: 587,
-            email_username: "".to_string(),
-            email_password: "".to_string(),
-            email_from: "MySQL Tester".to_string(),
-            email_to: "".to_string(),
-            email_enable_tls: false,
-            test_files: vec![],
-            fail_fast: false,
-            parallel: 1,
-            max_connections: 0,
-        };
+            let args = Args {
+                host: "127.0.0.1".to_string(),
+                port: "3306".to_string(),
+                user: "root".to_string(),
+                passwd: "123456".to_string(),
+                log_level: "error".to_string(),
+                record: true,
+                params: "".to_string(),
+                all: false,
+                reserve_schema: false,
+                xunit_file: "".to_string(),
+                report_format: "terminal".to_string(),
+                allure_dir: "".to_string(),
+                retry_conn_count: 1, // Reduce retry count for tests
+                check_err: false,
+                collation_disable: false,
+                extension: "result".to_string(),
+                email_enable: false,
+                email_smtp_host: "".to_string(),
+                email_smtp_port: 587,
+                email_username: "".to_string(),
+                email_password: "".to_string(),
+                email_from: "MySQL Tester".to_string(),
+                email_to: "".to_string(),
+                email_enable_tls: false,
+                test_files: vec![],
+                fail_fast: false,
+                parallel: 1,
+                max_connections: 0,
+                result_dir: "".to_string(),
+            };
 
-        match Tester::new(args) {
-            Ok(tester) => Some(tester),
-            Err(e) => {
-                eprintln!("Skipping test due to DB connection error: {}. This test requires a running MySQL server.", e);
-                None
+            match Tester::new(args) {
+                Ok(tester) => Some(tester),
+                Err(e) => {
+                    eprintln!("Skipping test due to DB connection error: {}. This test requires a running MySQL server.", e);
+                    None
+                }
             }
         }
-    }
 
     #[test]
     fn test_exec_simple_command() {
