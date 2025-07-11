@@ -112,6 +112,10 @@ cargo run -- --record basic
 
 # 比对模式：与期望结果比对 (默认)
 cargo run -- basic
+
+# 自定义结果目录（新功能 🆕）
+cargo run -- --record --result-dir results basic    # 生成 results/basic.result
+cargo run -- --result-dir results basic             # 比对 results/basic.result
 ```
 
 ## 📁 目录结构与职责
@@ -412,6 +416,7 @@ pub fn create_renderer(format: &str) -> Result<Box<dyn ReportRenderer>> {
 --fail-fast <bool>     # 遇到错误立即停止 (默认: true)
 --parallel <N>         # 文件级并发执行线程数 (默认: 1)
 --max-connections <N>  # 数据库连接池大小 (默认: 0，自动计算)
+--result-dir <dir>     # 自定义结果目录路径 (默认: "r")
 ```
 
 ### 报告输出
@@ -730,6 +735,10 @@ cargo run -- --extension ci t/examples/
 # 数据库版本环境
 cargo run -- --extension mysql8 --record basic_test
 cargo run -- --extension mysql57 basic_test
+
+# 自定义结果目录 + 环境隔离（新功能 🆕）
+cargo run -- --result-dir dev_results --extension dev --record basic_test
+cargo run -- --result-dir ci_results --extension ci t/examples/
 ```
 
 ### 🛠️ 开发调试命令

@@ -258,3 +258,111 @@ fn test_exec_error_handling() {
     let _ = fs::remove_file("r/exec_error_test.result");
     let _ = fs::remove_dir("t_for_test/temp");
 }
+
+#[test]
+fn test_custom_result_directory() {
+    let binary = get_binary_path();
+    
+    // Create a custom result directory for testing
+    let custom_result_dir = "test_results";
+    let test_id = std::process::id();
+    let extension = format!("custom_{}", test_id);
+    
+    // Clean up any existing directory
+    let _ = fs::remove_dir_all(custom_result_dir);
+    
+    // Run test with custom result directory
+    let output = Command::new(&binary)
+        .arg("--record")
+        .arg("--result-dir")
+        .arg(custom_result_dir)
+        .arg("--extension")
+        .arg(&extension)
+        .arg("t_for_test/basic/simple_exec.test")
+        .arg("--host")
+        .arg("127.0.0.1")
+        .arg("--port")
+        .arg("3306")
+        .arg("--user")
+        .arg("root")
+        .arg("--passwd")
+        .arg("123456")
+        .output()
+        .expect("Failed to execute binary");
+
+    println!(
+        "Custom result dir STDOUT: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    println!(
+        "Custom result dir STDERR: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Should succeed
+    assert!(output.status.success(), "Custom result dir test should succeed");
+
+    // Check if result file was created in the custom directory
+    let result_file_path = format!("{}/simple_exec.{}", custom_result_dir, extension);
+    let result_file = Path::new(&result_file_path);
+    assert!(
+        result_file.exists(),
+        "Result file should be created in custom directory: {}",
+        result_file_path
+    );
+
+    // Verify the custom directory was created
+    let custom_dir = Path::new(custom_result_dir);
+    assert!(custom_dir.exists(), "Custom result directory should be created");
+
+    // Check result file content
+    let content = fs::read_to_string(result_file).expect("Failed to read result file");
+    assert!(
+        content.contains("Testing exec command"),
+        "Should contain echo output"
+    );
+    assert!(
+        content.contains("Hello World"),
+        "Should contain exec output"
+    );
+    assert!(
+        content.contains("Exec test completed"),
+        "Should contain final echo"
+    );
+
+    // Now test comparison mode with the custom result directory
+    let compare_output = Command::new(&binary)
+        .arg("--result-dir")
+        .arg(custom_result_dir)
+        .arg("--extension")
+        .arg(&extension)
+        .arg("t_for_test/basic/simple_exec.test")
+        .arg("--host")
+        .arg("127.0.0.1")
+        .arg("--port")
+        .arg("3306")
+        .arg("--user")
+        .arg("root")
+        .arg("--passwd")
+        .arg("123456")
+        .output()
+        .expect("Failed to execute binary in comparison mode");
+
+    println!(
+        "Custom result dir comparison STDOUT: {}",
+        String::from_utf8_lossy(&compare_output.stdout)
+    );
+    println!(
+        "Custom result dir comparison STDERR: {}",
+        String::from_utf8_lossy(&compare_output.stderr)
+    );
+
+    // Should succeed (output matches expected result)
+    assert!(
+        compare_output.status.success(),
+        "Comparison mode with custom result dir should succeed"
+    );
+
+    // Clean up
+    let _ = fs::remove_dir_all(custom_result_dir);
+}

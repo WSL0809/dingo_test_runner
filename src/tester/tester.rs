@@ -1169,7 +1169,7 @@ impl Tester {
 
     /// Load result file for comparison (non-record mode)
     fn load_result_file(&mut self, test_name: &str) -> Result<()> {
-        let result_dir = self.current_dir.join("r");
+        let result_dir = self.get_result_dir_path();
         let result_file = result_dir.join(format!("{}.{}", test_name, self.args.extension));
 
         if result_file.exists() {
@@ -1255,9 +1255,20 @@ impl Tester {
         Ok(file_stem.to_string())
     }
 
+    /// Get the result directory path based on CLI configuration
+    /// Supports both relative and absolute paths
+    fn get_result_dir_path(&self) -> PathBuf {
+        let result_dir = &self.args.result_dir;
+        if Path::new(result_dir).is_absolute() {
+            PathBuf::from(result_dir)
+        } else {
+            self.current_dir.join(result_dir)
+        }
+    }
+
     /// Write result file
     fn write_result_file(&self, test_name: &str) -> Result<()> {
-        let result_dir = self.current_dir.join("r");
+        let result_dir = self.get_result_dir_path();
         fs::create_dir_all(&result_dir)?;
 
         // 若 test_name 包含路径分隔符，需要提前创建子目录
@@ -1847,6 +1858,7 @@ mod tests {
             check_err: false,
             collation_disable: false,
             extension: "result".to_string(),
+            result_dir: "r".to_string(),
             email_enable: false,
             email_smtp_host: "".to_string(),
             email_smtp_port: 587,
@@ -1903,6 +1915,7 @@ mod tests {
             check_err: false,
             collation_disable: false,
             extension: "result".to_string(),
+            result_dir: "r".to_string(),
             email_enable: false,
             email_smtp_host: "".to_string(),
             email_smtp_port: 587,
@@ -1971,6 +1984,7 @@ mod tests {
             check_err: false,
             collation_disable: false,
             extension: "result".to_string(),
+            result_dir: "r".to_string(),
             email_enable: false,
             email_smtp_host: "".to_string(),
             email_smtp_port: 587,
@@ -2025,6 +2039,7 @@ mod tests {
             check_err: false,
             collation_disable: false,
             extension: "result".to_string(),
+            result_dir: "r".to_string(),
             email_enable: false,
             email_smtp_host: "".to_string(),
             email_smtp_port: 587,
@@ -2086,6 +2101,7 @@ mod tests {
             check_err: false,
             collation_disable: false,
             extension: "result".to_string(),
+            result_dir: "r".to_string(),
             email_enable: false,
             email_smtp_host: "".to_string(),
             email_smtp_port: 587,

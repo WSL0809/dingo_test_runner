@@ -77,6 +77,10 @@ pub struct Args {
     #[arg(long, default_value = "result")]
     pub extension: String,
 
+    /// Custom result directory path (default: "r")
+    #[arg(long, default_value = "r")]
+    pub result_dir: String,
+
     // 邮件相关参数
     /// Enable email notification for test results
     #[arg(long = "email-enable")]
@@ -489,6 +493,7 @@ mod tests {
             check_err: false,
             collation_disable: false,
             extension: "result".to_string(),
+            result_dir: "r".to_string(),
             email_enable: false,
             email_smtp_host: "".to_string(),
             email_smtp_port: 587,
