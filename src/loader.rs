@@ -62,7 +62,11 @@ mod tests {
     use super::*;
     use std::fs::{self, File};
     use std::path::Path;
+    use std::sync::Mutex;
     use tempfile::tempdir;
+    
+    // Shared lock to prevent concurrent directory changes in tests
+    static DIR_CHANGE_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_load_all_tests_from_mock_dir() {
@@ -78,6 +82,9 @@ mod tests {
         File::create(base_dir.join("test1.test")).expect("Failed to create test1.test");
         File::create(sub_dir.join("test2.test")).expect("Failed to create test2.test");
         File::create(base_dir.join("not_a_test.txt")).expect("Failed to create not_a_test.txt");
+
+        // Use the shared lock to prevent concurrent directory changes in tests
+        let _guard = DIR_CHANGE_LOCK.lock().unwrap();
 
         // Temporarily change CWD for this test scope.
         let original_dir = std::env::current_dir().unwrap();
@@ -113,6 +120,10 @@ mod tests {
     fn test_load_all_tests_finds_project_files() {
         let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let original_dir = std::env::current_dir().unwrap();
+        
+        // Use the shared lock to prevent concurrent directory changes in tests
+        let _guard = DIR_CHANGE_LOCK.lock().unwrap();
+        
         std::env::set_current_dir(project_root).unwrap();
 
         // Only run assertions if the `t` directory actually exists
@@ -120,7 +131,8 @@ mod tests {
             let tests = load_all_tests().expect("Failed to load tests");
             assert!(
                 !tests.is_empty(),
-                "Should find test files in the project's t/ directory"
+                "Should find test files in the project's t/ directory. Found tests: {:?}",
+                tests
             );
         }
 

@@ -11,7 +11,7 @@ This is `dingo_test_runner`, a Rust-based MySQL test runner compatible with MySQ
 The system uses a layered architecture:
 
 ```
-CLI � Loader � Parser (Pest) � Tester � Database � Reports
+CLI → Loader → Parser (Pest) → Tester → Database → Reports
 ```
 
 Core modules:
@@ -264,3 +264,8 @@ r/
 
 - 本地 MySQL 配置：用户名 root，密码 123456，端口 3306
 - **开发测试推荐命令**: `cargo run -- --extension dev --host 127.0.0.1 --port 3306 --user root --passwd 123456`
+
+## Design Memory & Notes
+
+- **测试用例目录规范**:
+  - 我期望单元测试或集成测试用到的 case 放在 t_for_test 中

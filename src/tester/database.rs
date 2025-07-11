@@ -6,6 +6,7 @@
 use anyhow::{anyhow, Result};
 use log::{debug, info, trace, warn};
 use std::time::Duration;
+use crate::util::memory_pool::{get_row_data, get_string_vec, PooledRowData};
 
 /// 默认读/写超时时长（秒）
 const QUERY_TIMEOUT_SECS: u64 = 5;
@@ -39,8 +40,8 @@ impl Database {
         }
     }
 
-    /// Execute a query and return the result as strings
-    pub fn query(&mut self, sql: &str) -> Result<Vec<Vec<String>>> {
+    /// Execute a query and return the result as pooled strings (memory optimized)
+    pub fn query(&mut self, sql: &str) -> Result<PooledRowData> {
         match self {
             Database::MySQL(db) => db.query(sql),
         }
@@ -140,7 +141,7 @@ impl MySQLDatabase {
         self.pool.get_conn().map_err(Into::into)
     }
 
-    pub fn query(&mut self, sql: &str) -> Result<Vec<Vec<String>>> {
+    pub fn query(&mut self, sql: &str) -> Result<PooledRowData> {
         use mysql::prelude::Queryable;
 
         trace!("-> exec: {}", sql);
@@ -184,13 +185,27 @@ impl MySQLDatabase {
         self.process_rows(rows)
     }
 
-    /// Helper function to process rows into Vec<Vec<String>>
-    fn process_rows(&self, rows: Vec<mysql::Row>) -> Result<Vec<Vec<String>>> {
+    /// Helper function to process rows into PooledRowData (memory pool optimized)
+    fn process_rows(&self, rows: Vec<mysql::Row>) -> Result<PooledRowData> {
         use mysql::Value;
 
-        let mut result_vec = Vec::new();
+        // Get a pooled row data container from the memory pool
+        let mut result_vec = get_row_data();
+        
+        // Pre-allocate capacity if we know the number of rows
+        if !rows.is_empty() {
+            result_vec.reserve(rows.len());
+        }
+
         for row in rows {
-            let mut row_data = Vec::new();
+            // Get a pooled string vector for each row
+            let mut row_data = get_string_vec();
+            
+            // Pre-allocate capacity for the row
+            if row.len() > 0 {
+                row_data.reserve(row.len());
+            }
+            
             for idx in 0..row.len() {
                 let val = row.as_ref(idx).unwrap_or(&Value::NULL);
                 let cell = match val {
@@ -210,7 +225,9 @@ impl MySQLDatabase {
                 };
                 row_data.push(cell);
             }
-            result_vec.push(row_data);
+            
+            // Convert pooled string vec to regular vec before pushing to result
+            result_vec.push(row_data.take());
         }
         Ok(result_vec)
     }

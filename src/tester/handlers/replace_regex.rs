@@ -45,7 +45,7 @@ pub fn execute(tester: &mut Tester, cmd: &Command) -> Result<()> {
     let regex = Regex::new(&parts[0])?;
     tester
         .pending_replace_regex
-        .push((regex, parts[1].to_string()));
+        .push(regex, parts[1].to_string());
 
     debug!("Replace regex added: {} -> {}", parts[0], parts[1]);
     Ok(())

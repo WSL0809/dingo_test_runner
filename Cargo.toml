@@ -39,6 +39,8 @@ chrono = { version = "0.4", features = ["serde"] }
 # 并发
 rayon = "1.7"
 crossbeam = "0.8"
+crossbeam-queue = "0.3"
+parking_lot = "0.12"
 
 # XML 生成 (用于 JUnit 报告)
 quick-xml = "0.37.5"
@@ -71,6 +73,11 @@ pest_derive = "2.7"
 tempfile = "3.0"
 mockall = "0.13"
 tokio-test = "0.4"
+criterion = "0.5"
+
+[[bench]]
+name = "memory_pool_benchmark"
+harness = false
 
 [features]
 default = []

@@ -219,7 +219,7 @@ mod tests {
         };
 
         // Set expected error for exit code 1
-        tester.expected_errors = vec!["1".to_string()];
+        tester.expected_errors = vec!["1".to_string()].into_iter().collect();
 
         let cmd = Command {
             name: "exec".to_string(),
@@ -279,7 +279,7 @@ mod tests {
         tester.args.check_err = true; // Enable strict error checking
 
         // Expect success (no error) but command will fail
-        tester.expected_errors = vec!["0".to_string()];
+        tester.expected_errors = vec!["0".to_string()].into_iter().collect();
 
         let cmd = Command {
             name: "exec".to_string(),
@@ -303,7 +303,7 @@ mod tests {
         tester.args.check_err = true; // Enable strict error checking
 
         // Expect failure but command will succeed
-        tester.expected_errors = vec!["1".to_string()];
+        tester.expected_errors = vec!["1".to_string()].into_iter().collect();
 
         let cmd = Command {
             name: "exec".to_string(),
@@ -353,7 +353,7 @@ mod tests {
         // Add a regex replacement
         use regex::Regex;
         let regex = Regex::new(r"Hello").unwrap();
-        tester.pending_replace_regex.push((regex, "Hi".to_string()));
+        tester.pending_replace_regex.push(regex, "Hi".to_string());
 
         let cmd = Command {
             name: "exec".to_string(),

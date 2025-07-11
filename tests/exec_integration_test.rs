@@ -30,13 +30,22 @@ fn get_binary_path() -> String {
 fn test_exec_simple_command() {
     let binary = get_binary_path();
 
-    // Run simple_exec test with MySQL password
+    // Run simple_exec test with MySQL password using test extension
+    let test_id = std::process::id();
+    let extension = format!("test_{}", test_id);
     let output = Command::new(&binary)
         .arg("--record")
-        .arg("simple_exec")
+        .arg("--extension")
+        .arg(&extension)
+        .arg("t_for_test/basic/simple_exec.test")
+        .arg("--host")
+        .arg("127.0.0.1")
+        .arg("--port")
+        .arg("3306")
+        .arg("--user")
+        .arg("root")
         .arg("--passwd")
         .arg("123456")
-        .arg("--reserve-schema")
         .output()
         .expect("Failed to execute binary");
 
@@ -47,7 +56,8 @@ fn test_exec_simple_command() {
     assert!(output.status.success(), "simple_exec test should succeed");
 
     // Check if result file was created
-    let result_file = Path::new("r/simple_exec.result");
+    let result_file_path = format!("r/simple_exec.{}", extension);
+    let result_file = Path::new(&result_file_path);
     assert!(result_file.exists(), "Result file should be created");
 
     // Check result file content
@@ -73,10 +83,15 @@ fn test_exec_comparison_mode() {
     // First ensure we have a result file by running record mode
     let record_output = Command::new(&binary)
         .arg("--record")
-        .arg("simple_exec")
+        .arg("t_for_test/basic/simple_exec.test")
+        .arg("--host")
+        .arg("127.0.0.1")
+        .arg("--port")
+        .arg("3306")
+        .arg("--user")
+        .arg("root")
         .arg("--passwd")
         .arg("123456")
-        .arg("--reserve-schema")
         .output()
         .expect("Failed to execute binary in record mode");
 
@@ -97,10 +112,15 @@ fn test_exec_comparison_mode() {
 
     // Now run in comparison mode
     let compare_output = Command::new(&binary)
-        .arg("simple_exec")
+        .arg("t_for_test/basic/simple_exec.test")
+        .arg("--host")
+        .arg("127.0.0.1")
+        .arg("--port")
+        .arg("3306")
+        .arg("--user")
+        .arg("root")
         .arg("--passwd")
         .arg("123456")
-        .arg("--reserve-schema")
         .output()
         .expect("Failed to execute binary in comparison mode");
 
@@ -127,10 +147,15 @@ fn test_exec_complex_commands() {
     // Run exec_test which includes error handling and multiline output
     let output = Command::new(&binary)
         .arg("--record")
-        .arg("exec_test")
+        .arg("t_for_test/advanced/exec_test.test")
+        .arg("--host")
+        .arg("127.0.0.1")
+        .arg("--port")
+        .arg("3306")
+        .arg("--user")
+        .arg("root")
         .arg("--passwd")
         .arg("123456")
-        .arg("--reserve-schema")
         .output()
         .expect("Failed to execute binary");
 
@@ -198,15 +223,21 @@ fn test_exec_error_handling() {
 --echo This should not be reached
 "#;
 
-    fs::write("t/exec_error_test.test", test_content).expect("Failed to write test file");
+    fs::create_dir_all("t_for_test/temp").expect("Failed to create temp directory");
+    fs::write("t_for_test/temp/exec_error_test.test", test_content).expect("Failed to write test file");
 
     // Run the test - it should fail
     let output = Command::new(&binary)
         .arg("--record")
-        .arg("exec_error_test")
+        .arg("t_for_test/temp/exec_error_test.test")
+        .arg("--host")
+        .arg("127.0.0.1")
+        .arg("--port")
+        .arg("3306")
+        .arg("--user")
+        .arg("root")
         .arg("--passwd")
         .arg("123456")
-        .arg("--reserve-schema")
         .output()
         .expect("Failed to execute binary");
 
@@ -223,6 +254,7 @@ fn test_exec_error_handling() {
     assert!(!output.status.success(), "exec_error_test should fail");
 
     // Clean up
-    let _ = fs::remove_file("t/exec_error_test.test");
+    let _ = fs::remove_file("t_for_test/temp/exec_error_test.test");
     let _ = fs::remove_file("r/exec_error_test.result");
+    let _ = fs::remove_dir("t_for_test/temp");
 }

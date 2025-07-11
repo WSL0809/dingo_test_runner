@@ -13,6 +13,7 @@ use crate::tester::command::Command;
 use crate::tester::connection_manager::ConnectionManager;
 use crate::tester::error_handler::MySQLErrorHandler;
 use crate::tester::registry::COMMAND_REGISTRY;
+use crate::util::memory_pool::{get_byte_vec, get_string_vec, get_regex_vec, PooledByteVec, PooledStringVec, PooledRegexVec};
 use anyhow::{anyhow, Result};
 use chrono;
 use log::{debug, info, warn};
@@ -51,14 +52,14 @@ pub struct Tester {
     pub args: Args,
     /// Current working directory for test files
     current_dir: PathBuf,
-    /// Output buffer for test results
-    pub output_buffer: Vec<u8>,
+    /// Output buffer for test results (memory pool optimized)
+    pub output_buffer: PooledByteVec,
     /// Query logging enabled
     pub enable_query_log: bool,
     /// Result logging enabled
     pub enable_result_log: bool,
-    /// Expected errors for the next query
-    pub expected_errors: Vec<String>,
+    /// Expected errors for the next query (memory pool optimized)
+    pub expected_errors: PooledStringVec,
     /// MySQL error handler
     error_handler: MySQLErrorHandler,
     /// Result file for comparison (non-record mode)
@@ -69,8 +70,8 @@ pub struct Tester {
     // --- One-shot modifiers for the next query ---
     /// Sort results for the next query
     pub pending_sorted_result: bool,
-    /// Regex for result replacement for the next query
-    pub pending_replace_regex: Vec<(Regex, String)>,
+    /// Regex for result replacement for the next query (memory pool optimized)
+    pub pending_replace_regex: PooledRegexVec,
     /// Variable context for storing test variables
     pub variable_context: VariableContext,
 
@@ -141,15 +142,15 @@ impl Tester {
             test_name: String::new(),
             args,
             current_dir: std::env::current_dir()?,
-            output_buffer: Vec::new(),
+            output_buffer: get_byte_vec(),
             enable_query_log: true,
             enable_result_log: true,
-            expected_errors: Vec::new(),
+            expected_errors: get_string_vec(),
             error_handler: MySQLErrorHandler::new(),
             result_file_content: None,
             current_result_line: 1, // Line numbers are 1-based
             pending_sorted_result: false,
-            pending_replace_regex: Vec::new(),
+            pending_replace_regex: get_regex_vec(),
             variable_context: VariableContext::new(),
             expression_evaluator: ExpressionEvaluator::new(),
             while_stack: Vec::new(),
@@ -377,10 +378,13 @@ impl Tester {
 
         // 注入绑定在 Query 上的一次性修饰符
         if !query.options.expected_errors.is_empty() {
-            self.expected_errors = query.options.expected_errors.clone();
+            self.expected_errors = query.options.expected_errors.iter().cloned().collect();
         }
         if !query.options.replace_regex.is_empty() {
-            self.pending_replace_regex = query.options.replace_regex.clone();
+            self.pending_replace_regex.clear();
+            for (regex, replacement) in &query.options.replace_regex {
+                self.pending_replace_regex.push(regex.clone(), replacement.clone());
+            }
         }
         if query.options.sorted_result {
             self.pending_sorted_result = true;
@@ -1132,7 +1136,7 @@ impl Tester {
 
         let regex = Regex::new(&parts[0])?;
         self.pending_replace_regex
-            .push((regex, parts[1].to_string()));
+            .push(regex, parts[1].to_string());
         Ok(())
     }
 

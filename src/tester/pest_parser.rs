@@ -8,6 +8,7 @@ use pest_derive::Parser;
 
 use super::parser::{QueryParser, COMMAND_MAP};
 use super::query::{Query, QueryOptions, QueryType};
+use crate::util::memory_pool::get_string_vec;
 
 #[derive(Parser)]
 #[grammar = "tester/mysql_test.pest"]
@@ -30,10 +31,10 @@ impl PestParser {
         Self::default()
     }
 
-    /// Convert pest parse tree to Query objects
+    /// Convert pest parse tree to Query objects (memory pool optimized)
     fn convert_to_queries(&mut self, pairs: pest::iterators::Pairs<Rule>) -> Result<Vec<Query>> {
         let mut queries = Vec::new();
-        let mut pending_sql_lines = Vec::new();
+        let mut pending_sql_lines = get_string_vec();  // Use memory pool for SQL lines
         let mut line_num = 1;
 
         for pair in pairs {
