@@ -20,3 +20,21 @@
 # Test variable in exec command
 --let $echo_message = Variable in exec works
 --exec echo "$echo_message" 
+
+# Test simplified syntax (without -- prefix)
+let $simple_var = Simplified let syntax
+echo $simple_var
+
+# Test mixed simplified and traditional syntax
+let $new_greeting = Hello from simplified syntax
+--echo Traditional echo: $new_greeting
+echo Simplified echo: $new_greeting
+
+# Test simplified syntax with multiple variables
+let $part1 = Simple
+let $part2 = Variable
+echo $part1 $part2 Test
+
+# Test simplified syntax with environment variables
+let SIMPLE_ENV = simplified_environment
+echo Environment via simplified syntax: $SIMPLE_ENV 

@@ -3,5 +3,10 @@
 --echo Testing echo command
 --echo Multi word test
 
+# Test simplified syntax (without -- prefix)
+echo Simplified echo syntax works!
+echo Testing new echo format
+echo Multi word echo test
+
 # SQL query after echo
 SELECT 1 as test_value; 

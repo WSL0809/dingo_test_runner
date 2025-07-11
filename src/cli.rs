@@ -14,11 +14,11 @@ use walkdir::WalkDir;
 #[command(version = "0.2.0")]
 pub struct Args {
     /// MySQL server host
-    #[arg(long, default_value = "172.30.14.172")]
+    #[arg(long, default_value = "127.0.0.1")]
     pub host: String,
 
     /// MySQL server port
-    #[arg(long, default_value = "3307")]
+    #[arg(long, default_value = "3306")]
     pub port: String,
 
     /// Database username
@@ -26,11 +26,11 @@ pub struct Args {
     pub user: String,
 
     /// Database password
-    #[arg(long, default_value = "123123")]
+    #[arg(long, default_value = "123456")]
     pub passwd: String,
 
     /// Log level: error, warn, info, debug, trace
-    #[arg(long, default_value = "info")]
+    #[arg(long, default_value = "trace")]
     pub log_level: String,
 
     /// Record test output to result files

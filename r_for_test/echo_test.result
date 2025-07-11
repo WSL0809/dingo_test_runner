@@ -1,0 +1,8 @@
+Hello, World!
+Testing echo command
+Multi word test
+Simplified echo syntax works!
+echo Testing new echo format
+echo Multi word echo test
+SELECT 1 as test_value
+1

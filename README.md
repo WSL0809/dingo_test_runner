@@ -455,11 +455,11 @@ FROM users
 WHERE id = 1;
 
 # 变量定义和使用
-let $user_id = 1
+--let $user_id = 1
 SELECT * FROM users WHERE id = $user_id;
 
 # 控制流
-let $count = 5
+--let $count = 5
 if ($count > 0)
   SELECT 'positive';
 end
@@ -501,7 +501,7 @@ SELECT 2;
 
 ```sql
 # t/basic.test
-echo 开始基础测试
+--echo 开始基础测试
 
 CREATE TABLE users (
     id INTEGER PRIMARY KEY AUTO_INCREMENT,
@@ -510,11 +510,11 @@ CREATE TABLE users (
 
 INSERT INTO users (name) VALUES ('Alice'), ('Bob');
 
-echo 查询所有用户：
+--echo 查询所有用户：
 SELECT * FROM users ORDER BY id;
 
 DROP TABLE users;
-echo 基础测试完成
+--echo 基础测试完成
 ```
 
 运行：
@@ -530,19 +530,19 @@ cargo run -- basic
 
 ```sql
 # t/variables.test
-echo 变量系统测试
+--echo 变量系统测试
 
-let $user_count = 5
-let $table_name = test_users
-let $result = $user_count * 2
+--let $user_count = 5
+--let $table_name = test_users
+--let $result = $user_count * 2
 
-echo 用户数量: $user_count
-echo 表名: $table_name  
-echo 计算结果: $result
+--echo 用户数量: $user_count
+--echo 表名: $table_name  
+--echo 计算结果: $result
 
 # SQL 反引号表达式
-let $row_count = `SELECT COUNT(*) FROM information_schema.tables`
-echo 系统表数量: $row_count
+--let $row_count = `SELECT COUNT(*) FROM information_schema.tables`
+--echo 系统表数量: $row_count
 
 CREATE TABLE $table_name (id INT, name VARCHAR(50));
 INSERT INTO $table_name VALUES (1, 'User1');
@@ -554,19 +554,19 @@ DROP TABLE $table_name;
 
 ```sql
 # t/control_flow.test
-echo 控制流测试
+--echo 控制流测试
 
-let $count = 3
-let $i = 1
+--let $count = 3
+--let $i = 1
 
 while ($i <= $count)
-  echo 循环第 $i 次
+  --echo 循环第 $i 次
   SELECT $i as iteration;
   inc $i
 end
 
 if ($count > 2)
-  echo 数量大于2
+  --echo 数量大于2
   SELECT 'Large count' as result;
 end
 ```
@@ -575,7 +575,7 @@ end
 
 ```sql
 # t/concurrent.test
-echo 并发执行测试
+--echo 并发执行测试
 
 CREATE TABLE concurrent_test (id INT, value VARCHAR(50));
 
@@ -585,7 +585,7 @@ INSERT INTO concurrent_test VALUES (2, 'Thread2');
 INSERT INTO concurrent_test VALUES (3, 'Thread3');
 --end_concurrent
 
-sorted_result
+--sorted_result
 SELECT * FROM concurrent_test;
 
 DROP TABLE concurrent_test;
@@ -595,21 +595,21 @@ DROP TABLE concurrent_test;
 
 ```sql
 # t/enhanced_syntax.test
-echo 增强语法特性测试
+--echo 增强语法特性测试
 
-# 变量操作 - 无需 --let 语法
-let $counter = 0
-let $total = 100
+# 变量操作
+--let $counter = 0
+--let $total = 100
 
-echo 初始计数器: $counter
+--echo 初始计数器: $counter
 inc $counter
-echo 自增后: $counter
+--echo 自增后: $counter
 
 add $counter, 5
-echo 加法后: $counter
+--echo 加法后: $counter
 
 dec $total
-echo 减法后: $total
+--echo 减法后: $total
 
 # 批量操作
 CREATE TABLE batch_test (id INT, name VARCHAR(50));
@@ -620,18 +620,18 @@ batch_insert batch_test
 (3, 'Item3')
 end_batch
 
-echo 批量插入完成
+--echo 批量插入完成
 SELECT * FROM batch_test;
 
 # 事务管理
 begin_transaction
 
 UPDATE batch_test SET name = 'Modified' WHERE id = 1;
-echo 事务中修改数据
+--echo 事务中修改数据
 
 if ($counter > 5)
   commit_transaction
-  echo 事务已提交
+  --echo 事务已提交
 end
 
 DROP TABLE batch_test;
