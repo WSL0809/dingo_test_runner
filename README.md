@@ -1,25 +1,25 @@
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/WSL0809/dingo_test_runner)
 # MySQL Test Runner (Rust)
 
-一个兼容 MySQL 官方测试格式的测试运行器，用 Rust 重写，支持解析执行 `.test` 文件、结果比对、并发执行和多种报告格式。
+一个用 Rust 实现的 MySQL 测试运行器，支持解析执行 `.test` 文件、结果比对、并发执行和多种报告格式。
 
-## 🎯 项目特色
+## 项目特色
 
-- **完全兼容** MySQL 官方测试格式，支持 50+ 种查询类型和指令
-- **增强 DSL 语法** 新增 4 种语法特性，减少冗余，提升开发效率
+- **MySQL 测试格式兼容** 支持 50+ 种查询类型和指令
+- **扩展语法支持** 新增 4 种语法特性：
   - 控制流内省略 `--` 前缀
   - 变量自增/自减操作 (`inc $var`, `dec $var`)
   - 批量操作 (`batch_insert`, `batch_execute`, `end_batch`)
   - 事务管理简化 (`begin_transaction`, `commit_transaction`)
-- **Pest 语法解析器** 基于 Pest 库的高性能解析器架构
-- **文件级并发** 支持多个测试文件并行执行，3-8x 性能提升
-- **查询级并发** 支持 `--BEGIN_CONCURRENT` / `--END_CONCURRENT` 并发块
+- **Pest 语法解析器** 基于 Pest 库的解析器实现
+- **文件级并发** 支持多个测试文件并行执行
+- **查询级并发** 支持 `--begin_concurrent` / `--end_concurrent` 并发块
 - **多数据库支持** MySQL 8.0 + SQLite 本地调试
-- **丰富报告** Terminal 彩色输出、HTML、JUnit XML、Allure 企业级报告
+- **多种报告格式** Terminal 彩色输出、HTML、JUnit XML、Allure 报告
 - **变量系统** 支持 `--let` 变量定义、表达式求值、SQL 反引号表达式
 - **控制流** 支持 `if` / `while` 条件循环语句
 
-## 📊 架构概览
+## 架构概览
 
 系统采用分层架构，从命令行解析到测试执行，再到报告生成：
 
@@ -30,7 +30,7 @@ CLI 层 (cli.rs)          → 解析命令行参数，支持多种输入格式
   ↓  
 解析层 (parser.rs)       → Pest 语法解析器
   ↓
-执行层 (tester.rs)       → 核心测试引擎，串行+并发执行
+执行层 (tester.rs)       → 测试执行引擎，串行+并发执行
   ↓
 数据库层 (database.rs)   → MySQL/SQLite 抽象，连接管理
   ↓
@@ -64,7 +64,7 @@ graph TD
     style P fill:#fce4ec
 ```
 
-## 🚀 快速开始
+## 快速开始
 
 ### 环境要求
 
@@ -100,7 +100,7 @@ cargo run -- --all
 # 指定数据库连接
 cargo run -- --host 127.0.0.1 --port 3306 --user root --passwd password basic
 
-# 文件级并发执行（新功能）
+# 文件级并发执行
 cargo run -- --parallel 4 test1 test2 test3 test4
 ```
 
@@ -113,12 +113,12 @@ cargo run -- --record basic
 # 比对模式：与期望结果比对 (默认)
 cargo run -- basic
 
-# 自定义结果目录（新功能 🆕）
+# 自定义结果目录
 cargo run -- --record --result-dir results basic    # 生成 results/basic.result
 cargo run -- --result-dir results basic             # 比对 results/basic.result
 ```
 
-## 📁 目录结构与职责
+## 目录结构与职责
 
 ```
 src/
@@ -126,7 +126,7 @@ src/
 ├── cli.rs                     # 命令行参数解析，支持多种输入格式 (613行)
 ├── loader.rs                  # 测试文件发现和加载 (150行)
 ├── lib.rs                     # 库入口模块 (11行)
-├── tester/                    # 🔥 核心测试执行模块
+├── tester/                    # 测试执行模块
 │   ├── tester.rs              # 测试执行引擎，串行+并发 (2014行)
 │   ├── parser.rs              # 解析器抽象层和工厂函数 (89行)
 │   ├── pest_parser.rs         # Pest 语法解析器 (486行)
@@ -139,12 +139,12 @@ src/
 │   ├── error_handler.rs       # MySQL 错误码处理
 │   ├── registry.rs            # 命令注册表
 │   └── handlers/              # 各种命令处理器
-├── report/                    # 📊 报告生成系统
+├── report/                    # 报告生成系统
 │   ├── mod.rs                 # ReportRenderer trait 抽象
 │   ├── summary.rs             # 终端彩色输出
 │   ├── html.rs                # HTML 报告生成
 │   ├── xunit.rs               # JUnit XML 报告
-│   └── allure.rs              # Allure 企业级报告
+│   └── allure.rs              # Allure 报告
 ├── util/                      # 工具模块
 │   ├── regex.rs               # 正则表达式工具
 │   └── error_utils.rs         # 错误处理工具
@@ -152,7 +152,7 @@ src/
     └── email.rs               # 邮件通知功能
 ```
 
-## 🔧 执行链路详解
+## 执行链路详解
 
 ### 1. 命令行解析 (`cli.rs`)
 
@@ -222,7 +222,7 @@ impl Tester {
 }
 ```
 
-## 🎯 Tester 核心系统
+## Tester 核心系统
 
 ### 测试执行流程
 
@@ -298,7 +298,7 @@ impl VariableContext {
 }
 ```
 
-## 🔍 Parser 解析系统
+## Parser 解析系统
 
 ### Pest 解析器架构
 
@@ -366,7 +366,7 @@ let_stmt = { ^"let" ~ WHITESPACE* ~ let_assignment ~ NEWLINE? }
 | **正则替换** | `--replace_regex` | 结果替换 | `handlers/replace_regex.rs` |
 | **外部命令** | `--exec` | 系统命令执行 | `handlers/exec.rs` |
 
-## 📊 报告系统
+## 报告系统
 
 ### 多格式报告架构
 
@@ -398,7 +398,7 @@ pub fn create_renderer(format: &str) -> Result<Box<dyn ReportRenderer>> {
 | **Allure** | 企业级报告 | 丰富图表，历史趋势 |
 | **Plain Text** | 脚本处理 | 纯文本，易于解析 |
 
-## 🎛️ 命令行参数
+## 命令行参数
 
 ### 数据库连接
 ```bash
@@ -426,18 +426,19 @@ pub fn create_renderer(format: &str) -> Result<Box<dyn ReportRenderer>> {
 --allure-dir <dir>     # Allure 报告目录
 ```
 
-### 邮件通知 (需要 `--features email`)
+### 邮件通知
 ```bash
---email-smtp-server <server>    # SMTP 服务器
---email-smtp-port <port>        # SMTP 端口
---email-username <user>         # 邮箱用户名
---email-password <password>     # 邮箱密码
---email-from <email>            # 发件人邮箱
---email-to <emails>             # 收件人邮箱(逗号分隔)
---email-subject <subject>       # 邮件主题
+--email-enable               # 启用邮件通知
+--email-smtp-host <server>   # SMTP 服务器
+--email-smtp-port <port>     # SMTP 端口
+--email-username <user>      # 邮箱用户名
+--email-password <password>  # 邮箱密码
+--email-from <email>         # 发件人邮箱
+--email-to <emails>          # 收件人邮箱(逗号分隔)
+--email-enable-tls           # 启用TLS连接
 ```
 
-## 🧪 测试文件格式
+## 测试文件格式
 
 ### 基本语法
 
@@ -464,10 +465,10 @@ if ($count > 0)
 end
 
 # 并发执行
---BEGIN_CONCURRENT
+--begin_concurrent
 SELECT 1;
 SELECT 2;
---END_CONCURRENT
+--end_concurrent
 ```
 
 ### 支持的指令
@@ -483,7 +484,7 @@ SELECT 2;
 | | `add` | `add $var, <value>` | 变量加法 |
 | | `sub` | `sub $var, <value>` | 变量减法 |
 | **批量操作** | `batch_insert` | `batch_insert <table>` | 开始批量插入 |
-| | `batch_execute` | `batch_execute` | 执行批量操作 |
+| | `batch_execute` | `batch_execute` | 开始批量执行模式 |
 | | `end_batch` | `end_batch` | 结束批量操作 |
 | **事务控制** | `begin_transaction` | `begin_transaction` | 开始事务 |
 | | `commit_transaction` | `commit_transaction` | 提交事务 |
@@ -494,7 +495,7 @@ SELECT 2;
 | | `--exec` | `--exec <command>` | 执行系统命令 |
 | **连接管理** | `--connect` | `--connect (name,host,user,password,db)` | 连接管理 |
 
-## 📈 使用示例
+## 使用示例
 
 ### 基础测试
 
@@ -578,11 +579,11 @@ echo 并发执行测试
 
 CREATE TABLE concurrent_test (id INT, value VARCHAR(50));
 
---BEGIN_CONCURRENT
+--begin_concurrent
 INSERT INTO concurrent_test VALUES (1, 'Thread1');
 INSERT INTO concurrent_test VALUES (2, 'Thread2');
 INSERT INTO concurrent_test VALUES (3, 'Thread3');
---END_CONCURRENT
+--end_concurrent
 
 sorted_result
 SELECT * FROM concurrent_test;
@@ -614,10 +615,10 @@ echo 减法后: $total
 CREATE TABLE batch_test (id INT, name VARCHAR(50));
 
 batch_insert batch_test
-INSERT INTO batch_test VALUES (1, 'Item1');
-INSERT INTO batch_test VALUES (2, 'Item2');
-INSERT INTO batch_test VALUES (3, 'Item3');
-batch_execute
+(1, 'Item1')
+(2, 'Item2')
+(3, 'Item3')
+end_batch
 
 echo 批量插入完成
 SELECT * FROM batch_test;
@@ -636,7 +637,7 @@ end
 DROP TABLE batch_test;
 ```
 
-## 🔧 开发和调试
+## 开发和调试
 
 ### 日志调试
 
@@ -658,9 +659,9 @@ cargo run -- basic
 RUST_LOG=dingo_test_runner::tester::pest_parser=debug cargo run -- basic
 ```
 
-## 📋 常用命令快速操作手册
+## 常用命令快速操作手册
 
-### 🚀 基础测试命令
+### 基础测试命令
 
 ```bash
 # 基本测试执行
@@ -674,7 +675,7 @@ cargo run -- --record basic_test                           # 记录单个测试�
 cargo run -- --record t/examples/                          # 记录目录下所有测试
 ```
 
-### 🔗 数据库连接命令
+### 数据库连接命令
 
 ```bash
 # 标准MySQL连接
@@ -686,7 +687,7 @@ cargo run -- --host 127.0.0.1 --port 3306 --user root --passwd $DB_PASSWORD basi
 
 ```
 
-### ⚡ 并发执行命令
+### 并发执行命令
 
 ```bash
 # 文件级并发执行
@@ -698,7 +699,7 @@ cargo run -- --parallel 2 --all                           # 2线程运行所有�
 cargo run -- --parallel 4 --max-connections 8 t/demo_tests/
 ```
 
-### 📊 报告生成命令
+### 报告生成命令
 
 ```bash
 # 终端彩色输出（默认）
@@ -710,14 +711,14 @@ cargo run -- --report-format html basic_test > report.html
 # JUnit XML报告（CI/CD集成）
 cargo run -- --report-format xunit --xunit-file report.xml basic_test
 
-# Allure企业级报告
+# Allure报告
 cargo run -- --report-format allure --allure-dir ./allure-results basic_test
 
 # 纯文本报告（脚本处理）
 cargo run -- --report-format plain basic_test > report.txt
 ```
 
-### 🌍 环境隔离命令
+### 环境隔离命令
 
 ```bash
 # 开发环境测试
@@ -736,12 +737,12 @@ cargo run -- --extension ci t/examples/
 cargo run -- --extension mysql8 --record basic_test
 cargo run -- --extension mysql57 basic_test
 
-# 自定义结果目录 + 环境隔离（新功能 🆕）
+# 自定义结果目录 + 环境隔离
 cargo run -- --result-dir dev_results --extension dev --record basic_test
 cargo run -- --result-dir ci_results --extension ci t/examples/
 ```
 
-### 🛠️ 开发调试命令
+### 开发调试命令
 
 ```bash
 # 详细日志调试
@@ -759,7 +760,7 @@ cargo install flamegraph
 sudo cargo flamegraph --bin dingo_test_runner -- --parallel 4 t/examples/
 ```
 
-### 📧 邮件通知命令
+### 邮件通知命令
 
 ```bash
 # 设置邮件环境变量
@@ -780,12 +781,9 @@ cargo run -- --email-enable \
   basic_test
 ```
 
-### 🔍 故障排查命令
+### 故障排查命令
 
 ```bash
-# 检查测试文件语法
-cargo run -- --dry-run basic_test                          # 仅解析不执行
-
 # 单步调试模式
 cargo run -- --fail-fast true basic_test                   # 遇错即停
 cargo run -- --fail-fast false basic_test                  # 继续执行
@@ -793,12 +791,9 @@ cargo run -- --fail-fast false basic_test                  # 继续执行
 # 连接测试
 cargo run -- --host 127.0.0.1 --port 3306 --user root --passwd 123456 \
   --max-connections 1 simple_connection_test
-
-# 清理测试环境
-cargo run -- --cleanup-db basic_test                       # 清理测试数据库
 ```
 
-### 🎯 批处理脚本示例
+### 批处理脚本示例
 
 ```bash
 # 一键开发测试脚本 (dev_test.sh)
