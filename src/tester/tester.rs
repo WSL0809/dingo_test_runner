@@ -346,9 +346,17 @@ impl Tester {
                 result.add_error(format!("Failed to write result file: {}", e));
             }
         } else {
-            // Verify all expected results were consumed
-            if let Err(e) = self.verify_expected_consumed() {
-                result.add_error(format!("Result verification failed: {}", e));
+            // Only verify expected results if no queries failed
+            // This avoids redundant error reporting when query failures cause result mismatches
+            if result.failed_queries == 0 {
+                if let Err(e) = self.verify_expected_consumed() {
+                    result.add_error(format!("Result verification failed: {}", e));
+                }
+            } else {
+                // If queries failed, just log a debug message instead of adding another error
+                if let Err(_) = self.verify_expected_consumed() {
+                    debug!("Skipping result verification due to previous query failures");
+                }
             }
         }
 

@@ -4,12 +4,69 @@
 //! Currently supports MySQL, with extensible design for future database backends.
 
 use anyhow::{anyhow, Result};
-use log::{debug, info, trace, warn};
+use log::{debug, error, info, trace, warn};
 use std::time::Duration;
 use crate::util::memory_pool::{get_row_data, get_string_vec, PooledRowData};
 
-/// 默认读/写超时时长（秒）
-const QUERY_TIMEOUT_SECS: u64 = 5;
+/// 网络超时配置常量
+const TCP_CONNECT_TIMEOUT_SECS: u64 = 3;  // TCP连接建立超时
+const CONNECTION_GET_TIMEOUT_SECS: u64 = 2;  // 从连接池获取连接的超时
+const DEFAULT_READ_TIMEOUT_SECS: u64 = 30;   // 默认读超时（大数据操作）
+const DEFAULT_WRITE_TIMEOUT_SECS: u64 = 30;  // 默认写超时（大数据操作）
+const QUICK_QUERY_TIMEOUT_SECS: u64 = 10;    // 快速查询超时
+
+/// 连接池配置常量
+const POOL_MIN_CONNECTIONS: usize = 2;
+const POOL_MAX_CONNECTIONS: usize = 10;
+
+/// 操作类型枚举，用于动态超时配置
+#[derive(Debug, Clone, Copy)]
+pub enum OperationType {
+    /// 快速查询（如 SELECT count(*), SHOW TABLES）
+    QuickQuery,
+    /// 数据库DDL操作（CREATE/DROP DATABASE/TABLE）
+    DatabaseDDL,
+    /// 大数据操作（INSERT/UPDATE 大量数据）
+    BulkOperation,
+    /// 默认操作
+    Default,
+}
+
+/// 获取操作类型对应的连接获取超时
+fn get_connection_timeout_for_operation(op_type: OperationType) -> Duration {
+    match op_type {
+        OperationType::QuickQuery => Duration::from_secs(1),
+        OperationType::DatabaseDDL => Duration::from_secs(5),
+        OperationType::BulkOperation => Duration::from_secs(10),
+        OperationType::Default => Duration::from_secs(CONNECTION_GET_TIMEOUT_SECS),
+    }
+}
+
+/// 根据SQL语句自动检测操作类型
+fn detect_operation_type(sql: &str) -> OperationType {
+    let sql_upper = sql.trim().to_uppercase();
+    
+    if sql_upper.starts_with("SELECT COUNT") 
+        || sql_upper.starts_with("SHOW TABLES")
+        || sql_upper.starts_with("SHOW DATABASES")
+        || sql_upper.starts_with("DESCRIBE")
+        || sql_upper.starts_with("EXPLAIN") {
+        OperationType::QuickQuery
+    } else if sql_upper.starts_with("CREATE DATABASE")
+        || sql_upper.starts_with("DROP DATABASE")
+        || sql_upper.starts_with("CREATE TABLE")
+        || sql_upper.starts_with("DROP TABLE")
+        || sql_upper.starts_with("ALTER TABLE") {
+        OperationType::DatabaseDDL
+    } else if sql_upper.starts_with("INSERT INTO")
+        || sql_upper.starts_with("UPDATE")
+        || sql_upper.starts_with("DELETE FROM")
+        || sql_upper.contains("--SOURCE") {
+        OperationType::BulkOperation
+    } else {
+        OperationType::Default
+    }
+}
 
 /// Database connection abstraction
 #[derive(Debug)]
@@ -109,9 +166,11 @@ impl MySQLDatabase {
             .tcp_port(info.port)
             .user(Some(&info.user))
             .pass(Some(&info.password))
-            // 设置网络读/写超时，防止后端长时间无响应导致阻塞
-            .read_timeout(Some(Duration::from_secs(QUERY_TIMEOUT_SECS)))
-            .write_timeout(Some(Duration::from_secs(QUERY_TIMEOUT_SECS)));
+            // TCP连接建立超时（快速检测网络问题）
+            .tcp_connect_timeout(Some(Duration::from_secs(TCP_CONNECT_TIMEOUT_SECS)))
+            // 设置网络读/写超时，适合大数据操作
+            .read_timeout(Some(Duration::from_secs(DEFAULT_READ_TIMEOUT_SECS)))
+            .write_timeout(Some(Duration::from_secs(DEFAULT_WRITE_TIMEOUT_SECS)));
 
         if !info.database.is_empty() {
             opts = opts.db_name(Some(&info.database));
@@ -128,6 +187,7 @@ impl MySQLDatabase {
             }
         }
 
+        // 使用默认连接池配置（MySQL 26.0.0 不支持手动配置）
         let pool = mysql::Pool::new(opts)?;
 
         Ok(MySQLDatabase {
@@ -138,19 +198,81 @@ impl MySQLDatabase {
     }
 
     pub fn get_pooled_connection(&self) -> Result<mysql::PooledConn> {
-        self.pool.get_conn().map_err(Into::into)
+        self.get_pooled_connection_with_timeout(Duration::from_secs(CONNECTION_GET_TIMEOUT_SECS))
+    }
+
+    pub fn get_pooled_connection_with_timeout(&self, timeout: Duration) -> Result<mysql::PooledConn> {
+        let mut attempt = 0;
+        let max_attempts = 3;
+        let mut delay = Duration::from_millis(100);
+        
+        loop {
+            attempt += 1;
+            
+            match self.pool.try_get_conn(timeout) {
+                Ok(conn) => return Ok(conn),
+                Err(e) => {
+                    let should_retry = match &e {
+                        mysql::Error::DriverError(mysql::DriverError::Timeout) => {
+                            warn!("Connection pool timeout (attempt {}/{}): no connections available within {:?}", 
+                                  attempt, max_attempts, timeout);
+                            attempt < max_attempts
+                        },
+                        mysql::Error::IoError(io_err) => {
+                            if io_err.kind() == std::io::ErrorKind::WouldBlock 
+                                || io_err.kind() == std::io::ErrorKind::TimedOut 
+                                || io_err.to_string().contains("Resource temporarily unavailable") {
+                                warn!("Resource temporarily unavailable (attempt {}/{}): {}", 
+                                      attempt, max_attempts, io_err);
+                                attempt < max_attempts
+                            } else {
+                                false
+                            }
+                        },
+                        _ => false
+                    };
+                    
+                    if !should_retry || attempt >= max_attempts {
+                        return Err(match e {
+                            mysql::Error::DriverError(mysql::DriverError::Timeout) => {
+                                anyhow!("Connection pool exhausted after {} attempts: no connections available within {:?}", 
+                                        max_attempts, timeout)
+                            },
+                            mysql::Error::IoError(io_err) if io_err.to_string().contains("Resource temporarily unavailable") => {
+                                anyhow!("Database connection failed after {} attempts: {}. \
+                                        This may indicate network issues or MySQL server overload. \
+                                        Try reducing concurrent connections or increasing connection pool size.", 
+                                        max_attempts, io_err)
+                            },
+                            _ => e.into()
+                        });
+                    }
+                    
+                    trace!("Retrying connection after {:?} delay...", delay);
+                    std::thread::sleep(delay);
+                    delay = std::cmp::min(delay * 2, Duration::from_secs(2));
+                }
+            }
+        }
     }
 
     pub fn query(&mut self, sql: &str) -> Result<PooledRowData> {
+        let op_type = detect_operation_type(sql);
+        self.query_with_operation_type(sql, op_type)
+    }
+
+    pub fn query_with_operation_type(&mut self, sql: &str, op_type: OperationType) -> Result<PooledRowData> {
         use mysql::prelude::Queryable;
 
-        trace!("-> exec: {}", sql);
-        // 尝试复用已有连接；若不可用则从连接池重新获取。
+        trace!("-> exec ({:?}): {}", op_type, sql);
+        let connection_timeout = get_connection_timeout_for_operation(op_type);
+        
+        
         if self.conn.is_none() {
-            self.conn = Some(self.pool.get_conn()?);
+            self.conn = Some(self.get_pooled_connection_with_timeout(connection_timeout)?);
         }
 
-        // 这里通过 match 单独取出 &mut 引用
+
         let result: Result<Vec<mysql::Row>, mysql::Error> = {
             let conn_ref = self.conn.as_mut().unwrap();
             conn_ref.query(sql)
@@ -169,7 +291,8 @@ impl MySQLDatabase {
                         );
                         // 丢弃旧连接并重新获取
                         self.conn = None;
-                        if let Ok(mut new_conn) = self.pool.get_conn() {
+                        if let Ok(new_conn) = self.get_pooled_connection_with_timeout(connection_timeout) {
+                            let mut new_conn = new_conn;
                             // 将新连接放入缓存，供后续复用
                             let new_rows: Vec<mysql::Row> = new_conn.query(sql)?;
                             self.conn = Some(new_conn);
@@ -233,10 +356,18 @@ impl MySQLDatabase {
     }
 
     pub fn execute(&mut self, sql: &str) -> Result<()> {
+        let op_type = detect_operation_type(sql);
+        self.execute_with_operation_type(sql, op_type)
+    }
+
+    pub fn execute_with_operation_type(&mut self, sql: &str, op_type: OperationType) -> Result<()> {
         use mysql::prelude::Queryable;
 
+        trace!("-> execute ({:?}): {}", op_type, sql);
+        let connection_timeout = get_connection_timeout_for_operation(op_type);
+        
         if self.conn.is_none() {
-            self.conn = Some(self.pool.get_conn()?);
+            self.conn = Some(self.get_pooled_connection_with_timeout(connection_timeout)?);
         }
 
         let exec_result = {
@@ -251,7 +382,7 @@ impl MySQLDatabase {
                 {
                     warn!("MySQL connection broken during execute, attempting to reconnect. Error: {}", io_err);
                     self.conn = None;
-                    let mut new_conn = self.pool.get_conn()?;
+                    let mut new_conn = self.get_pooled_connection_with_timeout(connection_timeout)?;
                     new_conn.query_drop(sql)?;
                     self.conn = Some(new_conn);
                     return Ok(());
@@ -333,14 +464,35 @@ impl MySQLDatabase {
         // Step 1: Drop existing database
         trace!("Dropping existing database '{}' if exists", test_db);
         let drop_start = std::time::Instant::now();
-        self.execute(&format!("DROP DATABASE IF EXISTS `{}`", test_db))?;
+        
+        let drop_sql = format!("DROP DATABASE IF EXISTS `{}`", test_db);
+        self.execute_with_operation_type(&drop_sql, OperationType::DatabaseDDL)?;
         trace!("Database drop completed in {:?} for '{}'", drop_start.elapsed(), test_db);
         
         // Step 2: Create new database
         trace!("Creating new database '{}'", test_db);
         let create_start = std::time::Instant::now();
-        self.execute(&format!("CREATE DATABASE `{}`", test_db))?;
-        trace!("Database creation completed in {:?} for '{}'", create_start.elapsed(), test_db);
+        
+        // 使用 DatabaseDDL 操作类型，获得更长的连接超时
+        let create_sql = format!("CREATE DATABASE `{}`", test_db);
+        match self.execute_with_operation_type(&create_sql, OperationType::DatabaseDDL) {
+            Ok(_) => {
+                trace!("Database creation completed in {:?} for '{}'", create_start.elapsed(), test_db);
+            },
+            Err(e) => {
+                error!("Failed to create database '{}': {}", test_db, e);
+                // 对于数据库创建失败，提供更详细的错误信息
+                return Err(anyhow!(
+                    "Failed to create test database '{}': {}. \
+                    This may be caused by: \
+                    1) MySQL server connection issues \
+                    2) Insufficient privileges for database creation \
+                    3) Server resource exhaustion. \
+                    Please check MySQL server status and connection parameters.", 
+                    test_db, e
+                ));
+            }
+        }
         
         // Step 3: Switch to the new database
         trace!("Switching to database '{}'", test_db);
@@ -431,10 +583,39 @@ impl MySQLDatabase {
         Ok(())
     }
 
-    /// 切换当前数据库连接到一个新的数据库
-    pub fn switch_database(&mut self, new_db_name: &str) -> Result<()> {
+    /// 快速数据库切换（使用 USE 命令）
+    /// 这是最快的数据库切换方式，直接在现有连接上执行 USE 命令
+    fn quick_switch_database(&mut self, new_db_name: &str) -> Result<()> {
         let start_time = std::time::Instant::now();
-        trace!("Starting database switch to '{}'", new_db_name);
+        trace!("Starting quick database switch to '{}'", new_db_name);
+        
+        // 验证数据库名称（防止 SQL 注入）
+        if new_db_name.contains('`') || new_db_name.contains(';') || new_db_name.contains('\0') {
+            return Err(anyhow!("Invalid database name: contains illegal characters"));
+        }
+        
+        // 使用现有连接执行 USE 命令
+        let use_sql = format!("USE `{}`", new_db_name);
+        trace!("Executing quick switch: {}", use_sql);
+        
+        // 使用 QuickQuery 操作类型，获得更快的连接超时
+        self.execute_with_operation_type(&use_sql, OperationType::QuickQuery)?;
+        
+        // 更新内部状态
+        self.info.database = new_db_name.to_string();
+        
+        let total_time = start_time.elapsed();
+        debug!("Quick database switch to '{}' completed in {:?}", new_db_name, total_time);
+        trace!("quick_switch_database completed in {:?} for '{}'", total_time, new_db_name);
+        
+        Ok(())
+    }
+    
+    /// 传统数据库切换（重建连接池）
+    /// 这是降级方案，当快速切换失败时使用
+    fn recreate_pool_switch_database(&mut self, new_db_name: &str) -> Result<()> {
+        let start_time = std::time::Instant::now();
+        warn!("Using fallback pool recreation method for database switch to '{}'", new_db_name);
         
         let mut new_info = self.info.clone();
         new_info.database = new_db_name.to_string();
@@ -447,8 +628,9 @@ impl MySQLDatabase {
             .tcp_port(new_info.port)
             .user(Some(&new_info.user))
             .pass(Some(&new_info.password))
-            .read_timeout(Some(Duration::from_secs(QUERY_TIMEOUT_SECS)))
-            .write_timeout(Some(Duration::from_secs(QUERY_TIMEOUT_SECS)));
+            .tcp_connect_timeout(Some(Duration::from_secs(TCP_CONNECT_TIMEOUT_SECS)))
+            .read_timeout(Some(Duration::from_secs(DEFAULT_READ_TIMEOUT_SECS)))
+            .write_timeout(Some(Duration::from_secs(DEFAULT_WRITE_TIMEOUT_SECS)));
 
         if !new_info.database.is_empty() {
             opts = opts.db_name(Some(&new_info.database));
@@ -457,6 +639,8 @@ impl MySQLDatabase {
 
         trace!("Creating new MySQL connection pool for '{}'", new_db_name);
         let pool_start = std::time::Instant::now();
+        
+        // 使用默认连接池配置
         let new_pool = mysql::Pool::new(opts)?;
         trace!("MySQL pool created in {:?} for '{}'", pool_start.elapsed(), new_db_name);
 
@@ -467,9 +651,49 @@ impl MySQLDatabase {
         self.conn = None;
 
         let total_time = start_time.elapsed();
-        debug!("Switched database connection to '{}' in {:?}", new_db_name, total_time);
-        trace!("Database switch completed in {:?} for '{}'", total_time, new_db_name);
+        warn!("Fallback pool recreation switch to '{}' completed in {:?}", new_db_name, total_time);
+        
         Ok(())
+    }
+    
+    /// 切换当前数据库连接到一个新的数据库
+    /// 优先尝试快速切换，失败时降级到连接池重建
+    pub fn switch_database(&mut self, new_db_name: &str) -> Result<()> {
+        let overall_start = std::time::Instant::now();
+        info!("Switching database to '{}' using optimized strategy", new_db_name);
+        
+        // 策略 1: 尝试快速切换（USE 命令）
+        match self.quick_switch_database(new_db_name) {
+            Ok(_) => {
+                let total_time = overall_start.elapsed();
+                info!("Database switch to '{}' completed successfully using quick method in {:?}", 
+                      new_db_name, total_time);
+                Ok(())
+            },
+            Err(quick_error) => {
+                warn!("Quick database switch failed: {}. Attempting fallback method...", quick_error);
+                
+                // 策略 2: 降级到连接池重建
+                match self.recreate_pool_switch_database(new_db_name) {
+                    Ok(_) => {
+                        let total_time = overall_start.elapsed();
+                        warn!("Database switch to '{}' completed using fallback method in {:?}", 
+                              new_db_name, total_time);
+                        Ok(())
+                    },
+                    Err(fallback_error) => {
+                        let total_time = overall_start.elapsed();
+                        error!("All database switch methods failed for '{}' after {:?}", 
+                               new_db_name, total_time);
+                        Err(anyhow!(
+                            "Failed to switch to database '{}': Quick method failed ({}), \
+                             Fallback method failed ({}). Total time: {:?}",
+                            new_db_name, quick_error, fallback_error, total_time
+                        ))
+                    }
+                }
+            }
+        }
     }
 }
 
